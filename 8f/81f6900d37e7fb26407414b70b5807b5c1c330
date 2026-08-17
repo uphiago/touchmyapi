@@ -1,0 +1,21 @@
+.gitignore
+  s_37736b567d1556::t_af8fa4093e5038 1-7
+docs/superpowers/specs/2026-08-17-touchmyapi-platform.md
+  s_37736b567d1556::t_f105f10e2fa93d 1-248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "8f81f6900d37e7fb26407414b70b5807b5c1c330",
+  "prompts": {},
+  "sessions": {
+    "s_37736b567d1556": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a010c5-6514-70a2-8080-351302a75c40",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
