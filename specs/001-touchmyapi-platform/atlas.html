@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TouchMyAPI — Atlas do design (planta em papel de projeto)</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="80" font-size="80">🗺️</text></svg>'>
+<style>
+  :root{
+    --paper:#f4efe6; --paper2:#ebe3d2; --ink:#22312f; --mut:#7c817b;
+    --line1:#d9d1bc; --line2:#cfc6ae;
+    --brick:#d45828; --gold:#e9a227; --slate:#2b4057; --green:#3d7358;
+    --rail:52px; --panel:392px; --mapW:calc(100vw - var(--rail) - var(--panel));
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;background:var(--paper);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .hatchbg{position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      repeating-linear-gradient(0deg, transparent 0 33px, var(--line1) 33px 34px),
+      repeating-linear-gradient(90deg, transparent 0 33px, var(--line1) 33px 34px);}
+  .hatchbg::after{content:"";position:absolute;inset:0;opacity:.5;
+    background:repeating-linear-gradient(45deg, transparent 0 11px, rgba(214,205,183,.35) 11px 13px);}
+
+  #topbar{position:fixed;top:0;left:0;right:0;height:52px;z-index:20;display:flex;align-items:center;
+    gap:14px;padding:0 16px;background:var(--paper);border-bottom:1px solid var(--ink);}
+  #topbar .brand{display:flex;align-items:baseline;gap:10px;white-space:nowrap}
+  #topbar .brand b{font-weight:750;font-size:15px;letter-spacing:.2px}
+  #topbar .brand span{font-size:12px;color:var(--mut)}
+  .stat{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-size:12px;color:var(--ink)}
+  .stat b{font-weight:700;font-variant-numeric:tabular-nums}
+  .stats{display:flex;gap:16px;margin-left:auto;align-items:center}
+  .dot{width:9px;height:9px;border-radius:1px;display:inline-block}
+
+  #rail{position:fixed;top:52px;left:0;bottom:0;width:var(--rail);z-index:15;
+    background:var(--paper);border-right:1px solid var(--line1);overflow:hidden}
+  #rail .g{display:flex;flex-direction:column;align-items:center;padding:8px 0;cursor:pointer;
+    border-bottom:1px solid var(--line1);gap:2px}
+  #rail .g .sw{width:22px;height:4px}
+  #rail .g small{font-size:9px;letter-spacing:.5px;color:var(--mut);text-align:center;line-height:1}
+  #rail .g.active{background:var(--paper2)}
+
+  #panel{position:fixed;top:52px;right:0;bottom:0;width:var(--panel);z-index:15;overflow-y:auto;
+    background:var(--paper);border-left:1px solid var(--ink);padding:18px 20px 40px}
+  #panel h1{font-size:15px;margin:0 0 2px;font-weight:750}
+  #panel .meta{font-size:11.5px;color:var(--mut);margin-bottom:16px}
+  #panel h2{font-size:11px;text-transform:uppercase;letter-spacing:1.4px;margin:22px 0 6px;color:var(--ink);font-weight:700}
+  #panel p, #panel li{font-size:13px}
+  #panel ul{margin:4px 0;padding-left:18px}
+  #panel .loc{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:11.5px;background:#e5ddc9;border:1px solid var(--line1);border-radius:3px;padding:1px 7px;margin-right:6px}
+  #panel .kicker{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--mut)}
+  .friends{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+  .friend{font-size:11px;background:#e9e2cf;border:1px solid var(--line1);border-radius:3px;padding:2px 7px}
+  .friend i{font-style:normal;color:var(--mut)}
+  #panel .btn{display:inline-block;margin-top:10px;font-size:12.5px;padding:6px 12px;border:1px solid var(--ink);
+    background:var(--ink);color:var(--paper);cursor:pointer;border-radius:2px;letter-spacing:.3px}
+  #panel .btn.ghost{background:transparent;color:var(--ink)}
+  #panel .tracebtn{width:100%;margin-top:8px}
+
+  #stage{position:fixed;top:52px;left:var(--rail);right:var(--panel);bottom:0;z-index:10}
+  #stage svg{width:100%;height:100%;display:block;background:var(--paper)}
+  .blk{cursor:pointer}
+  .blk .f{stroke:var(--ink);stroke-width:1.1;stroke-linejoin:round}
+  .blk .label{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:var(--ink)}
+  .blk .plate rect{fill:var(--paper);stroke:var(--ink);stroke-width:1}
+  .blk .plate text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:var(--ink);text-anchor:middle}
+  .blk .plate .n{font-size:10px;font-weight:700}
+  .blk .plate .s{font-size:8.5px;fill:var(--mut)}
+  .blk .plate{opacity:0;transition:opacity .12s;pointer-events:none}
+  .blk:hover .plate,.blk.sel .plate,.blk.trace .plate{opacity:1}
+  .blk .ccode{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:9px;fill:var(--ink);font-weight:700;text-anchor:middle;pointer-events:none}
+  .blk.trace .ccode{fill:#b3261e}
+  .blk:hover .f{stroke-width:1.8}
+  .blk.sel .f{stroke-width:2}
+  .blk.sel .plate rect{stroke-width:1.6}
+  .blk.trace .f{stroke-width:2.2;stroke:#b3261e}
+  .blk.trace .plate rect{stroke:#b3261e;stroke-width:1.4}
+  .exthead{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:9.5px;fill:var(--ink);text-transform:uppercase;letter-spacing:.9px}
+  .edge .rail{fill:none;stroke:var(--mut);stroke-width:1.1;stroke-dasharray:0}
+  .edge.dashed .rail{stroke-dasharray:4 4}
+  .edge .paydot{fill:var(--ink);pointer-events:none}
+  .extlabel{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:9.5px;fill:var(--mut)}
+  .leader{stroke:var(--mut);stroke-width:.8;stroke-dasharray:2 4;fill:none;opacity:.8}
+
+  #subview{position:absolute;inset:0;z-index:12;background:var(--paper);display:none}
+  #subview.vis{display:block}
+  #subview svg{width:100%;height:100%;display:block}
+  #subview .close{position:absolute;top:14px;left:14px;z-index:3;display:flex;gap:10px;align-items:center}
+  #subview .close .btn{}
+
+  #tracebar{position:absolute;left:0;right:0;bottom:0;z-index:13;padding:10px 18px 12px;display:flex;gap:14px;
+    align-items:center;background:var(--paper);border-top:1px solid var(--ink)}
+  #tracebar .tlabel{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut);white-space:nowrap}
+  #tracebar .tstep{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;white-space:nowrap}
+  #tracebar .ttext{font-size:13px;flex:1;min-height:18px}
+  .tsel{font-size:13px;padding:5px 10px;border:1px solid var(--ink);border-radius:2px;background:transparent;cursor:pointer;letter-spacing:.3px}
+  .tsel:hover{background:var(--ink);color:var(--paper)}
+
+  ::selection{background:var(--ink);color:var(--paper)}
+  @media (prefers-reduced-motion: reduce){ .paydot{display:none} }
+  @media (max-width:1180px){ :root{--panel:330px;--rail:44px} }
+</style>
+</head>
+<body>
+<div class="hatchbg"></div>
+
+<div id="topbar">
+  <div class="brand">
+    <b>TouchMyAPI — Atlas do design</b>
+    <span>spec/kit SDD · branch 001 · 2026-08-17</span>
+  </div>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div id="rail" aria-hidden="true"></div>
+
+<div id="stage">
+  <svg id="map" xmlns="http://www.w3.org/2000/svg" role="img"
+       aria-label="Mapa isométrico do repositório ativo: dossiê de design TouchMyAPI."></svg>
+
+  <div id="subview">
+    <div class="close">
+      <button class="btn ghost" id="subclose">← voltar ao mapa</button>
+      <span class="kicker" id="subtitle"></span>
+    </div>
+    <svg id="submap"></svg>
+  </div>
+
+  <div id="tracebar">
+    <div class="tlabel">spec-track 001</div>
+    <button class="tsel" id="traceplay">▶ percorrer</button>
+    <button class="tsel" id="tracenext">próximo ›</button>
+    <div class="tstep" id="tsteps"></div>
+    <div class="ttext" id="ttext"></div>
+  </div>
+</div>
+
+<div id="panel">
+  <h1 id="ptitle">O repositório em uma planta</h1>
+  <div class="meta" id="pmeta">18 estruturas medidas por linha conteada (wc -l). Zero linhas executáveis.</div>
+  <h2>O que este lugar é</h2>
+  <p id="pwhat">Este não é um produto rodando, é um <b>laboratório de especificação</b>: um motor
+  de documento (spec-kit) que transforma uma intenção em um dossiê completo de produto —
+  spec, plano, pesquisa, modelo de dados, contratos, tarefas e quickstart — sob uma constituição
+  vinculante de seis princípios. Nenhuma linha aqui executa. <b>Tudo é projeto.</b></p>
+  <h2>Como está construído</h2>
+  <p id="phow">Um workflow governa o ciclo, dez comandos de agente (em <span style="font-family:ui-monospace">.opencode/commands/</span>)
+  dirigem um motor de shell e templates (em <span style="font-family:ui-monospace">.specify/</span>) que
+  gravam artefatos versionados em <span style="font-family:ui-monospace">specs/001-touchmyapi-platform/</span>.
+  A constituição bloqueia decisões; o produto especificado só será construído depois.</p>
+  <div id="ppanel-tail"></div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   ATLAS — motor isométrico, offline, sem dependências.
+   Projeção:  x=(gx-gy)*26   y=(gx+gy)*14.3 − h*16
+   Pintura por painter-order em (gx+gy). Filtros planos, pesados.
+   ============================================================ */
+
+const SX=26, SY=14.3, SH=16;
+
+/* ---- grupos: cor chapada (topo/faceL/faceR), nome ---- */
+const GRP={
+  src:{name:"fonte semente", top:"#e9a227", L:"#c98610", R:"#b07608", sw:"var(--gold)"},
+  constitut:{name:"constituição", top:"#f0e3b2", L:"#d8c787", R:"#c0ab68", sw:"#b09a52"},
+  engine:{name:"motor spec/kit", top:"#e0713f", L:"#c05a25", R:"#a84c1e", sw:"var(--brick)"},
+  cmd:{name:"comandos do agente", top:"#425a77", L:"#2f4257", R:"#243448", sw:"#1f2f40"},
+  dossier:{name:"dossiê do produto", top:"#4e8c6f", L:"#3d7358", R:"#356244", sw:"#2e5a4b"},
+  deliver:{name:"entregáveis", top:"#8da0b4", L:"#72869b", R:"#62748a", sw:"#5a6c80"},
+  root:{name:"raiz do repo", top:"#d9cfb8", L:"#c2b599", R:"#aC9d80", sw:"#9c8e6f"}
+};
+
+/* NOTE share-safety: NENHUMA variável de .env é reproduzida aqui;
+   o arquivo aparece como laje "local, gitignored".             */
+
+const STR=[
+ {id:"seed", code:"SEED", name:"spec de produto", grp:"src",
+  gx0:.2, gy0:.2, w:1.4, d:1.4, h:3.2, loc:"247 linhas",
+  what:"A origem: a especificação de produto e arquitetura v0.1 do TouchMyAPI — plataforma de assessments autorizados com login Google, planos, fila, runner isolado, agente privado, IA não-executora e relatórios.",
+  how:"Documento único markdown em docs/superpowers/specs/ com 13 seções: produto, decisões confirmadas, planos, jornada e estados, arquitetura proposta, segurança por design, agente privado, billing, auditoria, operação, fora da V1, aceite e próxima etapa.",
+  talks:[{t:"spec", what:"vira a feature spec"}],
+  children:null, slab:false},
+ {id:"const", code:"CONST", name:"constituição v1.0.0", grp:"constitut",
+  gx0:2.4, gy0:.2, w:1.4, d:1.4, h:2.4, loc:"53 linhas",
+  what:"A lei do projeto. Seis princípios vinculantes: (I) só assessments autorizados, (II) o motor de política é a autoridade final, (III) isolamento default-deny por RLS, (IV) runner e credenciais least-privilege, (V) IA não-executora, (VI) mudança financeira só por webhook verificado.",
+  how:"Arquivo de memória em .specify/memory/constitution.md, versionado semanticamente (1.0.0), ratificado em 2026-08-17. Os dez comandos de agente o carregam antes de gerar qualquer artefato; AGENTS.md espelha sua orientação de runtime.",
+  talks:[{t:"spec", what:"governa requisitos"},{t:"plan",what:"gate de passagem"},{t:"cmd",what:"carregada antes de gerar"}],
+  children:null, slab:false},
+ {id:"engsh", code:"MOT", name:"motor de shell", grp:"engine",
+  gx0:.2, gy0:2.6, w:1.8, d:1.8, h:7.2, loc:"1.245 linhas · 5 scripts",
+  what:"A maquinaria que executa o spec/kit: bootstrap de feature, templates e planos/tarefas. Fábrica pesada à esquerda — cada script é um comando executável de verificação, criação e instalação.",
+  how:"Scripts bash em .specify/scripts/bash/: common.sh (582) compartilha helpers; create-new-feature.sh (299) cria a feature; check-prerequisites.sh (200) valida ambiente; setup-plan.sh (84) e setup-tasks.sh (91) materializam estrutura.",
+  talks:[{t:"cmd",what:"invocado pelos comandos"},{t:"tmpl",what:"resolve templates"},{t:"seed",what:"não toca; só infra"}],
+  children:[
+    {code:"01", name:"common.sh",  h:6.4, loc:"582", what:"helpers compartilhados do motor: log, paths, erro, guardas de ambiente."},
+    {code:"02", name:"create-new-feature.sh", h:3.6, loc:"299", what:"cria diretório+número de feature e a raiz do dossiê."},
+    {code:"03", name:"check-prerequisites.sh", h:2.6, loc:"189", what:"Verifica versões e requisitos antes de cada fase."},
+    {code:"04", name:"setup-tasks.sh", h:1.8, loc:"91", what:"initializa o arquivo de tarefas."},
+    {code:"05", name:"setup-plan.sh", h:1.8, loc:"84", what:"initializa o arquivo de plano."}
+  ], slab:false},
+ {id:"tmpl", code:"TPL", name:"templates", grp:"engine",
+  gx0:2.4, gy0:2.6, w:1.5, d:1.8, h:4.8, loc:"586 linhas · 5 moldes",
+  what:"Os moldes em branco que tornam o processo determinístico: toda spec, plano, tarefa, checklist e constituição nasce de um esqueleto igual.",
+  how:"Cinco arquivos markdown em .specify/templates/: tasks (252), spec (131), plan (113), constitution (50), checklist (40). O comando /speckit.specify copia o molde correto para dentro da feature e depois escreve por cima.",
+  talks:[{t:"spec",what:"molda a spec"},{t:"plan",what:"molda o plano"},{t:"tasks",what:"molda as tarefas"},{t:"chk",what:"molda os checklists"}],
+  children:null, slab:false},
+ {id:"workflow", code:"FLOW", name:"workflow speckit", grp:"engine",
+  gx0:.4, gy0:5.0, w:1.2, d:1.2, h:2.2, loc:"89 linhas",
+  what:"O trilho de governança que orquestra o ciclo: specify → review → plan → review → tasks → implement, com portões (gates) de aprovação humana entre fases.",
+  how:"yaml em .specify/workflows/speckit/workflow.yml (77) mais registro workflow-registry.json (12); declara `requires` (speckit ≥0.8.5) e integrações aceitas (claude/copilot/gemini/opencode).",
+  talks:[{t:"cmd",what:"encadeia comandos"},{t:"spec",what:"abre com specify"}],
+  children:null, slab:false},
+ {id:"engcfg", code:"CFG", name:"config · registro", grp:"engine",
+  gx0:2.5, gy0:5.0, w:1.2, d:1.2, h:2.2, loc:"~45 linhas · 5 json",
+  what:"O estado do processo: qual a feature ativa, qual integração, opções de inicialização e o registro da extensão instalada.",
+  how:"feature.json aponta para specs/001-touchmyapi-platform; integration.json (opencode, separador '.'); init-options.json (version 0.10.2, numbering sequential); integrations/open- e speckit.manifest.json; extensions/.registry (sha256 da extensão).",
+  talks:[{t:"spec",what:"resolver feature"},{t:"cmd",what:"binda integração"}],
+  children:null, slab:false},
+ {id:"ext", code:"EXT", name:"extensão agent-context", grp:"engine",
+  gx0:.4, gy0:6.6, w:1.6, d:1.4, h:3.4, loc:"321 linhas",
+  what:"Um gancho pós-especificação e pós-plano que regenera o AGENTS.md do ambiente — mantém a orientação de runtime sincronizada com os artefatos.",
+  how:"Em .specify/extensions/agent-context/: script bash update-agent-context.sh (200) mais README (57), comando (26), extension.yml (34) e config (4); não é executado automaticamente (optional, auto_execute_hooks).",
+  talks:[{t:"root",what:"atualiza AGENTS.md"},{t:"agent_env",what:"escreve orientação"}],
+  children:null, slab:false},
+ {id:"cmd", code:"SKCMD", name:"comandos do agente", grp:"cmd",
+  gx0:.3, gy0:8.2, w:2.4, d:1.9, h:8.8, loc:"2.103 linhas · 10 comandos",
+  what:"A força de trabalho: os dez slash-commands (specify, plan, tasks, implement, clarify, checklist, analyze, constitution, taskstoissues, agent-context.update) que transformam intenção em artefatos versionados.",
+  how:"Um doc markdown por comando em .opencode/commands/speckit.*.md — o maior é specify (343) e checklist (363); cada um contém fluxo executável, ganchos e portões. É o bloco mais alto da planta.",
+  talks:[{t:"spec",what:"escreve a feature spec"},{t:"plan",what:"gera plano+pesquisa+modelo"},{t:"tasks",what:"gera 70 tarefas"},{t:"engsh",what:"chama o motor de shell"},{t:"tmpl",what:"consuma templates"},{t:"chk",what:"valida qualidade"}],
+  children:[
+    {code:"SK", name:"specify",  h:3.6, loc:"343", what:"cria/atualiza a feature spec a partir da descrição em linguagem natural."},
+    {code:"SK", name:"checklist",h:3.8, loc:"363", what:"avalia qualidade de spec/requirements antes de seguir."},
+    {code:"SK", name:"clarify",  h:3.0, loc:"279", what:"resolvem ambiguidades pendentes da spec."},
+    {code:"SK", name:"analyze",  h:2.7, loc:"249", what:"análise transversal dos artefatos da feature."},
+    {code:"SK", name:"implement",h:2.4, loc:"213", what:"direciona a implementação a partir das tarefas."},
+    {code:"SK", name:"tasks",    h:2.4, loc:"213", what:"gera o plano de tarefas testável por user story."},
+    {code:"SK", name:"plan",     h:2.0, loc:"168", what:"gera plano de implementação + pesquisa + modelo de dados."},
+    {code:"SK", name:"constitution",h:1.9, loc:"150", what:"mantém a constituição do projeto."},
+    {code:"SK", name:"taskstoissues",h:1.5, loc:"97", what:"projeta tarefas em issues de tracker."},
+    {code:"SK", name:"agent-context.update",h:1.2, loc:"28", what:"regenera o contexto do agente após fases."}
+  ], slab:false},
+ {id:"spec", code:"FS", name:"feature spec", grp:"dossier",
+  gx0:4.8, gy0:1.6, w:1.4, d:1.2, h:2.8, loc:"158 linhas",
+  what:"A especificação funcional da feature 001: 4 user stories (pipeline de assessment, planos/billing, relatórios, agente privado), 21 requisitos funcionais e 10 critérios de sucesso.",
+  how:"specs/001-touchmyapi-platform/spec.md, gerada pelo /speckit.specify a partir do molde; cada FR é testável, cada SC é quantitativo; entidades-chave listadas; gerada sob a constituição.",
+  talks:[{t:"plan",what:"alimenta o plano"},{t:"chk",what:"validada por checklist"},{t:"seed",what:"nascida da spec de produto"}],
+  children:null, slab:false},
+ {id:"plan", code:"PLAN", name:"plano de implementação", grp:"dossier",
+  gx0:6.8, gy0:1.6, w:1.4, d:1.2, h:2.4, loc:"95 linhas",
+  what:"O plano fatiado e testável: stack Bun 1.x + Hono + Vite/React, monorepo de apps/packages/infra/tests, e o gate da constituição (PASS em todos os seis princípios).",
+  how:"specs/001-touchmyapi-platform/plan.md, produto do /speckit.plan; define estrutura de diretórios (apps/web, apps/api, apps/worker-control, apps/agent, packages/db, contracts, policy, playbooks, reporting, secrets, runner, ui) e acompanha custos de complexidade.",
+  talks:[{t:"rsch",what:"resolve incógnitas"},{t:"dm",what:"gera modelo de dados"},{t:"ctr",what:"gera contratos"},{t:"qs",what:"gera quickstart"},{t:"tasks",what:"gera tarefas"}],
+  children:null, slab:false},
+ {id:"rsch", code:"RSH", name:"pesquisa técnica", grp:"dossier",
+  gx0:8.8, gy0:1.6, w:1.4, d:1.2, h:2.4, loc:"97 linhas",
+  what:"Os 11 vereditos que destravam o plano: Hono+Bun, Drizzle+RLS (pgPolicy/pgRole), fila Postgres SKIP LOCKED, webhook Stripe raw-body idempotente, openid-client PKCE, runner rootless Podman+gVisor, verificação por arquivo HTTP ou DNS TXT, fetch SSRF-safe com IP pinado, DeepSeek/Codex, react-pdf, agente WS outbound.",
+  how:"specs/001-touchmyapi-platform/research.md (R1-R11): cada item registra decisão/rationale/alternativas. Zero incógnitas restantes — sem NEEDS CLARIFICATION.",
+  talks:[{t:"dm",what:"permite modelar dados"},{t:"ctr",what:"permite contratar"},{t:"qs",what:"guia validação"}],
+  children:null, slab:false},
+ {id:"dm", code:"DM", name:"modelo de dados · RLS", grp:"dossier",
+  gx0:5.6, gy0:3.0, w:2.0, d:1.6, h:3.6, loc:"292 linhas",
+  what:"Vinte entidades sob account_id (account, user, session, assessment, attestation, verification, playbook, job, runner_execution, credential, finding, report, credit_entry, billing_event, entitlement, agent, audit_event, notification) com Row-Level Security default-deny.",
+  how:"specs/001-touchmyapi-platform/data-model.md: roles de runtime api_rls/worker_rls/reporting_rls sem bypass; set_config('app.tenant') + set local role por transação; machine de estados de 8 estados; auditoria append-only encadeada. testes/isolation/ provam SC-002.",
+  talks:[{t:"ctr",what:"funda os contratos"},{t:"tasks",what:"tarefa T014-T016"}],
+  children:null, slab:false},
+ {id:"qs", code:"QS", name:"quickstart validável", grp:"dossier",
+  gx0:8.2, gy0:3.1, w:1.8, d:1.2, h:2.4, loc:"94 linhas",
+  what:"O roteiro de prova end-to-end: oito cenários executáveis (login+isolamento, RLS, assessment passivo, ativo exige verificação, resiliência da fila, entitlement por webhook, gating de plano, agente privado) que mapeiam 1:1 os critérios SC-001..SC-010.",
+  how:"specs/001-touchmyapi-platform/quickstart.md referencia contratos e modelo de dados; deixa explícito que nenhuma implementação existe ainda — é usado na fase de exemplo.",
+  talks:[{t:"tasks",what:"valida critérios de aceite"}],
+  children:null, slab:false},
+ {id:"ctr", code:"CTR", name:"contratos versionados", grp:"deliver",
+  gx0:10.8, gy0:2.6, w:1.4, d:1.8, h:3.4, loc:"261 linhas · 5 docs",
+  what:"As interfaces travadas antes de qualquer código: API REST /api/v1, playbook schema v1, job spec assinado (Ed25519) + artifact manifest, export JSON / webhook / audit chained.",
+  how:"specs/001-touchmyapi-platform/contracts/: api.md (62), playbook.md (55), job.md (65), export.md (72), index.md (12). A fonte da verdade em zod ficará em packages/contracts — estes são a referência humana versionada.",
+  talks:[{t:"tasks",what:"T009 — schemas zod"},{t:"client_world",what:"descreve o mundo externo planejado"}],
+  children:[
+    {code:"C", name:"api.md",   h:2.6, loc:"62", what:"endpoints REST do cliente web: sessão, assessments, billing, agents, notificações, signed URLs."},
+    {code:"C", name:"job.md",   h:2.7, loc:"65", what:"unidade de despacho assinada + canal de credenciais + artifact manifest."},
+    {code:"C", name:"export.md",h:2.9, loc:"72", what:"JSON report@1, billing@1, audit@1 — shapes versionados sem segredos."},
+    {code:"C", name:"playbook.md",h:2.4, loc:"55", what:"contrato JSON da versão do playbook + lista fechada de ações."},
+    {code:"C", name:"index.md", h:1.2, loc:"12", what:"sumário dos contratos e política de versionamento."}
+  ], slab:false},
+ {id:"tasks", code:"TKS", name:"70 tarefas · 6 fases", grp:"deliver",
+  gx0:10.2, gy0:5.2, w:1.8, d:1.6, h:3.4, loc:"258 linhas",
+  what:"O plano de execução de T001 a T070: Setup → Foundational (bloqueia todas as stories) → US1 pipeline → US2 billing → US3 relatórios → US4 agente privado → polish. Foundational É o gatilho; nada começa antes dele.",
+  how:"specs/001-touchmyapi-platform/tasks.md organiza por user story com testes escritos antes de implementar e checkpoints; marca [P] o que é paralelizável; define ordem de entrega MVP-first com stop-and-validate.",
+  talks:[{t:"root",what:"ordem de build espelhada no AGENTS.md"}],
+  children:null, slab:false},
+ {id:"chk", code:"CHK", name:"checklists de qualidade", grp:"deliver",
+  gx0:12.4, gy0:4.9, w:1.2, d:1.4, h:2.2, loc:"76 linhas",
+  what:"Duas grades de validação do dossiê: requirements.md (spec completa, testável, critérios mensuráveis) e quality.md (18 critérios CHK001-CHK018, inclusos todos aprovados).",
+  how:"specs/001-touchmyapi-platform/checklists/: requirements (37 linhas) e quality (41 linhas). Aprovados em 2026-08-17; conferem que a especificação está pronta para plano/tarefas.",
+  talks:[],
+  children:[
+    {code:"K", name:"requirements.md", h:1.6, loc:"37", what:"conteúdo e completude da spec pronta para o plano."},
+    {code:"K", name:"quality.md", h:1.7, loc:"41", what:"18 critérios CHK001-CHK018 de qualidade de requisitos; todos aprovados."}
+  ], slab:false},
+ {id:"root", code:"AG", name:"AGENTS.md", grp:"root",
+  gx0:8.6, gy0:6.4, w:1.2, d:1.0, h:1.6, loc:"11 linhas",
+  what:"A ponte runtime: aponta o agente para o plano/spec, lista artefatos de contexto e fixa a ordem de build (auth + isolamento + máquina de estados + fila + visualização primeiro; depois Stripe, verificação, relatórios, agente privado).",
+  how:"AGENTS.md na raiz, espelho da constituição e da ordem do plano; mantido em sincronia pelo gancho agent-context.",
+  talks:[{t:"seed",what:"aponta artefatos de contexto"}],
+  children:null, slab:true},
+ {id:"env", code:"ENV", name:"config local · gitignored", grp:"root",
+  gx0:12.4, gy0:6.6, w:1.2, d:1.0, h:1.6, loc:"local, fora do git",
+  what:"A laje de ambiente: .env com chaves de teste para Stripe/Google e .gitignore que a protege. NENHUM segredo aparece neste atlas — apenas o fato de existir laje local.",
+  how:"Arquivos da raiz .env (3 linhas) e .gitignore (6 linhas), ambos fora do versionamento por regra .env.*; .env.example no futuro (tarefa T006).",
+  talks:[], children:null, slab:true}
+];
+
+/* ---- arestas: f→t, dashed=advisory, pay=o que trafega, via=desvios ---- */
+const EDGES=[
+ {f:"seed",   t:"spec",  pay:"especificação de produto", flow:1},
+ {f:"const",  t:"spec",  pay:"seis princípios vinculantes", dashed:1},
+ {f:"const",  t:"plan",  pay:"gate de conformidade", dashed:1},
+ {f:"const",  t:"cmd",   pay:"carregada antes de gerar artefatos", dashed:1},
+ {f:"tmpl",   t:"spec",  pay:"molde da feature spec", flow:1, via:[[3.1,1.2],[4.2,1.4]]},
+ {f:"workflow",t:"cmd",  pay:"orquestra specify→plan→tasks→implement", dashed:1},
+ {f:"cmd",    t:"engsh", pay:"invoca o motor de shell", flow:1, via:[[1.0,7.6],[0.6,6.0]]},
+ {f:"cmd",    t:"tmpl",  pay:"resolve templates", flow:1, via:[[2.2,7.4],[2.4,5.6]]},
+ {f:"cmd",    t:"spec",  pay:"escreve a feature spec", flow:1, via:[[3.3,6.2],[4.2,3.4]]},
+ {f:"cmd",    t:"plan",  pay:"gera plano+pesquisa+modelo", flow:1, via:[[4.0,5.4],[6.4,3.0]]},
+ {f:"cmd",    t:"tasks", pay:"gera 70 tarefas", flow:1, via:[[4.4,6.4],[8.6,6.4]]},
+ {f:"spec",   t:"plan",  pay:"requisitos + critérios", flow:1},
+ {f:"plan",   t:"rsch",  pay:"resolve incógnitas", flow:1},
+ {f:"plan",   t:"dm",    pay:"entidades e RLS", flow:1},
+ {f:"plan",   t:"qs",    pay:"cenários de validação", flow:1},
+ {f:"plan",   t:"ctr",   pay:"contratos de interface", flow:1, via:[[9.4,2.4],[10.4,2.6]]},
+ {f:"rsch",   t:"dm",    pay:"veredictos técnicos", flow:1},
+ {f:"dm",     t:"ctr",   pay:"entidades → schemas", flow:1, via:[[9.6,4.2],[10.4,3.6]]},
+ {f:"dm",     t:"tasks", pay:"T014-T016 (schema+RLS)", flow:1, via:[[8.6,4.8],[9.4,5.5]]},
+ {f:"qs",     t:"tasks", pay:"critérios de aceite", dashed:1},
+ {f:"ext",    t:"root",  pay:"regenera AGENTS.md", dashed:1, via:[[1.6,7.9],[4.6,7.4],[7.0,6.9]]},
+ {f:"tasks",  t:"root",  pay:"ordem de build", dashed:1},
+ {f:"spec",   t:"chk",   pay:"valida qualidade", flow:1, via:[[6.4,2.9],[9.0,4.6],[11.0,4.6]]},
+ {f:"plan",   t:"chk",   pay:"valida clareza", dashed:1, via:[[8.6,2.9],[10.6,4.4],[11.8,4.6]]}
+];
+
+/* ---- externos planejados (fora do mapa) ---- */
+const EXTERNALS=[
+ {anchor:"ctr", lx:404, ly:104, label:"mundo externo — planejado, fora do mapa:"},
+ {anchor:"ctr", lx:404, ly:120, label:"Google OAuth · Stripe · PostgreSQL"},
+ {anchor:"ctr", lx:404, ly:136, label:"Podman + gVisor · object storage"},
+ {anchor:"ctr", lx:404, ly:152, label:"DeepSeek · Codex"}
+];
+
+/* ---- stats ---- */
+const STATS=[
+ ["6.330", "linhas", "#d45828"], ["53", "arquivos", "#b07608"],
+ ["18", "estruturas", "#3d7358"], ["6", "princípios", "#b09a52"],
+ ["21", "FR", "#2f4257"], ["10", "critérios", "#72869b"], ["70", "tarefas", "#5a6c80"]
+];
+
+/* ---- trace: passo-a-passo de um pedido canônico ---- */
+const TRACE=[
+ ["seed","A spec de produto (docs/superpowers/specs/2026-08-17-touchmyapi-platform.md) é a primeira coisa do repositório e define o TouchMyAPI inteiro."],
+ ["cmd","O software é invocado: /speckit.specify recebe a descrição 'plataforma de assessments autorizados com login Google, planos, fila, runner isolado, agente privado, IA e relatórios'."],
+ ["const","Antes de gerar qualquer coisa, o comando carrega a Constituição v1.0.0 — seis princípios vinculantes governam tudo abaixo."],
+ ["tmpl","O comando resolve o molde certo (spec-template.md) e o copia para specs/001-touchmyapi-platform/."],
+ ["spec","spec.md é escrita e validada: 4 user stories, 21 requisitos funcionais, 10 critérios de sucesso; todos medidos."],
+ ["chk","Os checklists de qualidade aprovam o dossiê — requirements e quality (18 critérios CHK) passam."],
+ ["cmd","/speckit.plan transforma a spec em plano de implementação, com gate de conformidade contra a constituição."],
+ ["rsch","A pesquisa técnica resolve as 11 incógnitas (R1-R11) — nenhum bloco de decisão fica aberto."],
+ ["dm","O modelo de dados é desenhado: entidades sob account_id com RLS default-deny e a máquina de estados."],
+ ["ctr","Os contratos versionados travam API, playbook, job assinado e export JSON antes de uma linha de código."],
+ ["qs","O quickstart define 8 cenários executáveis que mapeiam 1:1 os critérios de sucesso."],
+ ["cmd","/speckit.tasks grava tasks.md: 70 tarefas em seis fases; Foundational bloqueia todas as user stories."],
+ ["tasks","A planta de execução está pronta: T001-T008 (Setup) são os próximos passos; ordem de build espelhada em AGENTS.md."],
+ ["root","O pipeline para aqui. Nenhuma linha executável existe — a cidade é puro design."]
+];
+
+/* ============================================================
+   motor de projeção
+   ============================================================ */
+function P(gx,gy,h){ return {x:(gx-gy)*SX, y:(gx+gy)*SY - (h||0)*SH}; }
+function cellCenter(s){ return P(s.gx0+s.w/2, s.gy0+s.d/2, 0); }
+
+/* máscaras p/ hit e destaque */
+let byId={}; STR.forEach(s=>byId[s.id]=s);
+
+function pts(s){
+  const x0=s.gx0, y0=s.gy0, w=s.w, d=s.d, h=s.h;
+  const A=P(x0    , y0    , h), B=P(x0+w  , y0    , h),
+        C=P(x0+w  , y0+d  , h), D=P(x0    , y0+d  , h);
+  const Ab=P(x0  , y0), Bb=P(x0+w, y0), Cb=P(x0+w, y0+d), Db=P(x0, y0+d);
+  const t=intersectionOf(A,B,C,D);
+  return {A,B,C,D,Ab,Bb,Cb,Db,t,fc:[A,B,C,D], lf:[D,C,Cb,Db], rf:[B,C,Cb,Bb], tc:{x:t, y:(A.y+C.y)/2}};
+}
+/* topo: os 4 cantos superiores; faces laterais: esquerda (D-C) e direita (B-C) */
+/* centro óptico do topo (média dos cantos) */
+function intersectionOf(...pts){
+  let minX=1e9,maxX=-1e9;
+  pts.forEach(p=>{if(p.x<minX)minX=p.x;if(p.x>maxX)maxX=p.x});
+  return (minX+maxX)/2;
+}
+function ptStr(list){ return list.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" "); }
+function pathStr(list){ return "M"+list.map(p=>`${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" L")+" Z"; }
+
+function centerOfTop(s){
+  const g=P(s.gx0+s.w/2, s.gy0+s.d/2, s.h);
+  return g;
+}
+
+/* rota em L entre dois centros com desvios */
+function route(s1,s2,via){
+  let out=[];
+  const a=centerOfTop(s1), b=centerOfTop(s2);
+  const ptsA=[a];
+  (via||[]).forEach(v=>ptsA.push(P(v[0],v[1],0)));
+  out.push(a);
+  let prev=a;
+  (via||[]).forEach(v=>{
+    const p=P(v[0],v[1],0);
+    const mx=(prev.x+p.x)/2;
+    out.push({x:mx,y:prev.y});
+    out.push({x:mx,y:p.y});
+    out.push(p);
+    prev=p;
+  });
+  const mx=(prev.x+b.x)/2;
+  out.push({x:mx,y:prev.y});
+  out.push({x:mx,y:b.y});
+  out.push(b);
+  return out;
+}
+
+function edStr(pts){ return "M"+pts.map(p=>`${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" L"); }
+
+/* ============================================================
+   render do mapa
+   ============================================================ */
+const map=document.getElementById("map");
+function viewFor(svg, items, extra){
+  let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+  items.forEach(s=>{
+    const cx=s.gx0+s.w/2, cy=s.gy0+s.d/2;
+    const a=P(s.gx0,s.gy0,0), b=P(s.gx0+s.w,s.gy0+s.d,0), t=P(cx,cy,s.h);
+    minX=Math.min(minX,a.x); maxX=Math.max(maxX,b.x);
+    minY=Math.min(minY,a.y,t.y); maxY=Math.max(maxY,b.y);
+  });
+  if(extra) extra.forEach(e=>{
+    if(e.x!=null) minX=Math.min(minX,e.x);
+    if(e.x2!=null) maxX=Math.max(maxX,e.x2);
+    if(e.y!=null) minY=Math.min(minY,e.y);
+    if(e.y2!=null) maxY=Math.max(maxY,e.y2);
+  });
+  const pad=72;
+  svg.setAttribute("viewBox",`${minX-pad} ${minY-pad} ${(maxX-minX)+2*pad} ${(maxY-minY)+2*pad}`);
+}
+function viewAll(){
+  const w=Math.max(...EXTERNALS.map(e=>e.label.length))*5.7+30;
+  viewFor(map, STR, [{x:392, x2:404+w, y:86, y2:170}]);
+}
+
+function drawBlocksInto(svg, items){
+  /* painter order por gx+gy */
+  const sorted=[...items].sort((a,b)=>(a.gx0+a.w/2+a.gy0+a.d/2)-(b.gx0+b.w/2+b.gy0+b.d/2));
+  let g=document.createElementNS("http://www.w3.org/2000/svg","g");
+  sorted.forEach(s=>{
+    const grp=GRP[s.grp];
+    const p=pts(s);
+    const blk=document.createElementNS("http://www.w3.org/2000/svg","g");
+    blk.setAttribute("class","blk");
+    blk.setAttribute("data-id",s.id);
+    /* topo */
+    const top=document.createElementNS("http://www.w3.org/2000/svg","polygon");
+    top.setAttribute("points",ptStr(p.fc));
+    top.setAttribute("fill",grp.top); top.setAttribute("stroke","var(--ink)"); top.setAttribute("stroke-width","1.1"); top.setAttribute("stroke-linejoin","round");
+    top.setAttribute("class","f");
+    if(!s.slab){
+      /* faces */
+      const lf=document.createElementNS("http://www.w3.org/2000/svg","polygon");
+      lf.setAttribute("points",ptStr(p.lf)); lf.setAttribute("fill",grp.L); lf.setAttribute("stroke","var(--ink)"); lf.setAttribute("stroke-width","1.1"); lf.setAttribute("class","f");
+      const rf=document.createElementNS("http://www.w3.org/2000/svg","polygon");
+      rf.setAttribute("points",ptStr(p.rf)); rf.setAttribute("fill",grp.R); rf.setAttribute("stroke","var(--ink)"); rf.setAttribute("stroke-width","1.1"); rf.setAttribute("class","f");
+      blk.appendChild(rf); blk.appendChild(lf);
+    }
+    blk.appendChild(top);
+    /* catch-hit transparente */
+    const hit=document.createElementNS("http://www.w3.org/2000/svg","polygon");
+    const hpoints=[...p.fc];
+    if(!s.slab){ hpoints.push(...p.lf.slice(2)); hpoints.push(...p.rf.slice(2)); }
+    hit.setAttribute("points", ptStr(hpoints));
+    hit.setAttribute("fill","transparent"); hit.setAttribute("pointer-events","all");
+    blk.appendChild(hit);
+    /* código curto no topo (sempre visível) */
+    const cc=document.createElementNS("http://www.w3.org/2000/svg","text");
+    cc.setAttribute("class","ccode");
+    cc.setAttribute("x",p.tc.x); cc.setAttribute("y",p.tc.y+3);
+    cc.textContent=s.code;
+    blk.appendChild(cc);
+    /* plate central (revelado no hover/seleção) */
+    const c=centerOfTop(s);
+    const plate=document.createElementNS("http://www.w3.org/2000/svg","g");
+    plate.setAttribute("class","plate");
+    const w=s.w*SX*1.02, hh=s.h>=2.2? 34 : 30;
+    const rw=Math.max(w,92);
+    const rx=c.x-rw/2, ry=c.y-hh/2-4;
+    const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    rect.setAttribute("x",rx); rect.setAttribute("y",ry); rect.setAttribute("width",rw); rect.setAttribute("height",hh);
+    rect.setAttribute("rx","3");
+    const t1=document.createElementNS("http://www.w3.org/2000/svg","text");
+    t1.setAttribute("x",c.x); t1.setAttribute("y",ry+16); t1.setAttribute("class","n"); t1.textContent=s.code;
+    const t2=document.createElementNS("http://www.w3.org/2000/svg","text");
+    t2.setAttribute("x",c.x); t2.setAttribute("y",ry+26); t2.setAttribute("class","s"); t2.textContent=s.name;
+    plate.appendChild(rect); plate.appendChild(t1); plate.appendChild(t2);
+    blk.appendChild(plate);
+    g.appendChild(blk);
+  });
+  svg.appendChild(g);
+  return svg;
+}
+
+function drawEdgesInto(svg, edges){
+  let g=document.createElementNS("http://www.w3.org/2000/svg","g");
+  edges.forEach(e=>{
+    const s1=byId[e.f], s2=byId[e.t];
+    if(!s1||!s2) return;
+    const pts=route(s1,s2,e.via);
+    let eg=document.createElementNS("http://www.w3.org/2000/svg","g");
+    eg.setAttribute("class","edge"+(e.dashed?" dashed":""));
+    const rail=document.createElementNS("http://www.w3.org/2000/svg","path");
+    rail.setAttribute("d",edStr(pts));
+    rail.setAttribute("fill","none"); rail.setAttribute("class","rail");
+    rail.setAttribute("data-pay",e.pay||e.f+"→"+e.t);
+    eg.appendChild(rail);
+    if(e.flow){
+      /* dot animado */
+      const pathEl=document.createElementNS("http://www.w3.org/2000/svg","path");
+      pathEl.setAttribute("d",edStr(pts));
+      pathEl.setAttribute("fill","none");
+      pathEl.id="pf-"+e.f+"-"+e.t;
+      eg.appendChild(pathEl);
+      const dot=document.createElementNS("http://www.w3.org/2000/svg","circle");
+      dot.setAttribute("r","2.6"); dot.setAttribute("class","paydot"); dot.setAttribute("fill","var(--paper)");
+      dot.setAttribute("stroke","var(--ink)"); dot.setAttribute("stroke-width","1.2");
+      const m=document.createElementNS("http://www.w3.org/2000/svg","animateMotion");
+      m.setAttribute("dur","3.4s"); m.setAttribute("repeatCount","indefinite");
+      m.setAttribute("path",edStr(pts));
+      dot.appendChild(m);
+      eg.appendChild(dot);
+    }
+    g.appendChild(eg);
+  });
+  svg.insertBefore(g, svg.firstChild);
+}
+
+function drawExternalsInto(svg){
+  const head=EXTERNALS[0];
+  const a=byId[head.anchor]; if(!a) return;
+  const c=centerOfTop(a);
+  const g=document.createElementNS("http://www.w3.org/2000/svg","g");
+  g.setAttribute("pointer-events","none");
+  /* linha de chamada tracejada */
+  const ln=document.createElementNS("http://www.w3.org/2000/svg","line");
+  ln.setAttribute("class","leader");
+  ln.setAttribute("x1",c.x+34); ln.setAttribute("y1",c.y-6);
+  ln.setAttribute("x2",head.lx-14); ln.setAttribute("y2",head.ly+12);
+  g.appendChild(ln);
+  /* caixa tracejada de anotação */
+  const boxW=Math.max(...EXTERNALS.map(e=>e.label.length))*5.8+28;
+  const boxH=EXTERNALS.length*16+12;
+  const box=document.createElementNS("http://www.w3.org/2000/svg","rect");
+  box.setAttribute("x",head.lx-14); box.setAttribute("y",head.ly-19);
+  box.setAttribute("width",boxW); box.setAttribute("height",boxH);
+  box.setAttribute("rx","3"); box.setAttribute("fill","var(--paper)");
+  box.setAttribute("stroke","var(--mut)"); box.setAttribute("stroke-width",".8");
+  box.setAttribute("stroke-dasharray","3 3");
+  g.appendChild(box);
+  EXTERNALS.forEach(e=>{
+    const tx=document.createElementNS("http://www.w3.org/2000/svg","text");
+    tx.setAttribute("class", e===head?"exthead":"extlabel");
+    tx.setAttribute("x",e.lx); tx.setAttribute("y",e.ly);
+    tx.textContent=e.label;
+    g.appendChild(tx);
+  });
+  svg.appendChild(g);
+}
+
+/* ============================================================
+   UI: rail, painel, trace
+   ============================================================ */
+const railEl=document.getElementById("rail");
+const statsEl=document.getElementById("stats");
+const panelRefs={title:document.getElementById("ptitle"),meta:document.getElementById("pmeta"),
+  what:document.getElementById("pwhat"),how:document.getElementById("phow"),tail:document.getElementById("ppanel-tail")};
+
+let sel=null;   /* estrutura selecionada */
+let subOf=null; /* estrutura cujo submapa está aberto */
+
+
+function buildStats(){
+  statsEl.innerHTML="";
+  STATS.forEach(([v,l,c])=>{
+    const s=document.createElement("span");
+    s.className="stat";
+    s.innerHTML=`<span class="dot" style="background:${c}"></span><b>${v}</b>${l}`;
+    statsEl.appendChild(s);
+  });
+}
+
+function buildRail(){
+  railEl.innerHTML="";
+  const order=["src","constitut","engine","cmd","dossier","deliver","root"];
+  order.forEach(gk=>{
+    const grp=GRP[gk];
+    const items=STR.filter(s=>s.grp===gk);
+    if(!items.length) return;
+    const g=document.createElement("div");
+    g.className="g"; g.dataset.grp=gk;
+    const sum=items.reduce((a,s)=>a+(s.rows||0),0);
+    g.innerHTML=`<div class="sw" style="background:${grp.sw}"></div><small>${items.length}</small>`;
+    g.addEventListener("click",()=>{ flashGroup(gk); });
+    railEl.appendChild(g);
+  });
+}
+
+function flashGroup(gk){
+  const ids=STR.filter(s=>s.grp===gk).map(s=>s.id);
+  document.querySelectorAll("#map .blk").forEach(b=>{
+    const on=ids.includes(b.dataset.id);
+    b.style.opacity = on?"1":"0.28";
+    b.style.transition="opacity .3s";
+  });
+  const railClose=()=>document.querySelectorAll("#map .blk").forEach(b=>{b.style.opacity="1"});
+  setTimeout(railClose,1400);
+}
+
+function renderPanel(s){
+  if(!s){ renderHome(); return; }
+  const hasChild=s.children&&s.children.length;
+  panelRefs.title.textContent = s.code+" — "+s.name;
+  panelRefs.meta.innerHTML = `<span class="loc">${s.loc}</span><span class="kicker">grupo: ${GRP[s.grp].name}</span>`+
+    (hasChild?`<span class="kicker"> · submapa ⤓</span>`:"");
+  panelRefs.what.innerHTML = s.what;
+  panelRefs.how.innerHTML  = s.how;
+  const friends=s.talks&&s.talks.length? s.talks.map(t=>`<span class="friend">→ <b>${t.t.toUpperCase()}</b> <i>${t.what}</i></span>`).join(""):"<span class='friend'><i>sem dependências</i></span>";
+  const drill=hasChild? `<button class="btn" id="btndrill">entrar em ${s.code} ⤓ (${s.children.length} peças)</button>`:"";
+  panelRefs.tail.innerHTML =
+    `<h2>fala com</h2><div class="friends">${friends}</div>${drill}`+
+    `<h2>navegação</h2>`+
+    `<button class="btn tracebtn" id="btntrace">▶ trace 001 até aqui</button>`;
+  const d=document.getElementById("btndrill"); if(d) d.onclick=()=>openSub(s.id);
+  const t=document.getElementById("btntrace"); if(t) t.onclick=()=>startTraceTo(s.id);
+}
+function renderHome(){
+  panelRefs.title.textContent="O repositório em uma planta";
+  panelRefs.meta.innerHTML = `<span class="loc">18 estruturas</span><span class="kicker">medidas por wc -l · design, não runtime</span>`;
+  panelRefs.what.textContent="Este não é um produto rodando, é um laboratório de especificação: um motor de documento (spec-kit) que transforma uma intenção em um dossiê completo de produto — spec, plano, pesquisa, modelo de dados, contratos, tarefas e quickstart — sob uma constituição vinculante de seis princípios. Nenhuma linha aqui executa. Tudo é projeto.";
+  panelRefs.how.textContent="Um workflow governa o ciclo, dez comandos de agente (em .opencode/commands/) dirigem um motor de shell e templates (em .specify/) que gravam artefatos versionados em specs/001-touchmyapi-platform/. A constituição bloqueia decisões; o produto especificado só será construído depois.";
+  panelRefs.tail.innerHTML=`<h2>convenções</h2>
+    <p style="font-size:12.5px;color:var(--mut)">Blocos altos = mais linhas medidas. Arestas sólidas = fluxo de geração real; tracejadas = governança/advisório. Passe o mouse para ler cada estrutura; <b>clique em estruturas com ⤓ para entrar no submapa</b>.</p>`;
+}
+
+/* ---- submapa ---- */
+const submap=document.getElementById("submap");
+const subview=document.getElementById("subview");
+function openSub(id){
+  const s=byId[id];
+  if(!s||!s.children) return;
+  subOf=s;
+  subview.classList.add("vis");
+  document.getElementById("subtitle").textContent= s.code+" · "+s.name+" — "+s.children.length+" peças";
+  submap.innerHTML="";
+  /* layout local: 2 colunas por linha, gy cresce a cada linha */
+  const items=s.children.map((c,i)=>{
+    const gx= i%2===0? 1.0 : 3.0;
+    const gy= Math.floor(i/2)*3.0 + 1.5;
+    return Object.assign({}, c,
+      {gx0:gx-0.9, gy0:gy-0.7, w:1.4, d:1.0, grp:s.grp, id:"sub-"+i});
+  });
+  drawBlocksInto(submap, items);
+  viewFor(submap, items);
+  /* evento */
+  submap.querySelectorAll(".blk").forEach(b=>{
+    b.addEventListener("mouseenter",ev=>{
+      const idx=+b.dataset.id.replace("sub-","");
+      renderSubPanel(s.children[idx]);
+    });
+    b.addEventListener("click",ev=>{
+      const idx=+b.dataset.id.replace("sub-","");
+      startTraceSingle(s.children[idx], b);
+    });
+  });
+}
+function renderSubPanel(c){
+  panelRefs.title.textContent = subOf.code+" · "+(c.name||"");
+  panelRefs.meta.innerHTML=`<span class="loc">${c.loc} linhas</span><span class="kicker">submapa de ${subOf.code}</span>`;
+  panelRefs.what.innerHTML=c.what||"peça do submapa";
+  panelRefs.how.innerHTML = c.how||"descrição em construção";
+  panelRefs.tail.innerHTML=`<button class="btn" id="subclose2">← voltar ao mapa</button>`;
+  document.getElementById("subclose2").onclick=closeSub;
+}
+document.getElementById("subclose").addEventListener("click",closeSub);
+function closeSub(){
+  subview.classList.remove("vis");
+  subOf=null;
+  document.querySelectorAll("#map .blk").forEach(b=>b.classList.remove("sel"));
+  renderHome(); sel=null;
+}
+
+function startTraceSingle(c, b){
+  const was=b.classList.contains("trace");
+  document.querySelectorAll("#submap .blk").forEach(x=>x.classList.remove("trace"));
+  if(!was){ b.classList.add("trace");
+    renderSubPanel(c);
+    panelRefs.what.innerHTML=(c.what||"") + `<p style="margin-top:6px"><span class="kicker">⚠ peça em destaque no submapa.</span></p>`;
+  }
+}
+
+/* ---- trace ---- */
+let trEver=0, trStep=-1, trTimer=null;
+function startTraceTo(targetId){
+  document.querySelectorAll("#map .blk").forEach(b=>b.classList.remove("trace"));
+  const idx=TRACE.findIndex(x=>x[0]===targetId);
+  const end= idx>=0? idx : TRACE.length-1;
+  if(trTimer) clearInterval(trTimer);
+  trEver = end>=0? end+1 : TRACE.length;
+  trStep=0;
+  renderTrace(0);
+  document.getElementById("traceplay").textContent="‖";
+  trTimer=setInterval(()=>{
+    trStep++;
+    if(trStep>=trEver){ clearInterval(trTimer); trTimer=null; document.getElementById("traceplay").textContent="▶ percorrer"; renderTrace(-1); return; }
+    renderTrace(trStep);
+  },1500);
+}
+function renderTrace(step){
+  const tsteps=document.getElementById("tsteps");
+  const ttext=document.getElementById("ttext");
+  document.querySelectorAll("#map .blk").forEach(b=>{ b.classList.remove("trace"); b.style.opacity="1"; });
+  if(step<0){ tsteps.textContent=""; ttext.textContent="Trace concluído. Mova o mouse na planta para explorar."; return; }
+  const [id,msg]=TRACE[step];
+  const target=byId[id];
+  tsteps.textContent=`${step+1}/${TRACE.length}`;
+  ttext.textContent="• "+msg;
+  const b=document.getElementById("map").querySelector(`.blk[data-id="${id}"]`);
+  if(b){ b.classList.add("trace"); b.style.opacity="1";
+    /* escurece o resto */
+    document.querySelectorAll("#map .blk").forEach(x=>{ if(x!==b) x.style.opacity="0.3"; });
+  }
+  renderPanel(target);
+}
+document.getElementById("traceplay").addEventListener("click",()=>{
+  if(trTimer){ clearInterval(trTimer); trTimer=null; document.getElementById("traceplay").textContent="▶"; renderTrace(-1); return; }
+  trEver=TRACE.length; trStep=0; renderTrace(0);
+  document.getElementById("traceplay").textContent="‖";
+  trTimer=setInterval(()=>{
+    trStep++;
+    if(trStep>=trEver){ clearInterval(trTimer); trTimer=null; document.getElementById("traceplay").textContent="▶ percorrer"; renderTrace(-1); return; }
+    renderTrace(trStep);
+  },1600);
+});
+document.getElementById("tracenext").addEventListener("click",()=>{
+  if(trTimer){ clearInterval(trTimer); trTimer=null; document.getElementById("traceplay").textContent="▶ percorrer"; }
+  trEver=TRACE.length;
+  trStep=trStep+1>=trEver? 0:trStep+1;
+  renderTrace(trStep);
+});
+
+/* ---- Hover no mapa ---- */
+map.addEventListener("mouseover",ev=>{
+  const blk=ev.target.closest(".blk");
+  if(blk && !sel) renderPanel(byId[blk.dataset.id]);
+  const edge=ev.target.closest(".edge");
+  if(edge){
+    const rail=edge.querySelector(".rail");
+    const pay=rail&&rail.dataset.pay;
+    document.getElementById("ttext").textContent= pay? "dado que trafega: "+pay : "";
+  }
+});
+map.addEventListener("mouseout",ev=>{
+  const edge=ev.target.closest(".edge");
+  if(edge) document.getElementById("ttext").textContent="";
+});
+map.addEventListener("click",ev=>{
+  const blk=ev.target.closest(".blk");
+  if(!blk) return;
+  const s=byId[blk.dataset.id];
+  if(!s) return;
+  sel=s.id;
+  document.querySelectorAll("#map .blk").forEach(b=>b.classList.remove("sel"));
+  blk.classList.add("sel");
+  renderPanel(s);
+});
+
+/* ============================================================
+   boot
+   ============================================================ */
+function build(){
+  buildStats(); buildRail();
+  drawEdgesInto(map, EDGES);
+  drawBlocksInto(map, STR.map(s=>Object.assign({},s)));
+  drawExternalsInto(map);
+  viewAll();
+  renderHome();
+}
+
+/* hash routing: #inside=<id> · #trace=N */
+function applyHash(){
+  const h=location.hash.replace(/^#/,"");
+  if(h.indexOf("trace=")===0){
+    const n=parseInt(h.split("=")[1],10);
+    if(!isNaN(n) && n>=0 && n<TRACE.length){
+      trEver=TRACE.length; trStep=n; renderTrace(n);
+    }
+  } else if(h.indexOf("inside=")===0){
+    openSub(h.split("=")[1]);
+  }
+}
+window.addEventListener("hashchange",applyHash);
+
+build();
+applyHash();
+</script>
+</body>
+</html>
