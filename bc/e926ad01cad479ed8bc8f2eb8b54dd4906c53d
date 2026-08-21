@@ -1,0 +1,19 @@
+docs/superpowers/plans/2026-08-21-foundation-scaffold.md
+  s_37736b567d1556::t_4157cea2103e69 1-263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "bce926ad01cad479ed8bc8f2eb8b54dd4906c53d",
+  "prompts": {},
+  "sessions": {
+    "s_37736b567d1556": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a010c5-6514-70a2-8080-351302a75c40",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
