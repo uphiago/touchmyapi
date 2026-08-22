@@ -44,7 +44,7 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 - [ ] T011 [P] Implement `packages/policy/entitlement.ts`: plan rights matrix (free_unverified/free_verified/pro/lifetime) → allowed result visibility, playbook slice, credit caps (spec FR-005)
 - [ ] T012 [P] Implement `packages/policy/limits.ts`: rate/duration/concurrency/credit cap reducer; browser/model/runner inputs can only reduce, never increase playbook limits (spec FR-014)
 - [ ] T013 [P] Implement `packages/policy/engine.ts`: `authorize(action, scope, entitlement, limits) -> { allowed, blocked[], reason }`; policy-block testable via `tests/isolation/policy.test.ts`
-- [ ] T014 [P] Implement `packages/db/schema.ts`: all tables from `data-model.md` (account, user, session, assessment, authorization_attestation, verification, playbook, job, runner_execution, credential, finding, report, credit_entry, billing_event, entitlement, agent, audit_event, notification) with `account_id` + enum types
+- [ ] T014 [P] Implement the Foundation Phase 2 tables from `data-model.md` (account, identity/user, session, assessment, authorization_attestation, verification, playbook, job, runner_execution, credential, finding, report, credit_entry, billing_event, entitlement, agent, audit_event, notification) with `account_id` + enum types; Phase 2A membership, queue/outbox, and admin tables are additive in T072, T088, and T093
 - [ ] T015 [P] Implement RLS bootstrap in `packages/db/migrations/*.sql` using Drizzle `pgPolicy`/`pgRole`: runtime roles `api_rls`/`worker_rls`/`reporting_rls`, tenant from `current_setting('app.tenant')`, default deny (spec FR-003, data-model RLS)
 - [ ] T016 [P] Implement `packages/db/session.ts`: transaction wrapper that sets `app.tenant` + `set local role` per query; expose typed query client per role
 - [ ] T017 [P] Implement `packages/contracts/audit.ts`: chained append-only audit event writer hitting `audit_event` with redaction helper (spec FR-018)
@@ -66,15 +66,15 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 
 - [ ] T022 [P] [US1] Contract test: state-machine transition validity (all 8 states, idempotency, awaiting_verification bypass only for passive free) in `tests/contract/assessment-states.test.ts`
 - [ ] T023 [P] [US1] Integration test: create assessment modal payload → row created as `draft` in `tests/integration/assessment-create.test.ts`
-- [ ] T024 [P] [US1] Integration test: queue durability - kill worker mid-run, restart, job recovers `stale_recovered` and finishes (spec SC-004) in `tests/integration/queue-recovery.test.ts`
-- [ ] T025 [P] [US1] Integration test: second concurrent run for same target/account rejected in `tests/integration/assessment-concurrency.test.ts`
+- [ ] T024 [P] [US1] Integration test: queue durability - two workers claim with `FOR UPDATE SKIP LOCKED`, a lost lease is reaped to `stale_recovered`, bounded retry/backoff preserves reason, and the restarted worker finishes under the current fencing token in `tests/integration/queue-recovery.test.ts`
+- [ ] T025 [P] [US1] Integration test: second concurrent run for the same `account_id` + normalized target is rejected by the partial unique/index and policy limit; a different account may queue independently in `tests/integration/assessment-concurrency.test.ts`
 
 ### Implementation for User Story 1
 
 - [ ] T026 [P] [US1] Implement assessment entity/service in `packages/db` query layers (`assessment.ts`, `attestation.ts`) + state transition guards in `packages/policy/state.ts`
-- [ ] T027 [US1] Implement `packages/db/queue.ts`: durable Postgres queue with `FOR UPDATE SKIP LOCKED` lease, retry/backoff, dedupe, timeout, abandoned-job recovery (research R3)
+- [ ] T027 [US1] Implement `packages/db/queue.ts`: PostgreSQL source-of-truth queue with `FOR UPDATE SKIP LOCKED`, `lease_owner`/`lease_expires_at`, monotonic fencing token, heartbeat, retry/backoff, dedupe, timeout, cancellation signal, abandoned-job reaper, fair account scheduling, and tenant/global limits (research R3; contracts/queue.md)
 - [ ] T028 [US1] Implement `apps/api/src/routes/assessments.ts`: POST/GET/list/detail/cancel with policy-gated field visibility, validation of schema/ownership/state/entitlement on every mutation (spec FR-008, FR-014)
-- [ ] T029 [US1] Implement `apps/worker-control/src/scheduler.ts`: leases queued jobs, enforces one-run-per-target/account + global limits, dispatches jobs, handles cancel/stop signal
+- [ ] T029 [US1] Implement `apps/worker-control/src/scheduler.ts`: claims with fencing, applies policy-reduced tenant/global limits and fair scheduling, dispatches only the current claim, heartbeats before half-lease, and handles cancel/stop signal plus cleanup; `LISTEN/NOTIFY` is only a wake-up hint and polling remains mandatory
 - [ ] T030 [US1] Implement `packages/runner/sandbox-provider.ts` interface + `packages/runner/podman-runsc.ts` impl (rootless Podman + gVisor runsc, digest-pinned image, non-root, read-only rootfs, tmpfs, cap-drop, seccomp, watchdog cleanup) (research R6). `SANDBOX_IMPL=noop` for CI
 - [ ] T031 [US1] Implement `apps/worker-control/src/dispatch.ts`: signed job spec (Ed25519), `packages/secrets` short-lived credential channel (tmpfs 0600 pull, deleted on exit) (job contract; spec FR-010)
 - [ ] T032 [US1] Implement passive playbook executor in `packages/playbooks/surface-public-posture.ts`: HTTP probes restricted to scope target, evidence as files + artifact manifest with hashes (job contract)
@@ -176,13 +176,57 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 
 ---
 
+## Phase 2A: Multi-user accounts, PostgreSQL queue, outbox, and admin control plane
+
+**Purpose**: Extend the foundation after T021 with explicit account membership, a fenced PostgreSQL queue/outbox, and a separate MFA-protected admin plane. T071–T086 MUST execute after T021 and before existing T022. The post-membership admin dependency train is T087–T094: T087–T092 provide the queue/outbox prerequisites and T093–T094 implement the admin plane after queue/billing read dependencies. All tasks remain unchecked until their tests and review evidence are green.
+
+**Non-goals preserved**: Foundation Phase 2 remains historically limited to T010–T021; this phase does not add SSO, SCIM, Redis, Kafka, impersonation, arbitrary SQL, owner/BYPASSRLS runtime access, secrets/raw evidence to admin, or billing writes.
+
+### Phase 2A identity and membership (after T021, before T022)
+
+- [ ] T071 [P] [MULTIUSER] Define strict membership/invitation contracts and stable errors (`packages/contracts/src/membership.ts`, `contracts/membership.md`): roles `owner/admin/operator/viewer/billing`, explicit acceptance, hash-only token, expiry, single use, no email auto-link.
+- [ ] T072 [P] [MULTIUSER] Add account membership/invitation schema and migrations (`packages/db/schema/membership.ts`, `packages/db/migrations/0002_multiuser_queue_admin.sql`) with composite tenant keys, unique `(account_id, identity_id)`, and one-active-owner policy index.
+- [ ] T073 [P] [MULTIUSER] Implement and test the role capability matrix (`packages/policy/src/membership.ts`): owner/admin manage membership, operator runs assessments, viewer reads, billing reads billing only; unknown/suspended/removed deny.
+- [ ] T074 [MULTIUSER] Implement invitation creation/acceptance (`packages/db/src/invitations.ts`, `apps/api/src/routes/invitations.ts`) with 256-bit random token, SHA-256 persistence, generic invalid-token response, explicit authenticated acceptance, atomic membership/audit/session rotation, and no email lookup.
+- [ ] T075 [MULTIUSER] Bind sessions to `active_account_id` and `account_session_version` (`packages/db/src/session.ts`, `apps/api/src/auth/google.ts`); account switch, membership removal, and role-sensitive changes rotate/revoke opaque hash-only sessions.
+- [ ] T076 [MULTIUSER] Add account/membership/invitation/switch routes (`apps/api/src/routes/memberships.ts`) with schema, active membership, policy, last-owner guard, RLS context, and append-only audit checks.
+- [ ] T077 [MULTIUSER] Extend RLS/bootstrap isolation (`tests/isolation/multiuser-rls.test.ts`, migration) for memberships, invitations, active-account sessions, and audit rows; prove two-account read/write/reference/inference denial.
+- [ ] T078 [MULTIUSER] Add membership audit and additive legacy backfill (`packages/db/src/membership-audit.ts`, migration) creating one explicit owner membership per valid legacy identity; quarantine missing identities and never match by email.
+- [ ] T079 [P] [MULTIUSER] Add integration flow test and quickstart evidence (`tests/integration/membership-flow.test.ts`, `quickstart.md`) for two identities, shared/private accounts, invite acceptance, role denial, switch, rotation, and revocation.
+- [ ] T080 [P] [MULTIUSER] Write membership gate review (`docs/reviews/2026-08-22-multiuser-membership.md`) mapping FR-022/FR-023, Constitution III, contracts, migration, and isolation tests; leave T022 unchecked.
+- [ ] T081 [MULTIUSER] Add typed active-account request context (`apps/api/src/account-context.ts`) that resolves one server-side account/membership before account routes and rejects path/body tenant overrides.
+- [ ] T082 [MULTIUSER] Add account deletion/owner transfer guards (`apps/api/src/routes/account.ts`, policy tests): last-owner protection, schedule/job cancellation, agent/session revocation, retention-aware deletion, audit preservation.
+- [ ] T083 [P] [MULTIUSER] Add redacted membership security metrics/events (`apps/api/src/security-events.ts`, `apps/worker-control/src/metrics.ts`) for invalid invites, cross-account attempts, role changes, and switch failures.
+- [ ] T084 [P] [MULTIUSER] Add customer account switcher/membership UI contract (`apps/web/src/account-switcher.tsx`, `memberships.tsx`) driven by server permissions, with no token/secret/entitlement authority in browser.
+- [ ] T085 [MULTIUSER] Thread membership capabilities into assessment authorization (`packages/policy/src/engine.ts`, assessment route) so operator/admin/owner are required for mutations and viewer/billing are denied without changing verification/state rules.
+- [ ] T086 [MULTIUSER] Run membership acceptance checkpoint and review (`docs/reviews/2026-08-22-multiuser-membership-acceptance.md`): full unit/contract/integration/isolation/typecheck/diff checks; no assessment implementation proceeds before this gate.
+
+### Phase 2A queue and outbox (after T086; integrate before/with T027/T029)
+
+- [ ] T087 [P] [QUEUE] Define strict queue/outbox contracts (`packages/contracts/src/queue.ts`, `contracts/queue.md`) requiring account ID, lease owner, fencing token, retry metadata, fair scheduling metadata, and idempotent event key on every mutation.
+- [ ] T088 [P] [QUEUE] Add queue/outbox schema and indexes (`packages/db/schema/queue.ts`, migration): `available_at`, priority, lease, monotonic fencing, partial unique active target/account, RLS, and transactional outbox; no notification-only source of truth.
+- [ ] T089 [QUEUE] Implement concurrent `SKIP LOCKED` claim and fencing (`packages/db/src/queue.ts`) with heartbeat, completion/failure/cancel predicates matching account and token; stale worker updates are no-ops.
+- [ ] T090 [QUEUE] Implement retry/backoff, timeout, cleanup, and expired-lease reaper (`apps/worker-control/src/reaper.ts`) with bounded attempts, jitter, preserved safe reason, and no policy/scope widening.
+- [ ] T091 [QUEUE] Implement fair account scheduling and policy-reduced tenant/global limits (`apps/worker-control/src/fair-scheduler.ts`, scheduler) and prove noisy-tenant isolation.
+- [ ] T092 [QUEUE] Implement transactional outbox append/poll/delivery (`packages/db/src/outbox.ts`, `apps/worker-control/src/outbox-dispatcher.ts`); `LISTEN/NOTIFY` is wake-up only and missed hints are recovered by polling.
+
+### Phase 2A admin (after queue/outbox and billing read dependencies)
+
+- [ ] T093 [P] [ADMIN] Define admin contracts and staff/MFA/capability schema (`packages/contracts/src/admin.ts`, `packages/db/schema/admin.ts`, `contracts/admin.md`) with separate origin/cookies, reason/ticket/TTL, approvals, dual break-glass, and read-only billing.
+- [ ] T094 [ADMIN] Implement separate admin app/API, staff MFA, JIT grants, dual break-glass, policy-aware queue operations, and final review (`apps/admin`, admin routes/db, integration/isolation tests, `docs/reviews/2026-08-22-multiuser-queue-admin.md`); prohibit impersonation, owner/BYPASSRLS, arbitrary SQL, secrets/raw evidence, and billing writes.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
 
 - **Setup (P1)**: no dependencies
 - **Foundational (P2)**: depends on Setup; **BLOCKS all user stories**
-- **US1 (P3)**: depends on P2 only
+- **Phase 2A identity/membership (T071–T086)**: depends on T021; **BLOCKS T022 and all account-scoped assessment mutations**
+- **Phase 2A queue/outbox (T087–T092)**: depends on T086 and enriches T024/T025/T027/T029; PostgreSQL remains source of truth
+- **Phase 2A admin dependency train (T087–T094)**: queue/outbox prerequisites T087–T092, then admin T093–T094 after queue/billing read surfaces; separate staff/MFA origin; no billing writes
+- **US1 (P3)**: depends on P2 + T086 membership gate + queue/outbox contracts as applicable
 - **US2 (P4)**: depends on P2 + US1 foundational surfaces (assessment creation hooks into entitlement)
 - **US3 (P5)**: depends on US1 (completed assessments) + US2 (plan gating)
 - **US4 (P6)**: depends on P2 (policy, contracts) + worker-control (dispatch)
@@ -190,7 +234,7 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 
 ### User Story Dependencies
 
-- US1: after P2; independent
+- US1: after P2 and Phase 2A membership gate; assessment state tests T022 follow T086
 - US2: after P2; integrates with US1 mutation path but independently testable
 - US3: after US1+US2; independently testable
 - US4: after P2 + worker-control; independently testable
@@ -243,7 +287,9 @@ Task: "T021 Google OAuth PKCE in apps/api/src/auth/google.ts"
 ### Parallel Team Strategy
 
 - Team completes Setup + Foundational together
-- After P2: US1 (pipeline) + US4 (agent channel) can proceed in parallel
+- After T021: membership tasks T071–T086 execute first; T022 is explicitly blocked until T086
+- After T086: queue/outbox tasks T087–T092 integrate with T024/T025/T027/T029; admin T093–T094 follows queue and billing read dependencies
+- After Phase 2A: US1 (pipeline) + US4 (agent channel) can proceed where their membership/policy seams are complete
 - After US1: US2 (billing) + US3 (reporting prep) in parallel
 - Story integration verified at end of each checkpoint
 
@@ -252,8 +298,10 @@ Task: "T021 Google OAuth PKCE in apps/api/src/auth/google.ts"
 ## Notes
 
 - [P] = parallelizable (different files, no dependencies)
+- `[MULTIUSER]`, `[QUEUE]`, and `[ADMIN]` identify the Phase 2A traceability groups; all are unchecked until tests/review are green.
 - [Story] maps each task to spec user story for traceability
 - Verify tests FAIL before implementing (red), then implement to green
 - Constitution gates: policy engine authority (II), RLS default deny (III), runner least privilege (IV), AI non-executor (V), webhook-only entitlement (VI) are re-checked at each checkpoint
+- Phase 2A gates: global identity is never auto-linked by email; account membership is explicit and RLS-protected; queue claims are fenced and recoverable; outbox is transactional; admin is separate MFA/JIT and has no impersonation, owner/BYPASSRLS, arbitrary SQL, secret/raw-evidence, or billing-write path.
 - Commit after each logical task group; stop at any checkpoint to validate independently
 - Avoid: vague tasks, same-file conflicts, cross-story dependencies that break independence; every task has an exact file path

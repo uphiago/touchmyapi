@@ -4,6 +4,8 @@
 **Data:** 17 de agosto de 2026
 **Público inicial:** pessoa física no Brasil, com plano gratuito, compra avulsa, Pro e Enterprise sob proposta.
 
+**Nota de supersessão:** a decisão histórica de conta individual permanece válida para a fundação de 17 de agosto. A extensão aprovada de 22 de agosto adiciona, somente após T021, `account` como workspace/tenant, memberships explícitos, fila PostgreSQL cercada por fencing/outbox e plano administrativo separado; consulte `docs/superpowers/specs/2026-08-22-multiuser-queue-admin-design.md`. SSO e SCIM continuam fora do escopo.
+
 ## 1. O produto
 
 TouchMyAPI é uma plataforma de assessments de segurança autorizados. Ela recebe um alvo e um escopo, verifica a autorização quando há teste ativo, executa playbooks com limites, valida evidências e entrega uma visão operacional e relatórios técnicos.

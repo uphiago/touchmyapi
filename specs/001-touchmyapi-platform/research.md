@@ -79,11 +79,35 @@ Consolidates findings that resolve the technical unknowns in the implementation 
 - **Rationale**: Matches spec §7. Internal credentials live only in the agent environment. Client-initiated connection avoids inbound firewall openings and NAT port-forwarding requirements.
 - **Alternatives considered**: inbound SSH/tunnel (requires inbound exposure), VPN appliance (heavy ops), agent-as-pull-poll (works but loses real-time dispatch; WS-protocol is acceptable and covers the spec's "canal autenticado").
 
+## R12. Multi-user account and identity boundary
+
+- **Decision**: Keep Google identity global and immutable (`provider + provider_subject`), use `account` as the tenant/workspace, and authorize business data through explicit `account_membership` rows with `owner`, `admin`, `operator`, `viewer`, and `billing` roles. Invitations store a hash of a random single-use token; email is contact data only and never auto-links an identity.
+- **Rationale**: Membership is a first-class RLS and audit boundary, supports one identity in multiple accounts, and prevents an email collision from granting access. The active account is stored in the server-side session and account switching rotates the session.
+- **Alternatives considered**: implicit `user.account_id` ownership (cannot safely model multiple memberships), email-based linking (account takeover risk), and a separate organization service (duplicate source of truth and policy boundary).
+
+## R13. PostgreSQL queue fencing and fair scheduling
+
+- **Decision**: Extend the existing PostgreSQL queue with `FOR UPDATE SKIP LOCKED`, lease owner/expiry, monotonic fencing token, heartbeat, bounded retry/backoff, timeout, cancellation, expired-lease reaper, partial unique active target/account index, fair per-account scheduling, and tenant/global limits. PostgreSQL remains source of truth; `LISTEN/NOTIFY` is only a wake-up hint.
+- **Rationale**: Lease plus fencing prevents stale workers from committing after a lost lease; polling and reaper recovery survive process and notification failure. A transactional outbox makes state transitions and delivery intent atomic without Redis or Kafka.
+- **Alternatives considered**: Redis/Kafka (new source of truth and delivery semantics), broker-only notifications (lost wake-ups), and an unfenced lease (stale completion race).
+
+## R14. Transactional outbox delivery
+
+- **Decision**: Insert account-scoped outbox rows in the same transaction as assessment/job state changes, unique by event key, and deliver at least once with idempotent consumers. A poller is mandatory; `NOTIFY` may reduce latency but cannot acknowledge delivery.
+- **Rationale**: The database commit is the only durable fact, so a crash cannot leave a state change without its event or an event without the state change. Idempotent keys make redelivery safe.
+- **Alternatives considered**: synchronous external publish in the request transaction (availability coupling), notification-only delivery (loss on restart), and dual writes without a unique event key (duplicates).
+
+## R15. Separate admin control plane
+
+- **Decision**: Create a separate admin origin/API with staff identity, separate cookies, mandatory MFA, policy-aware queue metadata operations, and short-lived per-account capability grants requiring reason, ticket, TTL, and approval. Break-glass requires dual approval. Admin has no impersonation, owner/BYPASSRLS, arbitrary SQL, secret/raw-evidence, or billing-write path.
+- **Rationale**: A separate trust boundary limits blast radius and makes staff authentication and audit distinguishable from customer membership. JIT grants minimize standing access while preserving operational recovery.
+- **Alternatives considered**: customer admin role (mixes trust domains), impersonation (ambiguous actor/audit and secret exposure), and a privileged owner connection (violates Constitution III).
+
 ---
 
 ## Resolved unknowns
 
-All technical context unknowns from the plan are resolved above. No `NEEDS CLARIFICATION` remains. Key high-level decisions confirmed for Phase 1:
+All technical context unknowns from the plan are resolved above. Key high-level decisions confirmed for Phase 1:
 
 - UF/JS stack: Bun + Hono + React/Vite; Drizzle with RLS native support.
 - Queue: Postgres `SKIP LOCKED` leases owned by worker-control.
@@ -94,3 +118,5 @@ All technical context unknowns from the plan are resolved above. No `NEEDS CLARI
 - AI: DeepSeek planner/triage + Codex reports, both non-executor, policy-reduced.
 - Reports: react-pdf + sanitization layer; versioned JSON contract.
 - Private agent: outbound WS to control worker with signed job specs.
+- Multi-user: global identity plus explicit membership/invitation, account-bound rotating session.
+- Queue/admin: PostgreSQL fencing/outbox/fair scheduling and separate MFA control plane with JIT grants.

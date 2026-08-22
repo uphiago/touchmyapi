@@ -30,6 +30,8 @@ Implementation uses Bun 1.4.0, TypeScript strict mode, Vitest, Hono, Zod, Drizzl
 - No frontend feature work beyond preserving the existing health shell.
 - No organization/team model, email-based account linking, generic shell, or privileged database fallback.
 
+The organization/team and multi-user controls remain non-goals of this historical Foundation Phase 2 increment. The approved future extension is documented in `docs/superpowers/specs/2026-08-22-multiuser-queue-admin-design.md` and is scheduled after T021; it does not retroactively change this scope.
+
 ## Architecture and dependency direction
 
 Dependencies point inward:

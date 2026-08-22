@@ -63,3 +63,11 @@ Credentials are NOT part of the job spec. On job start the worker mints a short-
 - Runner refuses any action not listed in `actions` or capability outside `capabilities`.
 - `ttl` and `limits` are hard caps; the sandbox kills the process on breach (fast fail, never partial).
 - Evidence is produced as files with hashes; output is redacted by the runner before transmission. Internal credentials never appear in any artifact.
+
+## PostgreSQL queue lifecycle
+
+The signed job is created only after a PostgreSQL queue claim. A claim is selected with `FOR UPDATE SKIP LOCKED` and records `accountId`, `leaseOwner`, `leaseExpiresAt`, and a monotonic `fencingToken`. Heartbeat, completion, failure, cancellation, and artifact acceptance include the same fencing token; a stale worker receives a no-op and cannot overwrite a newer claim. Claims are committed before dispatch.
+
+Eligible jobs have `availableAt <= now()` and are selected by fair account scheduling, priority, and policy-reduced tenant/global limits. A partial unique index permits one non-terminal job for `(accountId, normalizedTargetKey)`. Lease expiry moves a job to `stale_recovered`, increments attempts, and applies bounded exponential backoff with jitter. Exhausted attempts become `failed` with a redacted reason; cancellation is idempotent and requires cleanup.
+
+Assessment/job state transitions write an account-scoped transactional outbox event in the same database transaction. Outbox delivery is at-least-once and idempotent by event key. PostgreSQL `LISTEN/NOTIFY` may wake a poller but is never the delivery guarantee; polling recovers missed notifications. Redis and Kafka are not queue dependencies.

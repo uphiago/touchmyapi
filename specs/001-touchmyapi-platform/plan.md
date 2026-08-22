@@ -8,19 +8,19 @@
 
 ## Summary
 
-TouchMyAPI is an authorized security-assessment platform. Users authenticate with Google, create assessments against clearly scoped external targets (and, later, internal environments via a private agent), and run versioned playbooks with hard limits enforced by a policy engine. A durable PostgreSQL queue drives isolated runner sandboxes; plan gating controls what results, evidence, PDFs, and JSON the user may see; Stripe webhooks are the only source of truth for entitlement; DeepSeek and Codex act as non-executor AI (planner/triage and report drafting, respectively). The build order is: auth + data isolation + state machine + queue + visualization first, then Stripe and a passive controlled playbook, then HTTP verification, active limited execution, reports, and the private agent.
+TouchMyAPI is an authorized security-assessment platform. Users authenticate with Google, select an account/workspace through explicit membership, create assessments against clearly scoped external targets (and, later, internal environments via a private agent), and run versioned playbooks with hard limits enforced by a policy engine. A durable PostgreSQL queue drives isolated runner sandboxes; claims use `SKIP LOCKED`, leases, fencing, heartbeat, retry/backoff, reaper, fair scheduling, tenant/global limits, and a transactional outbox. Plan gating controls what results, evidence, PDFs, and JSON the user may see; Stripe webhooks are the only source of truth for entitlement; DeepSeek and Codex act as non-executor AI (planner/triage and report drafting, respectively). A separate MFA-protected admin control plane provides policy-aware operational actions through JIT grants without impersonation, RLS bypass, arbitrary SQL, secret/raw-evidence access, or billing writes. The build order is: foundation T010–T021, Phase 2A membership T071–T086, existing assessment state/queue seams, then Stripe and a passive controlled playbook, followed by HTTP verification, active limited execution, reports, and the private agent.
 
 ## Technical Context
 
 **Language/Version**: Bun 1.x (API, control worker), TypeScript strict throughout; Vite + React 18/19 (web client)
 
-**Primary Dependencies**: Elysia or Hono (HTTP on Bun), PostgreSQL driver (Drizzle ORM for schema/migrations; `node-postgres` for runtime queries under RLS), Stripe SDK + webhook signing, OAuth Google via Authorization Code + PKCE, Vitest (unit/contract/integration), React Router, zod for schema validation, motion (animations, per frontend design law)
+**Primary Dependencies**: Hono on Bun, PostgreSQL driver (Drizzle ORM for schema/migrations; `node-postgres` for runtime queries under RLS), Stripe SDK + webhook signing, OAuth Google via Authorization Code + PKCE, Vitest (unit/contract/integration), React Router, zod for schema validation, motion (animations, per frontend design law)
 
 **Storage**: PostgreSQL (source of truth + durable queue), private object storage (S3-compatible or GCS) for evidence and PDFs with signed temporary URLs
 
 **Testing**: Vitest unit/contract/integration; RLS isolation tests; policy engine property tests; state-machine transition tests; webhook idempotency tests; quickstart.md validation run
 
-**Target Platform**: Linux server (API, worker-control, runner sandbox via `SandboxProvider`); browser for web client; client-installed agent on customer Linux hosts
+**Target Platform**: Linux server (customer API, separate admin API, worker-control, runner sandbox via `SandboxProvider`); browser for web/admin clients; client-installed agent on customer Linux hosts
 
 **Project Type**: web-service (web app + backend + worker + runner sandbox) monorepo
 
@@ -28,7 +28,7 @@ TouchMyAPI is an authorized security-assessment platform. Users authenticate wit
 
 **Constraints**: policy engine is final authority; browser/model/runner cannot escalate limits; RLS default-deny; credentials never in logs/reports/models/frontend; webhook-only entitlement changes; AI non-executor; no bucket public; one run per target/account
 
-**Scale/Scope**: individual accounts at launch (no orgs), Brazil/BRL, small curated playbook set; ~18 tables; 1 API app, 1 control worker, 1 sandbox abstraction, 1 web app
+**Scale/Scope**: account/workspace tenants with explicit membership; Brazil/BRL, small curated playbook set; existing ~18 foundation tables plus membership, invitation, outbox, and admin tables; 1 customer API, 1 separate admin API/app, 1 control worker, 1 sandbox abstraction, 1 web app
 
 ## Constitution Check
 
@@ -40,6 +40,7 @@ TouchMyAPI is an authorized security-assessment platform. Users authenticate wit
 - **IV. Least Privilege for Runners and Credentials**: PASS - spec FR-009/FR-010/FR-012, signed TTL'd jobs, digest-pinned image, secret channel, private storage, `SandboxProvider`.
 - **V. AI as Non-Executor**: PASS - spec FR-015/FR-016, DeepSeek/Codex output treated as untrusted data re-checked by policy engine; disable per account.
 - **VI. Financial State Changes Only by Verified Webhook**: PASS - spec FR-006, idempotent signature-verified webhook; catalog server-side.
+- **Phase 2A account isolation and queue/admin amendment**: PASS - spec FR-022–FR-027, constitution v1.1.0, explicit membership/RLS, PostgreSQL fencing/outbox, and separate MFA admin origin with no bypass capabilities.
 
 ## Project Structure
 
@@ -62,7 +63,8 @@ This is the intended product structure. The foundation scaffold currently contai
 ```text
 apps/
   web/                 # Vite + React: UI only, public keys (VITE_*)
-  api/                 # Bun + Elysia/Hono: sessions, domain, billing API, reports gateway
+  api/                 # Bun + Hono: sessions, membership, domain, billing API, reports gateway
+  admin/               # Separate Bun + Hono admin origin/API; staff identity and MFA only
   worker-control/      # Bun: scheduler, policy dispatch, job leasing, reconciliation
   agent/               # Bun: client-side private agent (outbound, isolated local runner)
 packages/
@@ -81,7 +83,7 @@ tests/
   e2e/                 # quickstart validation scenarios
 ```
 
-**Structure Decision**: Bun monorepo with workspace packages; two top-level signature behaviors: the API/worker will share domain packages so policy and contracts are compiled into both, and the runner will be abstracted behind `SandboxProvider` (ephemeral container implementation first, managed sandboxes later). Apps stay thin; enforcement will live in `packages/policy` and `packages/contracts` to satisfy constitution principles II/IV/V.
+**Structure Decision**: Bun monorepo with workspace packages; three trust boundaries: customer API/web, control worker/runner, and separate admin API/app. API/worker/admin share pure policy and contracts but use distinct identities, origins, cookies, and runtime roles. PostgreSQL remains both business source of truth and durable queue; transactional outbox plus polling provides delivery, with `LISTEN/NOTIFY` only as a hint. The runner remains behind `SandboxProvider` (ephemeral container implementation first). Apps stay thin; enforcement lives in `packages/policy` and `packages/contracts` to satisfy constitution principles II/III/IV/V/VI.
 
 ## Complexity Tracking
 
@@ -94,5 +96,6 @@ Constitution Check passes; no complexity waivers required at this stage. Two del
 | `packages/policy` as a shared engine vs. inline checks in API/worker | Needed so policy is the single authority enforced identically in API mutations and worker dispatch (constitution II) | Inline checks duplicated per app drift and allow browser/model escalation |
 | `SandboxProvider` abstraction in V1 | Lets us ship an ephemeral container runner now and migrate to managed sandboxes (spec §5) without changing any domain code | Hard-wiring V1 to a specific sandbox vendor/language |
 | Runner image + isolation from day one | Constitution IV requires least privilege even for the first passive playbook | Shipping scans without isolation then retrofitting a security boundary |
+| Explicit membership, fenced PostgreSQL queue, and separate admin plane | Multi-user authorization and operational recovery require first-class tenant, fencing, and staff boundaries; each is tested and policy-limited | Implicit user ownership, Redis/Kafka broker, or admin owner/BYPASSRLS path would weaken default-deny isolation and auditability |
 
 But these are design choices, not constitution violations, so the gate passes without recorded violations.

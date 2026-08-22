@@ -1,11 +1,12 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 (initial) → 1.0.0
-- Modified principles: n/a (ratification)
-- Added sections: Core Principles (I-VI), Mandatory Security Constraints, Billing & Financial Integrity, Governance
-- Removed sections: n/a
-- Templates requiring updates: ✅ .specify/templates/spec-template.md (aligned with principles IV/V/VI), ✅ .specify/templates/plan-template.md (constitution check gate), ✅ .specify/templates/tasks-template.md (security/billing task categories)
-- Follow-up TODOs: none
+- Version change: 1.0.0 → 1.1.0
+- Modified principles: III (account-scoped business data and narrow global identity bootstrap)
+- Added constraints: PostgreSQL queue correctness and admin control-plane isolation
+- Removed principles: none
+- Templates requiring updates: none; Phase 2A requirements are recorded in the product contracts and plan
+- Migration reference: docs/superpowers/specs/2026-08-22-multiuser-queue-admin-design.md §Migration and cutover; docs/superpowers/plans/2026-08-22-multiuser-queue-admin.md
+- Justification: multi-user accounts require explicit memberships while preserving default-deny RLS, durable queue fencing, and a separately isolated administrative plane
 -->
 
 # TouchMyAPI Constitution
@@ -22,7 +23,7 @@ The policy engine, not the browser, the AI model, or the runner, is the authorit
 
 ### III. Default-Deny Data Isolation
 
-All user data is scoped by `account_id` and enforced by Row-Level Security in PostgreSQL with runtime roles that are neither owner nor RLS-bypassers. Cross-account access must be impossible by design and proven by explicit isolation tests. The frontend NEVER receives secret keys, entitlements, OAuth secrets, private Stripe keys, target credentials, or runner authorizations. Anything prefixed `VITE_` is public by definition.
+All tenant and business data is scoped by `account_id` (the account/workspace boundary) and enforced by Row-Level Security in PostgreSQL with runtime roles that are neither owner nor RLS-bypassers. Global login identities (`provider + provider_subject`) may exist outside an account only behind narrow, fixed-purpose bootstrap or administrative functions; they are never a substitute for tenant scope and are never auto-linked by email. Memberships, invitations, account settings, assessments, jobs, billing, evidence, and every other business row are account-scoped and RLS-protected. Cross-account access must be impossible by design and proven by explicit isolation tests. The frontend NEVER receives secret keys, entitlements, OAuth secrets, private Stripe keys, target credentials, or runner authorizations. Anything prefixed `VITE_` is public by definition.
 
 ### IV. Least Privilege for Runners and Credentials
 
@@ -43,12 +44,14 @@ Stripe is the only source of truth for payment, credits, and entitlement changes
 - File evidence and reports live in private object storage with temporary per-user authorized URLs; never a public bucket.
 - Dangerous payloads, unavailability attacks, exfiltration, persistence, brute force, and invasive exploitation are not part of default execution. Any future extension needs an explicit category, consent, and its own policy.
 - Audit trail is append-only at the application level and chained across request, authorization, verification, policy decision, dispatch, runner, artifacts, analysis, publication, download, and billing.
+- PostgreSQL is the queue source of truth: claims use `FOR UPDATE SKIP LOCKED`, a lease plus a monotonic fencing token, heartbeat, bounded retry/backoff, reaper recovery, fair scheduling, and tenant/global concurrency limits. Transactional outbox rows are committed with state changes; `LISTEN/NOTIFY` may only be a wake-up hint and may never be the delivery guarantee. Redis and Kafka are not required for this boundary.
+- The admin control plane is a separate app/API/origin with separate staff identity and cookies, mandatory MFA, no impersonation, no owner role, no `BYPASSRLS`, and no arbitrary SQL. Per-tenant JIT capability grants require a reason, ticket, TTL, and approval; break-glass requires dual approval. Admin access is policy-aware, least-privilege, audited, and exposes neither secrets nor raw evidence. Billing views are read-only.
 - Data retention defaults: raw runner evidence 30 days post-completion with scheduled deletion; findings and reports 365 days for paid plans; execution logs 30 days redacted and limited; security/authorization audit 365 days append-only; external credentials until job end unless explicitly stored for future schedule; internal credentials never stored.
 
 ## Governance
 
-The constitution supersedes all ad-hoc practice. Amendments require documentation, justification, and a migration plan; constitution version follows semantic versioning (MAJOR for principle removal/redefinition, MINOR for added principles, PATCH for clarifications). All PRs and reviews must verify compliance with these principles. Every new milestone re-checks acceptance criteria from the product spec: cross-account isolation, verification-before-active-test, no platform-side internal credentials, webhook-only entitlement changes, and AI with no direct tool or credential access. Complexity must be justified; simpler alternatives win unless a recorded reason exists (see Complexity Tracking in plan.md).
+The constitution supersedes all ad-hoc practice. Amendments require documentation, justification, and a migration plan; constitution version follows semantic versioning (MAJOR for principle removal/redefinition, MINOR for added principles, PATCH for clarifications). This 1.1.0 amendment adds the multi-user account boundary, durable queue invariants, and the separately isolated admin control plane without weakening Principles I–VI. All PRs and reviews must verify compliance with these principles. Every new milestone re-checks acceptance criteria from the product spec: cross-account isolation, verification-before-active-test, no platform-side internal credentials, webhook-only entitlement changes, and AI with no direct tool or credential access. Complexity must be justified; simpler alternatives win unless a recorded reason exists (see Complexity Tracking in plan.md).
 
 Use `.specify/memory/constitution.md` and mirrored runtime guidance in `AGENTS.md` for development guidance.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-17 | **Last Amended**: 2026-08-17
+**Version**: 1.1.0 | **Ratified**: 2026-08-17 | **Last Amended**: 2026-08-22

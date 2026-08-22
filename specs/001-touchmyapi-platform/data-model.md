@@ -2,7 +2,7 @@
 
 **Phase 1 output** | **Date**: 2026-08-17
 
-All tables carry `account_id` (or an equivalent ownership column) and are covered by Row-Level Security policies (default deny) per constitution III. Runtime role is RLS-limited; app sets tenant via `set_config('app.tenant', ...)` in a transaction with `set local role`. Timestamps are UTC `timestamptz`. IDs are either UUIDv7 (ordered, DB-friendly) or crypto-random; choose UUIDv7 for insert-heavy tables.
+All business tables carry `account_id` (or an explicitly documented global/system ownership boundary) and are covered by Row-Level Security policies (default deny) per constitution III. `account` is the workspace/tenant; `identity` is global and can only be reached through narrow bootstrap functions. Runtime roles are RLS-limited; app sets tenant via `set_config('app.tenant', ...)` in a transaction with `set local role`. Timestamps are UTC `timestamptz`. IDs are either UUIDv7 (ordered, DB-friendly) or crypto-random; choose UUIDv7 for insert-heavy tables.
 
 ---
 
@@ -10,7 +10,7 @@ All tables carry `account_id` (or an equivalent ownership column) and are covere
 
 ### account
 
-Individual user account (future-proofed for organizations; the organization entity is deferred but `account_id` semantics remain).
+Workspace/tenant that owns all customer business data. The historical foundation starts with one account per first identity; Phase 2A permits multiple identities and memberships without changing the tenant key.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -19,28 +19,76 @@ Individual user account (future-proofed for organizations; the organization enti
 | settings_ia_enabled | boolean | per-account external AI disable flag (V1 default true, no UI yet) |
 | created_at / deleted_at | timestamptz | |
 
-### user
+### identity (global login identity)
 
-Identity binding; `provider + provider_subject` immutable.
+Immutable provider identity. It is not a business tenant row and is never linked by email.
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | id | uuid pk | |
-| account_id | uuid fk → account | unique where not null |
 | provider | enum | `google` active; `github`, `x` modeled-disabled |
-| provider_subject | text | stable subject from provider |
-| email | citext | for display/contact only; never used for auto-linking |
+| provider_subject | text | stable provider subject |
+| email | citext | display/contact only; never an account key |
+| created_at | timestamptz | |
+| **unique** | `(provider, provider_subject)` | |
+
+### account_membership
+
+Explicit identity-to-account authorization boundary.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | uuid pk | |
+| account_id / identity_id | fk | composite tenant reference; identity is global |
+| role | enum | `owner` / `admin` / `operator` / `viewer` / `billing` |
+| status | enum | `active` / `suspended` / `removed` |
+| invited_by_identity_id | uuid fk | nullable for initial owner |
+| created_at / updated_at / removed_at | timestamptz | |
+| **unique** | `(account_id, identity_id)` | one membership per identity/account |
+
+Only one active owner is allowed by policy. Last-owner removal/demotion requires an explicit owner transfer transaction.
+
+### account_invitation
+
+Single-use explicit invitation; raw token never persists.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | uuid pk | |
+| account_id | uuid fk | tenant |
+| token_hash | text unique | SHA-256 of random token |
+| email | citext | contact/display only; never used to link identity |
+| proposed_role | enum | membership role |
+| invited_by_identity_id | uuid fk | |
+| status | enum | `pending` / `accepted` / `expired` / `revoked` |
+| expires_at / accepted_at / created_at | timestamptz | |
+| accepted_by_identity_id | uuid fk | nullable |
+
+### user (compatibility projection)
+
+Compatibility projection for code paths that still call the authenticated principal `user`; source of truth is global `identity` plus explicit memberships.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | uuid pk | |
+| identity_id | uuid fk → identity | unique |
+| account_id | uuid fk → account | legacy projection; not authorization by itself |
+| provider | enum | compatibility copy; immutable with identity |
+| provider_subject | text | compatibility copy; immutable with identity |
+| email | citext | display/contact only; never used for auto-linking |
 | created_at | timestamptz | |
 | **unique** | (provider, provider_subject) | |
 
 ### session
 
-Server-side session (HttpOnly Secure cookie id → row).
+Server-side session (HttpOnly Secure cookie id → row), bound to one active account.
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | id | uuid pk | cookie value (hashed at rest) |
-| user_id | uuid fk → user | |
+| user_id / identity_id | uuid fk | |
+| active_account_id | uuid fk → account | exactly one active tenant per session |
+| account_session_version | bigint | changes on switch/revocation-sensitive membership change |
 | rotated_at / expires_at / revoked_at | timestamptz | |
 | ip / user_agent | text | audit |
 
@@ -117,11 +165,35 @@ Signed dispatch unit for the runner.
 | playbook_version | text | pinned |
 | job_spec_json | jsonb | signed payload: capabilities, action list, limits, target |
 | status | enum | `queued`/`running`/`succeeded`/`failed`/`cancelled`/`stale_recovered` |
+| normalized_target_key | text | canonical account target key; partial unique active-job index |
+| available_at / priority | timestamptz / int | fair scheduling eligibility |
 | lease_owner / lease_expires_at | text / timestamptz | SKIP LOCKED lease |
-| attempts / max_attempts | int | retry with backoff |
+| fencing_token | bigint | monotonic claim token; required for heartbeat/result/cancel writes |
+| attempts / max_attempts | int | retry with bounded backoff |
 | dedupe_key | text unique | idempotency |
+| failure_reason | text | redacted terminal/recovery reason |
 | started_at / finished_at | timestamptz | |
 | stop_requested_at | timestamptz | cancellation signal |
+
+At most one non-terminal job exists for `(account_id, normalized_target_key)` through a partial unique index. Worker claims use `FOR UPDATE SKIP LOCKED`; stale workers cannot write after a fencing-token change. Tenant/global limits and fair scheduling are policy inputs, not browser-controlled fields.
+
+### outbox_event
+
+Transactional account-scoped delivery intent.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | uuid pk | |
+| account_id | uuid fk | |
+| event_key | text unique | idempotency key |
+| aggregate_type / aggregate_id | text / uuid | source entity |
+| schema_version | text | versioned payload contract |
+| payload_json | jsonb | redacted, no secrets/raw evidence |
+| status | enum | `pending` / `processing` / `processed` / `failed` |
+| attempts / available_at | int / timestamptz | at-least-once delivery |
+| processed_at / created_at | timestamptz | |
+
+Rows commit with their state mutation. `LISTEN/NOTIFY` is only a wake-up hint; polling is mandatory.
 
 ### runner_execution
 
@@ -239,6 +311,50 @@ Plan rights derived exclusively from billing events.
 | last_seen_at | timestamptz | |
 | created_at / revoked_at | timestamptz | |
 
+### admin_staff_identity
+
+Staff-only identity; never a customer membership and never authenticated by a customer session.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | uuid pk | |
+| external_subject | text unique | staff IdP subject, not customer provider subject |
+| status | enum | `active` / `suspended` / `revoked` |
+| mfa_required | boolean | always true for active staff |
+| created_at / revoked_at | timestamptz | |
+
+### admin_session
+
+Separate admin-origin session with its own cookie and MFA freshness.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | uuid pk | opaque hash |
+| staff_identity_id | uuid fk | |
+| mfa_verified_at | timestamptz | required for sensitive operations |
+| expires_at / revoked_at | timestamptz | |
+
+### capability_grant
+
+Just-in-time, tenant-scoped staff capability.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | uuid pk | |
+| account_id | uuid fk | target tenant |
+| staff_identity_id | uuid fk | requester |
+| capability | enum | closed policy-aware operation set |
+| reason / ticket_reference | text | mandatory |
+| requested_at / approved_at / expires_at | timestamptz | bounded TTL |
+| approver_identity_id / second_approver_identity_id | uuid fk | dual approval for break-glass |
+| status | enum | `requested` / `approved` / `expired` / `revoked` / `denied` |
+
+No capability grants owner/BYPASSRLS, arbitrary SQL, impersonation, secret/raw-evidence access, or billing mutation.
+
+### admin_audit_event
+
+Append-only staff action record with account, grant, ticket, reason, operation, outcome, and request ID. Payload is redacted before persistence.
+
 ### audit_event
 
 Append-only chained log (constitution VI).
@@ -287,7 +403,8 @@ Transitions validated and idempotent in backend; cancellation sets stop signal o
 
 ## RLS model (summary)
 
-- Runtime roles: `api_rls` (web/API mutations), `worker_rls` (control worker + scheduler), `reporting_rls` (read for report generation). None is owner, none has `BYPASSRLS`.
-- Tables carry policy: `FOR ALL TO <role> USING (account_id = current_setting('app.tenant')::uuid)`; default deny with explicit `USING` for owned rows.
-- Some system-owned tables (playbook catalog, audit append) have write-only or insert-with-generated-account policies. App sets `set_config('app.tenant', $1)` and `set local role` per transaction.
+- Runtime roles: `api_rls` (web/API mutations), `worker_rls` (control worker + scheduler), `reporting_rls` (read for report generation), and a separate least-privilege admin runtime role. None is owner, none has `BYPASSRLS`.
+- Tables carry policy: `FOR ALL TO <role> USING (account_id = current_setting('app.tenant', true)::uuid)` with explicit deny when tenant is absent or malformed; default deny applies to membership, invitation, queue, outbox, and capability grants as well as assessment data.
+- Global identity is reachable only through fixed-purpose bootstrap functions. Playbook catalog is read-only; audit/admin audit are append-only; no runtime role gets arbitrary SQL or history deletion.
+- Queue claims use `FOR UPDATE SKIP LOCKED` and compare `account_id` plus `fencing_token` on all lease/result writes. App sets `set_config('app.tenant', $1)` and `set local role` per transaction. `LISTEN/NOTIFY` never replaces polling/outbox persistence.
 - Isolation is proven by `tests/isolation/` RLS tests (spec FR-003, SC-002).
