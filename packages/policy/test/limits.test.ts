@@ -76,6 +76,123 @@ describe("non-escalating limits", () => {
     });
   });
 
+  it.each(
+    (["playbook", "entitlement", "account", "global"] as const).flatMap((source) =>
+      (["durationS", "concurrency", "ratePerMin", "credits"] as const).map(
+        (field) => [source, field] as const,
+      ),
+    ),
+  )("rejects %s accessors for every ceiling field (%s)", (source, field) => {
+    const input = validInput();
+    let reads = 0;
+    Object.defineProperty(input[source], field, {
+      configurable: true,
+      get: () => {
+        reads += 1;
+        return reads === 1 ? 1 : Number.POSITIVE_INFINITY;
+      },
+    });
+    expect(reduceLimits(input)).toEqual({ ok: false, code: "invalid_authoritative_limit" });
+    expect(reads).toBe(0);
+  });
+
+  it("rejects an egress accessor without executing it", () => {
+    const input = validInput();
+    let reads = 0;
+    Object.defineProperty(input.playbook, "egress", {
+      configurable: true,
+      get: () => {
+        reads += 1;
+        return ["scope_target"];
+      },
+    });
+    expect(reduceLimits(input)).toEqual({ ok: false, code: "invalid_egress" });
+    expect(reads).toBe(0);
+  });
+
+  it("rejects a root accessor without executing it", () => {
+    const input = validInput() as Record<string, unknown>;
+    let reads = 0;
+    Object.defineProperty(input, "account", {
+      configurable: true,
+      get: () => {
+        reads += 1;
+        return authority({ durationS: Number.POSITIVE_INFINITY });
+      },
+    });
+    expect(reduceLimits(input as LimitInput)).toEqual({
+      ok: false,
+      code: "invalid_authoritative_limit",
+    });
+    expect(reads).toBe(0);
+  });
+
+  it.each(["ownKeys", "getOwnPropertyDescriptor"] as const)(
+    "fails closed when an authority proxy %s trap throws",
+    (trap) => {
+      const target = validInput().account;
+      const proxy = new Proxy(target, {
+        [trap]: () => {
+          throw new Error("trap");
+        },
+      });
+      const input = { ...validInput(), account: proxy };
+      expect(() => reduceLimits(input)).not.toThrow();
+      expect(reduceLimits(input)).toEqual({ ok: false, code: "invalid_authoritative_limit" });
+    },
+  );
+
+  it.each(["ownKeys", "getOwnPropertyDescriptor"] as const)(
+    "fails closed when the root proxy %s trap throws",
+    (trap) => {
+      const proxy = new Proxy(validInput(), {
+        [trap]: () => {
+          throw new Error("trap");
+        },
+      });
+      expect(() => reduceLimits(proxy as never)).not.toThrow();
+      expect(reduceLimits(proxy as never)).toEqual({
+        ok: false,
+        code: "invalid_authoritative_limit",
+      });
+    },
+  );
+
+  it("does not execute a throwing root get trap", () => {
+    const proxy = new Proxy(validInput(), {
+      get: () => {
+        throw new Error("get trap");
+      },
+    });
+    expect(() => reduceLimits(proxy as never)).not.toThrow();
+  });
+
+  it.each(["ownKeys", "getOwnPropertyDescriptor"] as const)(
+    "fails closed when an egress proxy %s trap throws",
+    (trap) => {
+      const egress = new Proxy(["scope_target"], {
+        [trap]: () => {
+          throw new Error("trap");
+        },
+      });
+      const input = validInput();
+      (input.playbook as Record<string, unknown>).egress = egress;
+      expect(() => reduceLimits(input)).not.toThrow();
+      expect(reduceLimits(input)).toEqual({ ok: false, code: "invalid_egress" });
+    },
+  );
+
+  it("does not execute a throwing egress get trap", () => {
+    const egress = new Proxy(["scope_target"], {
+      get: () => {
+        throw new Error("get trap");
+      },
+    });
+    const input = validInput();
+    (input.playbook as Record<string, unknown>).egress = egress;
+    expect(() => reduceLimits(input)).not.toThrow();
+  });
+
   it("allows an omitted or partial requested ceiling", () => {
     expect(reduceLimits(validInput())).toMatchObject({ ok: true });
     expect(reduceLimits({ ...validInput(), requested: { durationS: 30 } })).toEqual({
