@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
+import postgres from "postgres";
 import {
   createDbConnection,
   withTenant,
@@ -19,6 +20,14 @@ function databaseUrlForTest(): string {
     throw new Error("Refusing database outside 127.0.0.1 for integration tests");
   }
   return value;
+}
+
+function quoteIdentifier(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+function sqlStringLiteral(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
 }
 
 type Fixture = {
@@ -144,17 +153,40 @@ async function expectCountHiddenOrDenied(
 }
 
 describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
+  let adminDb!: DbConnection;
   let db!: DbConnection;
   let fixture!: Fixture;
+  let connectorRole = "";
+  let connectorPassword = "";
+
+  async function expectCleanBorrowedConnection(): Promise<void> {
+    const [state] =
+      await db`select current_user as role, current_setting('app.tenant', true) as tenant`;
+    expect(state?.role).toBe(connectorRole);
+    expect(state?.tenant ?? "").toBe("");
+  }
 
   beforeAll(async () => {
-    db = createDbConnection(databaseUrlForTest());
-    fixture = await createFixture(db);
+    const databaseUrl = databaseUrlForTest();
+    adminDb = createDbConnection(databaseUrl);
+    connectorRole = `tma_t016_${randomUUID().replaceAll("-", "")}`;
+    connectorPassword = randomUUID().replaceAll("-", "");
+    const roleIdentifier = quoteIdentifier(connectorRole);
+    await adminDb.unsafe(
+      `create role ${roleIdentifier} login noinherit nosuperuser nobypassrls nocreatedb nocreaterole noreplication password ${sqlStringLiteral(connectorPassword)}`,
+    );
+    await adminDb.unsafe(`grant api_rls, worker_rls, reporting_rls to ${roleIdentifier}`);
+    fixture = await createFixture(adminDb);
+    const connectorUrl = new URL(databaseUrl);
+    connectorUrl.username = connectorRole;
+    connectorUrl.password = connectorPassword;
+    db = postgres(connectorUrl.toString(), { max: 1 }) as DbConnection;
   });
 
   afterAll(async () => {
+    await db?.end();
     if (fixture) {
-      await db.begin(async (tx) => {
+      await adminDb.begin(async (tx) => {
         for (const table of [
           "audit_event",
           "credential",
@@ -175,7 +207,10 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
         await tx.unsafe("delete from public.playbook where key = $1", [fixture.playbookKey]);
       });
     }
-    await db?.end();
+    if (connectorRole) {
+      await adminDb.unsafe(`drop role ${quoteIdentifier(connectorRole)}`);
+    }
+    await adminDb?.end();
   });
 
   it("scopes reads and own mutations while hiding every other account", async () => {
@@ -254,8 +289,9 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
     ).rejects.toThrow("callback failed");
 
     const [assessment] =
-      await db`select status from public.assessment where id = ${fixture.assessmentA}`;
+      await adminDb`select status from public.assessment where id = ${fixture.assessmentA}`;
     expect(assessment?.status).toBe("draft");
+    await expectCleanBorrowedConnection();
     await expect(
       withTenant(db, "not-a-uuid", "api_rls", async () => "unreachable"),
     ).rejects.toThrow(/accountId.*UUID/i);
@@ -280,8 +316,97 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
     ).rejects.toThrow(/does not exist/i);
 
     const [assessment] =
-      await db`select status from public.assessment where id = ${fixture.assessmentA}`;
+      await adminDb`select status from public.assessment where id = ${fixture.assessmentA}`;
     expect(assessment?.status).toBe("draft");
+    await expectCleanBorrowedConnection();
+  });
+
+  it("blocks context, transaction, comments, quoting, and multi-statement escapes", async () => {
+    await withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+      const rows = await tenant.unsafe<{ id: string }>(
+        "WITH visible AS (SELECT id FROM public.account) SELECT id FROM visible",
+      );
+      expect(rows.map((row) => row.id)).toEqual([fixture.accountA]);
+
+      const [operators] = await tenant.unsafe<{
+        arrow: unknown;
+        arrowText: unknown;
+        hashArrow: unknown;
+        hashArrowText: unknown;
+        contains: boolean;
+        contained: boolean;
+        hasKey: boolean;
+        hasAny: boolean;
+        hasAll: boolean;
+        regex: boolean;
+      }>(
+        "select '{}'::jsonb -> 'foo' as \"arrow\", '{}'::jsonb ->> 'foo' as \"arrowText\", '{}'::jsonb #> array['foo'] as \"hashArrow\", '{}'::jsonb #>> array['foo'] as \"hashArrowText\", '{}'::jsonb @> '{}'::jsonb as \"contains\", '{}'::jsonb <@ '{}'::jsonb as \"contained\", '{}'::jsonb ? 'foo' as \"hasKey\", '{}'::jsonb ?| array['foo'] as \"hasAny\", '{}'::jsonb ?& array['foo'] as \"hasAll\", 'fixture' ~ '^fix' as \"regex\"",
+      );
+      expect(operators).toMatchObject({
+        contains: true,
+        contained: true,
+        hasKey: false,
+        hasAny: false,
+        hasAll: false,
+        regex: true,
+      });
+    });
+
+    const blockedStatements: Array<{ query: string; values?: unknown[] }> = [
+      {
+        query: "select set_config('app.tenant', $1, true)",
+        values: [fixture.accountB],
+      },
+      {
+        query: "SeLeCt pg_catalog.set_config('app.tenant', $1, true)",
+        values: [fixture.accountB],
+      },
+      { query: "SELECT current_setting('app.tenant', true)" },
+      { query: "SELECT/**/set_config('app.tenant', $1, true)", values: [fixture.accountB] },
+      { query: 'SELECT "public"."set_config"($1)', values: [fixture.accountB] },
+      { query: "SET ROLE worker_rls" },
+      { query: "SET LOCAL ROLE worker_rls" },
+      { query: "RESET ROLE" },
+      { query: "COMMIT" },
+      { query: "ROLLBACK" },
+      { query: "SAVEPOINT escape_probe" },
+      { query: "SELECT 1 INTO public.escape_probe" },
+      { query: "SELECT 1; SELECT 2" },
+      { query: "SELECT 1 -- set_config('app.tenant', 'B', true)" },
+      { query: "SELECT $$; SET ROLE worker_rls; $$" },
+      {
+        query: "WITH escaped AS (SELECT 1) SELECT set_config('app.tenant', $1, true)",
+        values: [fixture.accountB],
+      },
+    ];
+
+    for (const statement of blockedStatements) {
+      await expect(
+        withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+          await tenant.unsafe("update public.assessment set status = 'running' where id = $1", [
+            fixture.assessmentA,
+          ]);
+          await expect(tenant.unsafe(statement.query, statement.values)).rejects.toThrow(
+            /blocked|forbidden|tenant|transaction|statement|query/i,
+          );
+          throw new Error("rollback blocked escape probe");
+        }),
+      ).rejects.toThrow(/rollback blocked escape probe|division by zero|aborted/i);
+      const [assessment] =
+        await adminDb`select status from public.assessment where id = ${fixture.assessmentA}`;
+      expect(assessment?.status).toBe("draft");
+      await withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+        const [account] = await tenant.unsafe<{ id: string }>("select id from public.account");
+        expect(account?.id).toBe(fixture.accountA);
+      });
+      await expectCleanBorrowedConnection();
+    }
+  });
+
+  it("rejects a privileged or table-owning connection before opening a tenant transaction", async () => {
+    await expect(
+      withTenant(adminDb, fixture.accountA, "api_rls", async () => "unreachable"),
+    ).rejects.toThrow(/privileged|owner|connector/i);
   });
 
   it("proves cross-tenant select, inference, DML, and foreign-key references fail closed", async () => {
@@ -401,19 +526,28 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
     );
   });
 
-  it("keeps nested scopes independent and expires captured TenantConnections", async () => {
-    let captured!: TenantConnection;
-    await withTenant(db, fixture.accountA, "api_rls", async (outer) => {
-      captured = outer;
-      const [outerAccount] = await outer.unsafe<{ id: string }>("select id from public.account");
-      expect(outerAccount?.id).toBe(fixture.accountA);
-      await withTenant(db, fixture.accountB, "reporting_rls", async (inner) => {
-        const [innerAccount] = await inner.unsafe<{ id: string }>("select id from public.account");
-        expect(innerAccount?.id).toBe(fixture.accountB);
-      });
-      const [outerAgain] = await outer.unsafe<{ id: string }>("select id from public.account");
-      expect(outerAgain?.id).toBe(fixture.accountA);
+  it("rejects same-connection nesting and expires captured TenantConnections", async () => {
+    let successfulCapture!: TenantConnection;
+    await withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+      successfulCapture = tenant;
+      await tenant.unsafe("select 1");
     });
+    await expect(successfulCapture.unsafe("select 1")).rejects.toThrow(/no longer active/i);
+
+    let captured!: TenantConnection;
+    await expect(
+      withTenant(db, fixture.accountA, "api_rls", async (outer) => {
+        captured = outer;
+        const [outerAccount] = await outer.unsafe<{ id: string }>("select id from public.account");
+        expect(outerAccount?.id).toBe(fixture.accountA);
+        await withTenant(db, fixture.accountB, "reporting_rls", async (inner) => {
+          const [innerAccount] = await inner.unsafe<{ id: string }>(
+            "select id from public.account",
+          );
+          expect(innerAccount?.id).toBe(fixture.accountB);
+        });
+      }),
+    ).rejects.toThrow(/nested/i);
     await expect(captured.unsafe("select 1")).rejects.toThrow(/no longer active/i);
 
     await expect(
@@ -423,7 +557,7 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
     ).rejects.toThrow(/does not exist/i);
     const [state] =
       await db`select current_user as role, current_setting('app.tenant', true) as tenant`;
-    expect(state?.role).not.toMatch(/^(api|worker|reporting)_rls$/);
+    expect(state?.role).toBe(connectorRole);
     expect(state?.tenant ?? "").toBe("");
   });
 
@@ -431,10 +565,7 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
     await withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
       await tenant.unsafe("select 1");
     });
-    const [state] =
-      await db`select current_user as role, current_setting('app.tenant', true) as tenant`;
-    expect(state?.role).not.toMatch(/^(api|worker|reporting)_rls$/);
-    expect(state?.tenant ?? "").toBe("");
+    await expectCleanBorrowedConnection();
 
     await expect(
       withTenant(db, fixture.accountA, "reporting_rls", async (tenant) => {
@@ -443,5 +574,21 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
         ]);
       }),
     ).rejects.toThrow(/permission denied/i);
+  });
+
+  it("allows independent parallel requests while rejecting same-connection nesting", async () => {
+    const [accountA, accountB] = await Promise.all([
+      withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+        const [account] = await tenant.unsafe<{ id: string }>("select id from public.account");
+        return account?.id;
+      }),
+      withTenant(db, fixture.accountB, "reporting_rls", async (tenant) => {
+        const [account] = await tenant.unsafe<{ id: string }>("select id from public.account");
+        return account?.id;
+      }),
+    ]);
+    expect(accountA).toBe(fixture.accountA);
+    expect(accountB).toBe(fixture.accountB);
+    await expectCleanBorrowedConnection();
   });
 });
