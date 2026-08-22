@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: touchmyapi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: touchmyapi
+      POSTGRES_USER: touchmyapi_dev
+      # Local development only. Override via POSTGRES_PASSWORD in the shell or a
+      # compose-local .env file. Never reuse a production or Stripe credential.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-touchmyapi_dev}
+    ports:
+      # Loopback-only bind: PostgreSQL is never exposed to other interfaces.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U touchmyapi_dev -d touchmyapi"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
