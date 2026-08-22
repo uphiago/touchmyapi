@@ -1,0 +1,44 @@
+packages/db/migrations/0003_rls_roles.sql
+  s_bc54431df54bf2::t_3404da75055d6b 1-53,55-64,66-75,77-86,88-94,96-102,104-110,112-118,120-126,128-134,136-142,144-150,152-158,160-166,168-174,176-178,182,186,188-197,199-282,288,290-303,305-310,312-314,316-320,322-425
+  s_bc54431df54bf2::t_70783149224ac1 54,65,76,87,95,103,111,119,127,135,143,151,159,167,175,179-181,183-185,198,289,311,315,321
+  s_bc54431df54bf2::t_8a8cba0f02d4b9 304
+  s_bc54431df54bf2::t_93f3770b415ef3 187
+  s_bc54431df54bf2::t_9baefb64aaac28 283-287
+packages/db/test/roles.isolation.test.ts
+  s_bc54431df54bf2::t_4e1af0ef914293 200
+  s_bc54431df54bf2::t_6554212072e895 1-109,111-121,126-130,132-144,146-153,208
+  s_bc54431df54bf2::t_4597a4304ca20d 122-125
+  s_bc54431df54bf2::t_ecb45401723f58 198
+  s_bc54431df54bf2::t_47d104e4c6374d 145
+  s_bc54431df54bf2::t_98923fee36a636 154-197,199,201-207
+  s_bc54431df54bf2::t_7e0bb35c924f20 110
+  s_bc54431df54bf2::t_18eac5ecebddd7 131
+  s_bc54431df54bf2::t_021311997f6745 209-220
+tests/isolation/rls.test.ts
+  s_bc54431df54bf2::t_e574aa35beddf4 96,131
+  s_bc54431df54bf2::t_93f3770b415ef3 48-55,105,110-114,132-136,138-139,148,154,159-160,162,166-168,170-171
+  s_bc54431df54bf2::t_6554212072e895 1-47,56,73-95,97-104,106-109,115-119,124-130,137,140-147,149-153,155-158,161,163-165,169,172-177
+  s_bc54431df54bf2::t_d2389b178ef62d 120-123
+  s_bc54431df54bf2::t_5b9baae8b672f2 57-72
+  s_bc54431df54bf2::t_752e76ebacf09e 178-186
+packages/db/migrations/meta/0003_snapshot.json
+  s_bc54431df54bf2::t_4235cf0e461f8c 1-2052
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_72602cf614f2be 25-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d15a204cde3dded01ccbb310debc7cd53deb4c8e",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
