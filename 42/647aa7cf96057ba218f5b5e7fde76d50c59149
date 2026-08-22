@@ -1,0 +1,29 @@
+packages/policy/src/limits.ts
+  s_bc54431df54bf2::t_2be5175b09b32a 219-221
+  s_bc54431df54bf2::t_6c5496434bd1b7 47,69-105,117-135,153-156,158
+  s_bc54431df54bf2::t_e50095a9673ba0 68,205
+  s_bc54431df54bf2::t_9d421412acb650 137-145,147
+  s_bc54431df54bf2::t_0a554a8b56bcb4 176-179,181-183,185-204,206-207,209-214,217-218,222,224-233
+  s_bc54431df54bf2::t_2d6717de71c5c3 136
+  s_bc54431df54bf2::t_8cc1a026f97d85 234
+packages/policy/test/limits.test.ts
+  s_bc54431df54bf2::t_3f02f49690bec4 79-80,84-144,161-195
+  s_bc54431df54bf2::t_e50095a9673ba0 81-83
+  s_bc54431df54bf2::t_7abad87633233e 145-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "42647aa7cf96057ba218f5b5e7fde76d50c59149",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
