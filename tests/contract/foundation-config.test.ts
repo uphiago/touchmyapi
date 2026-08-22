@@ -9,8 +9,25 @@ describe("foundation configuration contracts", () => {
   it("does not present DNS TXT as an authorization or verification method", () => {
     const atlas = read("specs/001-touchmyapi-platform/atlas.html");
 
+    expect(atlas).toContain("HTTP-file-only");
     expect(atlas).not.toMatch(/arquivo HTTP ou DNS TXT/i);
     expect(atlas).not.toMatch(/DNS[- ]TXT.*(?:autoriza|verifica)/i);
+  });
+
+  it("keeps migration failure and subprocess propagation fail-closed", () => {
+    const migrate = read("packages/db/scripts/migrate.ts");
+
+    expect(migrate).toContain('console.error("DATABASE_URL is required for migrations")');
+    expect(migrate).toContain("process.exit(1)");
+    expect(migrate).toContain(
+      'cmd: ["bunx", "drizzle-kit", "migrate", "--config=drizzle.config.ts"]',
+    );
+    expect(migrate).toContain('"drizzle-kit", "migrate", "--config=drizzle.config.ts"');
+    expect(migrate).toContain('cwd: new URL("../../../", import.meta.url).pathname');
+    expect(migrate).toContain('stdin: "inherit"');
+    expect(migrate).toContain('stdout: "inherit"');
+    expect(migrate).toContain('stderr: "inherit"');
+    expect(migrate).toContain("process.exit(await migration.exited)");
   });
 
   it("requires DATABASE_URL in the Drizzle configuration", () => {
@@ -48,4 +65,52 @@ describe("foundation configuration contracts", () => {
     expect(compose).toContain('"127.0.0.1:5433:5432"');
     expect(testDatabaseInit).toMatch(/CREATE DATABASE touchmyapi_test;/i);
   });
+
+  it("preserves the foundation PostgreSQL extensions", () => {
+    const extensions = read("infra/docker/postgres/init/001_extensions.sql");
+
+    expect(extensions).toContain("CREATE EXTENSION IF NOT EXISTS pgcrypto;");
+    expect(extensions).toContain("CREATE EXTENSION IF NOT EXISTS citext;");
+  });
+
+  it("keeps VITE variable names public and free of secret-shaped terms", () => {
+    const env = read(".env.example");
+    const viteNames = [...env.matchAll(/^((?:VITE_)[A-Z0-9_]+)=/gm)].map(([, name]) => name);
+    const publicNames = [
+      "VITE_API_BASE_URL",
+      "VITE_GOOGLE_CLIENT_ID",
+      "VITE_STRIPE_PUBLISHABLE_KEY",
+    ];
+
+    expect(viteNames).toEqual(expect.arrayContaining(publicNames));
+    for (const name of viteNames) {
+      expect(name).not.toMatch(/SECRET|PRIVATE|TOKEN|PASSWORD|WEBHOOK|ACCESS_KEY/);
+    }
+  });
+});
+
+const dockerAvailable = typeof Bun !== "undefined" && Boolean(Bun.which("docker"));
+const conditionalIt = dockerAvailable
+  ? typeof it.runIf === "function"
+    ? it.runIf(true)
+    : it
+  : typeof it.skipIf === "function"
+    ? it.skipIf(true)
+    : it.skip;
+
+conditionalIt("validates both local Docker Compose configurations", () => {
+  const composeFile = resolve(repositoryRoot, "infra/docker/compose.yml");
+  const commands = [
+    ["compose", "-f", composeFile, "config", "--quiet"],
+    ["compose", "--profile", "local", "-f", composeFile, "config", "--quiet"],
+  ];
+
+  if (typeof Bun === "undefined") return;
+
+  for (const args of commands) {
+    const result = Bun.spawnSync({ cmd: ["docker", ...args], stderr: "pipe" });
+    const stderr = new TextDecoder().decode(result.stderr);
+
+    expect(result.exitCode, stderr).toBe(0);
+  }
 });

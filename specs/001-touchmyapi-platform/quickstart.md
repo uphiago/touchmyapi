@@ -30,7 +30,7 @@ The checks require no OAuth, Stripe, object-storage, or target credentials. Opti
 cp .env.example .env
 ```
 
-`.env` remains ignored. The Compose PostgreSQL port is `127.0.0.1:5433`, matching `DATABASE_URL` in `.env.example`. `VITE_API_BASE_URL` is public; do not place secrets in any `VITE_*` variable.
+`.env` remains ignored. The Compose PostgreSQL port is `127.0.0.1:5433`; `DATABASE_URL` is intentionally blank in `.env.example` and must be set explicitly before migrations or an integration test. `VITE_API_BASE_URL` is public; do not place secrets in any `VITE_*` variable.
 
 ## Foundation verification
 
