@@ -1,0 +1,48 @@
+packages/db/test/roles.isolation.test.ts
+  s_bc54431df54bf2::t_5c6941b7b9ef26 131-160
+  s_bc54431df54bf2::t_31b5d0fd77c8ba 193-196,287-289,326
+  s_bc54431df54bf2::t_6b2b3ad05ab0b4 1,192,199,204,209,258,262,290,293,306
+  s_bc54431df54bf2::t_2f69e8460a5e53 32,218,224,227-228,232,235
+  s_bc54431df54bf2::t_fb0fcbe6272beb 253-257,259-261,263-286,291-292,294-305,307-323,325
+  s_bc54431df54bf2::t_7f952f241e6cba 236,324,327-328
+packages/db/migrations/0004_auth_hash_hardening.sql
+  s_bc54431df54bf2::t_fd5a4c7d07bc45 88-89,122
+  s_bc54431df54bf2::t_c1870ddcf1c1c5 1,15-30,32-40,43-48,50-87,90-121,123-162
+  s_bc54431df54bf2::t_df4c7c0c8b5535 31,41-42,49
+  s_bc54431df54bf2::t_1d9e137a541535 2-14
+packages/db/src/index.ts
+  s_bc54431df54bf2::t_028a4d8fc9f6aa 6
+tests/isolation/rls.test.ts
+  s_bc54431df54bf2::t_0af0814a4ae847 123-125
+  s_bc54431df54bf2::t_4ca2c4b18cdcb1 82,84-85,87-89
+  s_bc54431df54bf2::t_9c020e07205379 2,30,32-34,36-50,53-56,62-67,90-99,101-103,105-107,109-111,113-115,117-119,121-122,127-129,131-133,135-137,139-141,143-145,147-149,151-153,155-157,159-175
+  s_bc54431df54bf2::t_028a4d8fc9f6aa 31,242-243,261,273-276
+  s_bc54431df54bf2::t_d03cb9d8a53295 229,235-236,238-239,244,333,339-340,342-343,348,401,463
+  s_bc54431df54bf2::t_584779cf8604bc 496-497,502
+  s_bc54431df54bf2::t_7d29ed4b6047f6 69-70,72,77-81
+  s_bc54431df54bf2::t_1b41ae389d58ef 100,104,108,112,116,120,126,130,150
+  s_bc54431df54bf2::t_ae718deaf4d69f 35,86,158,176-212,245-260,286-287,305-306,349-364,368-369,408-409
+  s_bc54431df54bf2::t_9c76f80fbdff88 52,57-61,68,71,73-76,83,232-234,237,240-241,262-269,271-272,278-279,283-285,288-304,307-328,330,336,338,341,345-347,365,367,370-400,402-407,410-462,464-485,487,493-495,498,500-501,504-509,511-521,524
+  s_bc54431df54bf2::t_944b2e83493889 3-7,134,138,142,146,154
+  s_bc54431df54bf2::t_c925097a3ed4ed 51
+packages/db/migrations/meta/0004_snapshot.json
+  s_bc54431df54bf2::t_7f77ee940b26d7 1-2052
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_c38cd03e02aec4 32-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f99fedb7c1a90c38149a767bb5f1c531e5221056",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
