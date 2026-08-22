@@ -233,11 +233,11 @@ Run: `git add packages/db infra/docker && git commit -m "chore: add local postgr
 - Modify: `specs/001-touchmyapi-platform/quickstart.md`
 - Modify: `.env.example`
 
-- [ ] **Step 1: Add the documented local commands**
+- [x] **Step 1: Add the documented local commands**
 
 Document the exact sequence: `bun install`, `bun run verify:workspace`, `bun test`, `bun --cwd apps/web run build`, `docker compose -f infra/docker/compose.yml config`, and `bun run dev:api`.
 
-- [ ] **Step 2: Run the full foundation verification**
+- [x] **Step 2: Run the full foundation verification**
 
 Run:
 
@@ -245,19 +245,20 @@ Run:
 bun install
 bun run verify:workspace
 bun test
-bun --cwd apps/web run build
+bun run --cwd apps/web build
 docker compose -f infra/docker/compose.yml config
 ```
 
-Expected: all commands exit 0; `.env` remains ignored; no test starts an assessment or contacts an external target.
+Expected: all commands exit 0; `.env` remains ignored; no test starts an assessment or contacts an external target. If Docker is unavailable on the worker, record that limitation and run the Compose check on a Docker-enabled host before release.
 
-- [ ] **Step 3: Commit and push the foundation plan documentation**
+- [x] **Step 3: Commit and push the foundation plan documentation**
 
 Run: `git add README.md specs/001-touchmyapi-platform/quickstart.md .env.example && git commit -m "docs: document foundation quickstart"`
 
 Run: `git push origin main`
 
+Verification on 2026-08-22 (Bun 1.4.0): install, workspace verification, 5 unit tests, strict typecheck, web build, API startup, health response, local CORS, and JSON 404 passed. Three opt-in PostgreSQL integration-test hooks were skipped as designed. Docker was not installed on the worker (`docker: command not found`); README and quickstart require the Compose validation on a Docker-enabled development or CI host. Bun 1.4 uses `bun run --cwd apps/web build`; the earlier `bun --cwd apps/web run build` spelling is retained in documentation as a compatibility note.
+
 ## Coverage review
 
 This increment covers only the executable foundation. Google OAuth, PostgreSQL RLS, the assessment state machine, durable queue, policy engine, Stripe webhooks, runner isolation, reports, AI orchestration and the private agent remain separate implementation increments in `specs/001-touchmyapi-platform/tasks.md`. No scanner or active target interaction is permitted until those controls are implemented and tested.
-
