@@ -3,6 +3,7 @@ import postgres from "postgres";
 export * from "../schema";
 
 export type DbConnection = ReturnType<typeof postgres>;
+export type DbTransaction = postgres.TransactionSql;
 
 /**
  * Connection factory for the TouchMyAPI data layer.

@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDbConnection, type DbConnection } from "../../packages/db/src/index";
+import { createHash, randomUUID } from "node:crypto";
+import {
+  createDbConnection,
+  type DbConnection,
+  type DbTransaction,
+} from "../../packages/db/src/index";
 
 const RUN_DB_TESTS = process.env.RUN_DB_TESTS === "1";
 const describeDb = RUN_DB_TESTS ? describe : describe.skip;
@@ -22,6 +27,189 @@ const TENANT_TABLES = [
   "audit_event",
   "notification",
 ] as const;
+const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+type Tx = DbTransaction;
+type TenantRows = {
+  accountId: string;
+  userId: string;
+  sessionId: string;
+  assessmentId: string;
+  verificationId: string;
+  attestationId: string;
+  credentialId: string;
+  agentId: string;
+  jobId: string;
+  runnerExecutionId: string;
+  findingId: string;
+  reportId: string;
+  creditEntryId: string;
+  billingEventId: string;
+  entitlementId: string;
+  auditEventId: string;
+  notificationId: string;
+};
+
+async function expectDenied(tx: Tx, operation: () => Promise<unknown>, message: RegExp) {
+  await tx.unsafe("SAVEPOINT denied_operation");
+  try {
+    await operation();
+    throw new Error("operation unexpectedly succeeded");
+  } catch (error: unknown) {
+    const pgError = error as { code?: string; message?: string };
+    if (pgError.message === "operation unexpectedly succeeded") throw error;
+    expect(pgError.code).toBe("42501");
+    expect(pgError.message).toMatch(message);
+  } finally {
+    await tx.unsafe("ROLLBACK TO SAVEPOINT denied_operation");
+    await tx.unsafe("RELEASE SAVEPOINT denied_operation");
+  }
+}
+
+async function expectZeroOrPermission(tx: Tx, operation: () => Promise<unknown>) {
+  await tx.unsafe("SAVEPOINT mutation_probe");
+  try {
+    const result = (await operation()) as { count?: number };
+    expect(result.count ?? 0).toBe(0);
+  } catch (error: unknown) {
+    const pgError = error as { code?: string; message?: string };
+    expect(pgError.code).toBe("42501");
+    expect(pgError.message).toMatch(/permission denied/);
+  }
+  await tx.unsafe("ROLLBACK TO SAVEPOINT mutation_probe");
+  await tx.unsafe("RELEASE SAVEPOINT mutation_probe");
+}
+
+async function createTenantRows(
+  tx: Tx,
+  accountId: string,
+  userId: string,
+  sessionId: string,
+  suffix: string,
+  playbookKey: string,
+): Promise<TenantRows> {
+  const playbookVersion = "1.0.0";
+  const setTenant = async (role: string) => {
+    await tx.unsafe(`set local role ${role}`);
+    await tx`select set_config('app.tenant', ${accountId}, true)`;
+  };
+  await setTenant("api_rls");
+  const [assessment] = await tx`insert into public.assessment
+    (account_id, target_category, target_json, scope_json, playbook_id, playbook_version, limits_json)
+    values (${accountId}, 'surface', '{}'::jsonb, '{}'::jsonb, ${playbookKey}, ${playbookVersion}, '{}'::jsonb)
+    returning id`;
+  if (!assessment) throw new Error("assessment fixture missing");
+  const [verification] = await tx`insert into public.verification
+    (account_id, target_json, challenge_token, challenge_host)
+    values (${accountId}, '{}'::jsonb, ${`challenge-${suffix}`}, 'example.test') returning id`;
+  if (!verification) throw new Error("verification fixture missing");
+  const [attestation] = await tx`insert into public.authorization_attestation
+    (account_id, assessment_id, user_id, target_json, terms_version)
+    values (${accountId}, ${assessment.id}, ${userId}, '{}'::jsonb, '1') returning id`;
+  if (!attestation) throw new Error("attestation fixture missing");
+  const [credential] = await tx`insert into public.credential
+    (account_id, assessment_id, encrypted_payload, key_id, purpose)
+    values (${accountId}, ${assessment.id}, decode('00', 'hex'), 'test-key', 'fixture') returning id`;
+  if (!credential) throw new Error("credential fixture missing");
+  const [agent] = await tx`insert into public.agent
+    (account_id, name, token_hash, fingerprint)
+    values (${accountId}, ${`agent-${suffix}`}, ${sha256(`agent-token-${suffix}`)}, 'fixture') returning id`;
+  if (!agent) throw new Error("agent fixture missing");
+  const [auditEvent] = await tx`insert into public.audit_event
+    (account_id, actor, action, payload_json)
+    values (${accountId}, 'fixture', 'request', '{}'::jsonb) returning id`;
+  if (!auditEvent) throw new Error("audit fixture missing");
+
+  await setTenant("worker_rls");
+  const [notification] = await tx`insert into public.notification
+    (account_id, assessment_id, kind)
+    values (${accountId}, ${assessment.id}, 'fixture') returning id`;
+  if (!notification) throw new Error("notification fixture missing");
+  const [job] = await tx`insert into public.job
+    (account_id, assessment_id, playbook_version, job_spec_json, dedupe_key)
+    values (${accountId}, ${assessment.id}, ${playbookVersion}, '{}'::jsonb, ${`dedupe-${suffix}`}) returning id`;
+  if (!job) throw new Error("job fixture missing");
+  const [runnerExecution] = await tx`insert into public.runner_execution
+    (account_id, job_id, sandbox_impl)
+    values (${accountId}, ${job.id}, 'fixture') returning id`;
+  if (!runnerExecution) throw new Error("runner execution fixture missing");
+  const [finding] = await tx`insert into public.finding
+    (account_id, assessment_id, title, category, severity)
+    values (${accountId}, ${assessment.id}, 'fixture', 'fixture', 'low') returning id`;
+  if (!finding) throw new Error("finding fixture missing");
+  const [report] = await tx`insert into public.report
+    (account_id, assessment_id, kind, object_key, contract_version, sanitized)
+    values (${accountId}, ${assessment.id}, 'json', ${`fixture-${suffix}`}, '1', false) returning id`;
+  if (!report) throw new Error("report fixture missing");
+  const [creditEntry] = await tx`insert into public.credit_entry
+    (account_id, assessment_id, credits, reason)
+    values (${accountId}, ${assessment.id}, 1, 'fixture') returning id`;
+  if (!creditEntry) throw new Error("credit entry fixture missing");
+  const [billingEvent] = await tx`insert into public.billing_event
+    (account_id, stripe_event_id, type, payload_minimal_json, signature_valid, event_version)
+    values (${accountId}, ${`evt-${suffix}`}, 'fixture', '{}'::jsonb, true, '1') returning id`;
+  if (!billingEvent) throw new Error("billing event fixture missing");
+  const [entitlement] = await tx`insert into public.entitlement
+    (account_id, plan, source_event_id)
+    values (${accountId}, 'free_unverified', ${billingEvent.id}) returning id`;
+  if (!entitlement) throw new Error("entitlement fixture missing");
+  return {
+    accountId,
+    userId,
+    sessionId,
+    assessmentId: assessment.id,
+    verificationId: verification.id,
+    attestationId: attestation.id,
+    credentialId: credential.id,
+    agentId: agent.id,
+    jobId: job.id,
+    runnerExecutionId: runnerExecution.id,
+    findingId: finding.id,
+    reportId: report.id,
+    creditEntryId: creditEntry.id,
+    billingEventId: billingEvent.id,
+    entitlementId: entitlement.id,
+    auditEventId: auditEvent.id,
+    notificationId: notification.id,
+  };
+}
+
+function tenantIds(rows: TenantRows): Record<(typeof TENANT_TABLES)[number], string> {
+  return {
+    account: rows.accountId,
+    user: rows.userId,
+    session: rows.sessionId,
+    assessment: rows.assessmentId,
+    authorization_attestation: rows.attestationId,
+    verification: rows.verificationId,
+    job: rows.jobId,
+    runner_execution: rows.runnerExecutionId,
+    credential: rows.credentialId,
+    finding: rows.findingId,
+    report: rows.reportId,
+    credit_entry: rows.creditEntryId,
+    billing_event: rows.billingEventId,
+    entitlement: rows.entitlementId,
+    agent: rows.agentId,
+    audit_event: rows.auditEventId,
+    notification: rows.notificationId,
+  };
+}
+
+async function expectZeroOrPermissionForEveryTable(
+  tx: Tx,
+  rows: TenantRows,
+  command: "update" | "delete",
+) {
+  const ids = tenantIds(rows);
+  for (const table of TENANT_TABLES) {
+    const id = ids[table];
+    await expectZeroOrPermission(tx, () =>
+      command === "update"
+        ? tx.unsafe(`update public."${table}" set id = id where id = $1`, [id])
+        : tx.unsafe(`delete from public."${table}" where id = $1`, [id]),
+    );
+  }
+}
 
 function databaseUrlForTest(): string {
   const value = process.env.DATABASE_URL;
@@ -38,149 +226,301 @@ describeDb("PostgreSQL default-deny tenant isolation", () => {
   });
   afterAll(async () => db?.end());
 
-  it("returns no tenant rows when context is absent, empty, or malformed", async () => {
+  it("denies reads and real DML without a valid tenant for api and worker", async () => {
     await db
       .begin(async (tx) => {
-        await tx.unsafe("set local role api_rls");
-        for (const setting of [null, "", "not-a-uuid", "00000000-0000-0000-0000-000000000000"]) {
-          if (setting === null) await tx.unsafe("reset app.tenant");
-          else await tx`select set_config('app.tenant', ${setting}, true)`;
-          for (const table of TENANT_TABLES) {
-            await tx.unsafe("SAVEPOINT tenant_probe");
-            let rows: unknown[] = [];
-            try {
-              rows = await tx.unsafe(`select * from public."${table}"`);
-            } catch {
-              await tx.unsafe("ROLLBACK TO SAVEPOINT tenant_probe");
-            }
-            await tx.unsafe("RELEASE SAVEPOINT tenant_probe");
-            expect(rows, `${table} with tenant ${setting ?? "absent"}`).toEqual([]);
+        const run = randomUUID();
+        await tx.unsafe("set local role auth_bootstrap");
+        const [a] = await tx`select * from public.auth_complete_google_login(
+        ${`subject-a-${run}`}, 'a@example.test'::citext, ${sha256(`a-${run}`)}, now() + interval '1 hour', null, null
+      )`;
+        const [b] = await tx`select * from public.auth_complete_google_login(
+        ${`subject-b-${run}`}, 'b@example.test'::citext, ${sha256(`b-${run}`)}, now() + interval '1 hour', null, null
+      )`;
+        if (!a || !b) throw new Error("auth fixture missing");
+        await tx.unsafe("reset role");
+        const playbookKey = `rls-${run}`;
+        await tx`insert into public.playbook (key, playbook_version, target_category, contract_json)
+        values (${playbookKey}, '1.0.0', 'surface', '{}'::jsonb)`;
+        const rowsA = await createTenantRows(
+          tx,
+          a.account_id,
+          a.user_id,
+          a.session_id,
+          `${run}-a`,
+          playbookKey,
+        );
+        const rowsB = await createTenantRows(
+          tx,
+          b.account_id,
+          b.user_id,
+          b.session_id,
+          `${run}-b`,
+          playbookKey,
+        );
+        expect(rowsB.accountId).not.toBe(rowsA.accountId);
 
-            const ownershipColumn = table === "account" ? "id" : "account_id";
-            for (const operation of [
-              `insert into public."${table}" (${ownershipColumn}) values ('00000000-0000-0000-0000-000000000000')`,
-              `update public."${table}" set ${ownershipColumn} = '00000000-0000-0000-0000-000000000000' where false`,
-              `delete from public."${table}" where false`,
-            ]) {
-              await tx.unsafe("SAVEPOINT tenant_dml_probe");
+        for (const role of ["api_rls", "worker_rls", "reporting_rls"]) {
+          await tx.unsafe(`set local role ${role}`);
+          for (const setting of [null, "", "malformed"]) {
+            if (setting === null) await tx.unsafe("reset app.tenant");
+            else await tx`select set_config('app.tenant', ${setting}, true)`;
+            for (const table of TENANT_TABLES) {
+              await tx.unsafe("SAVEPOINT read_probe");
               try {
-                const result = await tx.unsafe(operation);
-                expect(result.count ?? 0, `${table} without tenant`).toBe(0);
-              } catch {
-                // Permission, policy, or constraint denial is the fail-closed result.
-                await tx.unsafe("ROLLBACK TO SAVEPOINT tenant_dml_probe");
+                const rows = await tx.unsafe(`select * from public."${table}"`);
+                expect(rows, `${role}/${table}/${setting}`).toEqual([]);
+              } catch (error: unknown) {
+                const pgError = error as { code?: string; message?: string };
+                if (pgError.code !== "42501") throw error;
+                expect(pgError.message).toMatch(/permission denied/);
               }
-              await tx.unsafe("RELEASE SAVEPOINT tenant_dml_probe");
+              await tx.unsafe("ROLLBACK TO SAVEPOINT read_probe");
+              await tx.unsafe("RELEASE SAVEPOINT read_probe");
             }
           }
         }
-        throw new Error("rollback fixture");
+
+        await tx.unsafe("set local role api_rls");
+        await tx.unsafe("reset app.tenant");
+        await expectZeroOrPermissionForEveryTable(tx, rowsA, "update");
+        await expectZeroOrPermissionForEveryTable(tx, rowsA, "delete");
+        for (const operation of [
+          () =>
+            tx`update public.account set settings_ia_enabled = false where id = ${rowsA.accountId}`,
+          () => tx`update public.assessment set status = 'queued' where id = ${rowsA.assessmentId}`,
+          () =>
+            tx`update public.verification set status = 'verified' where id = ${rowsA.verificationId}`,
+          () => tx`update public.credential set purpose = 'probe' where id = ${rowsA.credentialId}`,
+          () => tx`update public.agent set name = 'probe' where id = ${rowsA.agentId}`,
+          () =>
+            tx`update public.notification set read_at = now() where id = ${rowsA.notificationId}`,
+          () => tx`delete from public.credential where id = ${rowsA.credentialId}`,
+          () => tx`delete from public.agent where id = ${rowsA.agentId}`,
+        ])
+          await expectZeroOrPermission(tx, operation);
+
+        await tx.unsafe("set local role worker_rls");
+        await tx.unsafe("reset app.tenant");
+        await expectZeroOrPermissionForEveryTable(tx, rowsA, "update");
+        await expectZeroOrPermissionForEveryTable(tx, rowsA, "delete");
+        for (const operation of [
+          () => tx`update public.assessment set status = 'queued' where id = ${rowsA.assessmentId}`,
+          () =>
+            tx`update public.verification set status = 'verified' where id = ${rowsA.verificationId}`,
+          () => tx`update public.job set status = 'running' where id = ${rowsA.jobId}`,
+          () =>
+            tx`update public.runner_execution set cleaned_up = true where id = ${rowsA.runnerExecutionId}`,
+          () => tx`update public.finding set title = 'probe' where id = ${rowsA.findingId}`,
+          () => tx`update public.report set sanitized = true where id = ${rowsA.reportId}`,
+          () =>
+            tx`update public.billing_event set processing_status = 'processed' where id = ${rowsA.billingEventId}`,
+          () =>
+            tx`update public.entitlement set status = 'revoked' where id = ${rowsA.entitlementId}`,
+          () => tx`update public.agent set name = 'probe' where id = ${rowsA.agentId}`,
+          () =>
+            tx`update public.notification set read_at = now() where id = ${rowsA.notificationId}`,
+          () => tx`delete from public.job where id = ${rowsA.jobId}`,
+          () => tx`delete from public.runner_execution where id = ${rowsA.runnerExecutionId}`,
+          () => tx`delete from public.credential where id = ${rowsA.credentialId}`,
+        ])
+          await expectZeroOrPermission(tx, operation);
+        throw new Error("rollback no-tenant fixture");
       })
-      .catch((error) => {
-        expect(error.message).toBe("rollback fixture");
-      });
+      .catch((error) => expect(error.message).toBe("rollback no-tenant fixture"));
   });
 
-  it("isolates account A from account B for reads, writes, and audit mutation", async () => {
+  it("allows own mutations and rejects cross-tenant inserts with RLS, while reporting is read-only", async () => {
     await db
       .begin(async (tx) => {
+        const run = randomUUID();
         await tx.unsafe("set local role auth_bootstrap");
-        const [a] = await tx`
-        select * from public.auth_complete_google_login(
-          'subject-a', 'a@example.test'::citext, 'hash-a', now() + interval '1 hour', '127.0.0.1'::inet, 'test'
-        )
-      `;
-        const [b] = await tx`
-        select * from public.auth_complete_google_login(
-          'subject-b', 'b@example.test'::citext, 'hash-b', now() + interval '1 hour', '127.0.0.1'::inet, 'test'
-        )
-      `;
-        expect(a?.account_id).toBeTruthy();
-        expect(b?.account_id).toBeTruthy();
+        const [a] = await tx`select * from public.auth_complete_google_login(
+        ${`subject-a-${run}`}, 'a@example.test'::citext, ${sha256(`a-${run}`)}, now() + interval '1 hour', null, null
+      )`;
+        const [b] = await tx`select * from public.auth_complete_google_login(
+        ${`subject-b-${run}`}, 'b@example.test'::citext, ${sha256(`b-${run}`)}, now() + interval '1 hour', null, null
+      )`;
         if (!a || !b) throw new Error("auth fixture missing");
+        await tx.unsafe("reset role");
+        const playbookKey = `rls-${run}`;
+        await tx`insert into public.playbook (key, playbook_version, target_category, contract_json)
+        values (${playbookKey}, '1.0.0', 'surface', '{}'::jsonb)`;
+        const rowsA = await createTenantRows(
+          tx,
+          a.account_id,
+          a.user_id,
+          a.session_id,
+          `${run}-a`,
+          playbookKey,
+        );
+        const rowsB = await createTenantRows(
+          tx,
+          b.account_id,
+          b.user_id,
+          b.session_id,
+          `${run}-b`,
+          playbookKey,
+        );
+
         await tx.unsafe("set local role api_rls");
-        await tx`select set_config('app.tenant', ${a.account_id}, true)`;
+        await tx`select set_config('app.tenant', ${rowsA.accountId}, true)`;
+        await expectZeroOrPermissionForEveryTable(tx, rowsB, "update");
+        await expectZeroOrPermissionForEveryTable(tx, rowsB, "delete");
+        expect(
+          (
+            await tx`update public.assessment set status = 'queued' where id = ${rowsA.assessmentId}`
+          ).count,
+        ).toBe(1);
+        expect(
+          (
+            await tx`update public.verification set status = 'verified' where id = ${rowsA.verificationId}`
+          ).count,
+        ).toBe(1);
+        expect(
+          (await tx`delete from public.credential where id = ${rowsA.credentialId}`).count,
+        ).toBe(1);
+        expect((await tx`delete from public.agent where id = ${rowsA.agentId}`).count).toBe(1);
+        for (const operation of [
+          () =>
+            tx`update public.account set settings_ia_enabled = false where id = ${rowsB.accountId}`,
+          () => tx`update public.assessment set status = 'failed' where id = ${rowsB.assessmentId}`,
+          () =>
+            tx`update public.verification set status = 'failed' where id = ${rowsB.verificationId}`,
+          () => tx`update public.credential set purpose = 'cross' where id = ${rowsB.credentialId}`,
+          () => tx`update public.agent set name = 'cross' where id = ${rowsB.agentId}`,
+          () =>
+            tx`update public.notification set read_at = now() where id = ${rowsB.notificationId}`,
+          () => tx`delete from public.credential where id = ${rowsB.credentialId}`,
+          () => tx`delete from public.agent where id = ${rowsB.agentId}`,
+        ])
+          await expectZeroOrPermission(tx, operation);
+        await expectDenied(
+          tx,
+          () => tx`insert into public.assessment
+        (id, account_id, target_category, target_json, scope_json, playbook_id, playbook_version, limits_json)
+        values (gen_random_uuid(), ${rowsB.accountId}, 'surface', '{}'::jsonb, '{}'::jsonb, ${playbookKey}, '1.0.0', '{}'::jsonb)`,
+          /row-level security/,
+        );
 
-        const own = await tx`select id from public.account`;
-        expect(own).toHaveLength(1);
-        const other = await tx`select id from public.account where id = ${b.account_id}`;
-        expect(other).toEqual([]);
+        await tx.unsafe("set local role worker_rls");
+        await tx`select set_config('app.tenant', ${rowsA.accountId}, true)`;
+        await expectZeroOrPermissionForEveryTable(tx, rowsB, "update");
+        await expectZeroOrPermissionForEveryTable(tx, rowsB, "delete");
+        expect(
+          (await tx`update public.job set status = 'running' where id = ${rowsA.jobId}`).count,
+        ).toBe(1);
+        expect(
+          (
+            await tx`update public.runner_execution set cleaned_up = true where id = ${rowsA.runnerExecutionId}`
+          ).count,
+        ).toBe(1);
+        expect(
+          (await tx`update public.finding set title = 'updated' where id = ${rowsA.findingId}`)
+            .count,
+        ).toBe(1);
+        expect(
+          (await tx`update public.report set sanitized = true where id = ${rowsA.reportId}`).count,
+        ).toBe(1);
+        expect(
+          (
+            await tx`update public.billing_event set processing_status = 'processed' where id = ${rowsA.billingEventId}`
+          ).count,
+        ).toBe(1);
+        expect(
+          (
+            await tx`update public.entitlement set status = 'revoked' where id = ${rowsA.entitlementId}`
+          ).count,
+        ).toBe(1);
+        expect(
+          (await tx`delete from public.runner_execution where id = ${rowsA.runnerExecutionId}`)
+            .count,
+        ).toBe(1);
+        for (const operation of [
+          () => tx`update public.assessment set status = 'failed' where id = ${rowsB.assessmentId}`,
+          () =>
+            tx`update public.verification set status = 'failed' where id = ${rowsB.verificationId}`,
+          () => tx`update public.job set status = 'failed' where id = ${rowsB.jobId}`,
+          () =>
+            tx`update public.runner_execution set cleaned_up = true where id = ${rowsB.runnerExecutionId}`,
+          () => tx`update public.finding set title = 'cross' where id = ${rowsB.findingId}`,
+          () => tx`update public.report set sanitized = true where id = ${rowsB.reportId}`,
+          () =>
+            tx`update public.billing_event set processing_status = 'processed' where id = ${rowsB.billingEventId}`,
+          () =>
+            tx`update public.entitlement set status = 'revoked' where id = ${rowsB.entitlementId}`,
+          () => tx`update public.agent set name = 'cross' where id = ${rowsB.agentId}`,
+          () =>
+            tx`update public.notification set read_at = now() where id = ${rowsB.notificationId}`,
+          () => tx`delete from public.job where id = ${rowsB.jobId}`,
+          () => tx`delete from public.runner_execution where id = ${rowsB.runnerExecutionId}`,
+          () => tx`delete from public.credential where id = ${rowsB.credentialId}`,
+        ])
+          await expectZeroOrPermission(tx, operation);
+        await expectDenied(
+          tx,
+          () => tx`insert into public.job
+        (id, account_id, assessment_id, playbook_version, job_spec_json, dedupe_key)
+        values (gen_random_uuid(), ${rowsB.accountId}, ${rowsB.assessmentId}, '1.0.0', '{}'::jsonb, ${`cross-${run}`})`,
+          /row-level security/,
+        );
 
-        await tx.unsafe("SAVEPOINT cross_insert");
-        const crossInsert = await tx`
-        insert into public.account (id, status, settings_ia_enabled)
-        values (${b.account_id}, 'active', true)
-        on conflict do nothing
-      `.catch(async () => {
-          await tx.unsafe("ROLLBACK TO SAVEPOINT cross_insert");
-          return null;
-        });
-        await tx.unsafe("RELEASE SAVEPOINT cross_insert");
-        expect(crossInsert).toBeNull();
-        const crossUpdate = await tx`
-        update public.account set status = 'revoked' where id = ${b.account_id}
-      `;
-        expect(crossUpdate.count).toBe(0);
-        await tx.unsafe("SAVEPOINT cross_delete");
-        await expect(tx`delete from public.account where id = ${b.account_id}`).rejects.toThrow();
-        await tx.unsafe("ROLLBACK TO SAVEPOINT cross_delete");
-        await tx.unsafe("RELEASE SAVEPOINT cross_delete");
-
-        const [audit] = await tx`
-        insert into public.audit_event (account_id, actor, action, payload_json)
-        values (${a.account_id}, 'test', 'request', '{}'::jsonb)
-        returning id
-      `;
-        expect(audit?.id).toBeTruthy();
-        if (!audit) throw new Error("audit fixture missing");
-        await tx.unsafe("SAVEPOINT audit_update");
-        await expect(
-          tx`update public.audit_event set actor = 'tampered' where id = ${audit.id}`,
-        ).rejects.toThrow();
-        await tx.unsafe("ROLLBACK TO SAVEPOINT audit_update");
-        await tx.unsafe("RELEASE SAVEPOINT audit_update");
-        await tx.unsafe("SAVEPOINT audit_delete");
-        await expect(tx`delete from public.audit_event where id = ${audit.id}`).rejects.toThrow();
-        await tx.unsafe("ROLLBACK TO SAVEPOINT audit_delete");
-        await tx.unsafe("RELEASE SAVEPOINT audit_delete");
-        throw new Error("rollback fixture");
+        await tx.unsafe("set local role reporting_rls");
+        await tx`select set_config('app.tenant', ${rowsA.accountId}, true)`;
+        expect(await tx`select id from public.account`).toHaveLength(1);
+        expect(await tx`select id from public.assessment`).toHaveLength(1);
+        await tx`select set_config('app.tenant', ${rowsB.accountId}, true)`;
+        expect(await tx`select id from public.account where id = ${rowsA.accountId}`).toEqual([]);
+        await expectDenied(
+          tx,
+          () =>
+            tx`update public.account set settings_ia_enabled = false where id = ${rowsB.accountId}`,
+          /permission denied/,
+        );
+        await expectDenied(
+          tx,
+          () => tx`delete from public.account where id = ${rowsB.accountId}`,
+          /permission denied/,
+        );
+        throw new Error("rollback DML fixture");
       })
-      .catch((error) => {
-        expect(error.message).toBe("rollback fixture");
-      });
+      .catch((error) => expect(error.message).toBe("rollback DML fixture"));
   });
 
   it("keeps playbook read-only and reporting read-only", async () => {
     await db
       .begin(async (tx) => {
+        const run = randomUUID();
+        await tx.unsafe("set local role auth_bootstrap");
+        const [account] = await tx`select * from public.auth_complete_google_login(
+        ${`playbook-subject-${run}`}, 'playbook@example.test'::citext, ${sha256(`playbook-${run}`)}, now() + interval '1 hour', null, null
+      )`;
+        if (!account) throw new Error("playbook fixture missing");
         await tx.unsafe("reset role");
-        await tx`
-        insert into public.playbook (key, playbook_version, target_category, contract_json, active)
-        values ('test', '1.0.0', 'surface', '{}'::jsonb, true)
-      `;
+        const playbookKey = `playbook-${run}`;
+        await tx`insert into public.playbook (key, playbook_version, target_category, contract_json, active)
+        values (${playbookKey}, '1.0.0', 'surface', '{}'::jsonb, true)`;
         await tx.unsafe("set local role api_rls");
-        await tx.unsafe("SAVEPOINT playbook_insert");
-        await expect(
-          tx`insert into public.playbook (key, playbook_version, target_category, contract_json, active)
-           values ('forbidden', '1.0.0', 'surface', '{}'::jsonb, true)`,
-        ).rejects.toThrow();
-        await tx.unsafe("ROLLBACK TO SAVEPOINT playbook_insert");
-        await tx.unsafe("RELEASE SAVEPOINT playbook_insert");
+        await expectDenied(
+          tx,
+          () => tx`insert into public.playbook (key, playbook_version, target_category, contract_json, active)
+        values (${`forbidden-${run}`}, '1.0.0', 'surface', '{}'::jsonb, true)`,
+          /permission denied/,
+        );
         await tx.unsafe("set local role reporting_rls");
-        await tx.unsafe("SAVEPOINT reporting_update");
-        await expect(
-          tx`update public.account set status = 'revoked' where false`,
-        ).rejects.toThrow();
-        await tx.unsafe("ROLLBACK TO SAVEPOINT reporting_update");
-        await tx.unsafe("RELEASE SAVEPOINT reporting_update");
-        await tx.unsafe("SAVEPOINT reporting_delete");
-        await expect(tx`delete from public.account where false`).rejects.toThrow();
-        await tx.unsafe("ROLLBACK TO SAVEPOINT reporting_delete");
-        await tx.unsafe("RELEASE SAVEPOINT reporting_delete");
+        await tx`select set_config('app.tenant', ${account.account_id}, true)`;
+        await expectDenied(
+          tx,
+          () => tx`update public.account set status = 'revoked' where id = ${account.account_id}`,
+          /permission denied/,
+        );
+        await expectDenied(
+          tx,
+          () => tx`delete from public.account where id = ${account.account_id}`,
+          /permission denied/,
+        );
         throw new Error("rollback fixture");
       })
-      .catch((error) => {
-        expect(error.message).toBe("rollback fixture");
-      });
+      .catch((error) => expect(error.message).toBe("rollback fixture"));
   });
 });
