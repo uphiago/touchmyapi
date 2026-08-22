@@ -28,7 +28,7 @@ TouchMyAPI is an authorized security-assessment platform. Users authenticate wit
 
 **Constraints**: policy engine is final authority; browser/model/runner cannot escalate limits; RLS default-deny; credentials never in logs/reports/models/frontend; webhook-only entitlement changes; AI non-executor; no bucket public; one run per target/account
 
-**Scale/Scope**: individual accounts at launch (no orgs), Brazil/BRL, small curated playbook set; ~10 tables; 1 API app, 1 control worker, 1 sandbox abstraction, 1 web app
+**Scale/Scope**: individual accounts at launch (no orgs), Brazil/BRL, small curated playbook set; ~18 tables; 1 API app, 1 control worker, 1 sandbox abstraction, 1 web app
 
 ## Constitution Check
 
@@ -55,7 +55,9 @@ specs/001-touchmyapi-platform/
 └── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
 ```
 
-### Source Code (repository root)
+### Target Source Code (repository root)
+
+This is the intended product structure. The foundation scaffold currently contains only `apps/api`, `apps/web`, `packages/contracts`, `packages/db`, and local PostgreSQL Compose infrastructure; later phases add the remaining paths.
 
 ```text
 apps/
@@ -79,7 +81,7 @@ tests/
   e2e/                 # quickstart validation scenarios
 ```
 
-**Structure Decision**: Bun monorepo with workspace packages; two top-level signature behaviors: the API/worker share domain packages so policy and contracts are compiled into both, and the runner is abstracted behind `SandboxProvider` (ephemeral container impl today, managed sandboxes later). Apps stay thin; enforcement lives in `packages/policy` and `packages/contracts` to satisfy constitution principles II/IV/V.
+**Structure Decision**: Bun monorepo with workspace packages; two top-level signature behaviors: the API/worker will share domain packages so policy and contracts are compiled into both, and the runner will be abstracted behind `SandboxProvider` (ephemeral container implementation first, managed sandboxes later). Apps stay thin; enforcement will live in `packages/policy` and `packages/contracts` to satisfy constitution principles II/IV/V.
 
 ## Complexity Tracking
 

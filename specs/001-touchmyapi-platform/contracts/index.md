@@ -2,7 +2,7 @@
 
 **Phase 1 output** | **Date**: 2026-08-17
 
-Live, schema-validated definitions live in `packages/contracts` (zod). This directory is the versioned, human-readable reference. Every contract is versioned; breaking changes bump the version and require migration handling.
+Implemented, schema-validated definitions live in `packages/contracts` (zod). The current foundation implements assessment states, target categories, health, and error envelopes only. Job, playbook, export, webhook, and audit documents in this directory are versioned design references until their later implementation tasks are complete. Breaking changes bump the version and require migration handling.
 
 Table of contents:
 
