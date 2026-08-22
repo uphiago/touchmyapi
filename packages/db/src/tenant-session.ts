@@ -59,9 +59,27 @@ const FORBIDDEN_TOKENS = new Set([
   "drop",
   "execute",
   "grant",
+  "lo_export",
+  "lo_import",
+  "lo_unlink",
   "listen",
   "lock",
   "notify",
+  "pg_cancel_backend",
+  "pg_file_write",
+  "pg_log_backend_memory_contexts",
+  "pg_ls_dir",
+  "pg_notify",
+  "pg_read_binary_file",
+  "pg_read_file",
+  "pg_reload_conf",
+  "pg_rotate_logfile",
+  "pg_sleep",
+  "pg_sleep_for",
+  "pg_sleep_until",
+  "pg_stat_file",
+  "pg_temp",
+  "pg_terminate_backend",
   "prepare",
   "reindex",
   "release",
@@ -72,6 +90,9 @@ const FORBIDDEN_TOKENS = new Set([
   "session_user",
   "set_config",
   "start",
+  "temp",
+  "temporary",
+  "uescape",
   "truncate",
   "unlisten",
   "vacuum",
@@ -79,6 +100,16 @@ const FORBIDDEN_TOKENS = new Set([
 
 const ALLOWED_ROOT_TOKENS = new Set(["select", "insert", "update", "delete"]);
 const tenantContext = new AsyncLocalStorage<DbConnection>();
+
+const SESSION_ADVISORY_FUNCTIONS = new Set([
+  "pg_advisory_lock",
+  "pg_advisory_lock_shared",
+  "pg_advisory_unlock",
+  "pg_advisory_unlock_all",
+  "pg_advisory_unlock_shared",
+  "pg_try_advisory_lock",
+  "pg_try_advisory_lock_shared",
+]);
 
 const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -96,7 +127,11 @@ function roleSql(role: RuntimeRole): string {
   return RUNTIME_ROLE_SQL[role as RuntimeRole];
 }
 
-type SqlToken = { kind: "word" | "string" | "punctuation"; value: string };
+type SqlToken = {
+  kind: "word" | "string" | "punctuation";
+  value: string;
+  quoted?: boolean;
+};
 
 function rejectTenantQuery(reason: string): never {
   throw new TypeError(`tenant query blocked by SQL firewall: ${reason}`);
@@ -115,6 +150,9 @@ function tokenizeTenantQuery(query: string): SqlToken[] {
       continue;
     }
     if (character === ";") rejectTenantQuery("multiple statements are not allowed");
+    if (/^u\s*&\s*["']/i.test(query.slice(index))) {
+      rejectTenantQuery("Unicode escape identifiers and strings are not allowed");
+    }
     if (
       (character === "-" && query[index + 1] === "-") ||
       (character === "/" && query[index + 1] === "*")
@@ -166,14 +204,14 @@ function tokenizeTenantQuery(query: string): SqlToken[] {
         end += 1;
       }
       if (query[end - 1] !== '"') rejectTenantQuery("unterminated quoted identifier");
-      tokens.push({ kind: "word", value: value.toLowerCase() });
+      tokens.push({ kind: "word", value: value.toLowerCase(), quoted: true });
       index = end;
       continue;
     }
     if (/[A-Za-z_]/.test(character)) {
       let end = index + 1;
       while (/[A-Za-z0-9_$]/.test(query[end] ?? "")) end += 1;
-      tokens.push({ kind: "word", value: query.slice(index, end).toLowerCase() });
+      tokens.push({ kind: "word", value: query.slice(index, end).toLowerCase(), quoted: false });
       index = end;
       continue;
     }
@@ -196,58 +234,65 @@ function tokenizeTenantQuery(query: string): SqlToken[] {
 
 function validateTenantQuery(query: string): void {
   const tokens = tokenizeTenantQuery(query);
-  for (const token of tokens) {
-    if (token.kind === "word" && FORBIDDEN_TOKENS.has(token.value)) {
+  let depth = 0;
+  const positionedTokens = tokens.map((token) => {
+    if (token.value === ")") {
+      depth -= 1;
+      if (depth < 0) rejectTenantQuery("unbalanced parentheses");
+    }
+    const positioned = { ...token, depth };
+    if (token.value === "(") depth += 1;
+    return positioned;
+  });
+  if (depth !== 0) rejectTenantQuery("unbalanced parentheses");
+
+  for (const token of positionedTokens) {
+    if (
+      token.kind === "word" &&
+      (FORBIDDEN_TOKENS.has(token.value) || token.value.startsWith("pg_temp_"))
+    ) {
       rejectTenantQuery(`forbidden token ${token.value}`);
+    }
+    if (token.kind === "word" && SESSION_ADVISORY_FUNCTIONS.has(token.value)) {
+      rejectTenantQuery(`session-persistent function ${token.value} is not allowed`);
     }
   }
 
-  const firstWord = tokens.find((token) => token.kind === "word")?.value;
+  const firstWord = positionedTokens.find((token) => token.kind === "word" && !token.quoted)?.value;
   if (!firstWord) rejectTenantQuery("statement has no command");
   const command = firstWord;
   if (command !== "with" && !ALLOWED_ROOT_TOKENS.has(command)) {
     rejectTenantQuery("only SELECT, INSERT, UPDATE, DELETE, or a DML CTE is allowed");
   }
-  if (command === "select") {
-    let depth = 0;
-    for (const token of tokens.slice(1)) {
-      if (token.value === "(") {
-        depth += 1;
-        continue;
-      }
-      if (token.value === ")") {
-        depth -= 1;
-        continue;
-      }
-      if (depth === 0 && token.kind === "word" && token.value === "into") {
-        rejectTenantQuery("SELECT INTO is not allowed");
-      }
-    }
-  }
+  let rootCommand = command;
   if (command === "with") {
-    let depth = 0;
-    let rootCommand: string | undefined;
-    for (const token of tokens.slice(1)) {
-      if (token.value === "(") {
-        depth += 1;
-        continue;
-      }
-      if (token.value === ")") {
-        depth -= 1;
-        continue;
-      }
-      if (depth === 0 && token.kind === "word" && ALLOWED_ROOT_TOKENS.has(token.value)) {
+    rootCommand = "";
+    for (const token of positionedTokens.slice(1)) {
+      if (token.depth === 0 && token.kind === "word" && ALLOWED_ROOT_TOKENS.has(token.value)) {
         rootCommand = token.value;
         break;
       }
     }
     if (!rootCommand) rejectTenantQuery("CTE must terminate in a DML statement");
   }
+
+  const commandAtDepth = new Map<number, string>();
+  for (const token of positionedTokens) {
+    if (token.kind === "word" && !token.quoted && ALLOWED_ROOT_TOKENS.has(token.value)) {
+      commandAtDepth.set(token.depth, token.value);
+    }
+    if (token.kind === "word" && token.value === "into") {
+      if (commandAtDepth.get(token.depth) !== "insert") {
+        rejectTenantQuery("SELECT INTO or nested INTO is not allowed");
+      }
+    }
+  }
 }
 
 type PrincipalRow = {
   principal: string;
   session_principal: string;
+  backend_pid: number;
   is_superuser: boolean;
   bypasses_rls: boolean;
   inherits_roles: boolean;
@@ -255,33 +300,36 @@ type PrincipalRow = {
   can_create_role: boolean;
   can_replicate: boolean;
   role_member: boolean;
+  role_settable: boolean;
   database_owner: boolean;
   table_owner: boolean;
   direct_tenant_access: boolean;
   direct_public_table_access: boolean;
+  direct_function_access: boolean;
   unsafe_membership: boolean;
 };
 
-async function assertSafePrincipal(connection: DbConnection, roleName: string): Promise<void> {
+async function assertSafePrincipal(connection: DbConnection, roleName: string): Promise<number> {
   // Production deploys must provision a dedicated login connector with
   // NOINHERIT/NOSUPERUSER/NOBYPASSRLS and only the runtime memberships it
   // needs. The raw migration owner must never be used by application code.
   const principalRows = await connection`
     with recursive tenant_tables(name) as (
       select unnest(${TENANT_TABLES}::text[])
-    ), reachable_roles(oid) as (
-      select m.roleid
+    ), reachable_roles(oid, set_allowed) as (
+      select m.roleid, m.set_option
       from pg_auth_members m
       join pg_roles member_role on member_role.oid = m.member
       where member_role.rolname = current_user
       union
-      select m.roleid
+      select m.roleid, rr.set_allowed and m.set_option
       from pg_auth_members m
       join reachable_roles rr on rr.oid = m.member
     )
     select
       current_user::text as principal,
       session_user::text as session_principal,
+      pg_backend_pid() as backend_pid,
       r.rolsuper as is_superuser,
       r.rolbypassrls as bypasses_rls,
       r.rolinherit as inherits_roles,
@@ -289,6 +337,12 @@ async function assertSafePrincipal(connection: DbConnection, roleName: string): 
       r.rolcreaterole as can_create_role,
       r.rolreplication as can_replicate,
       pg_has_role(current_user, ${roleName}, 'member') as role_member,
+      exists (
+        select 1
+        from reachable_roles rr
+        join pg_roles reachable on reachable.oid = rr.oid
+        where reachable.rolname = ${roleName} and rr.set_allowed
+      ) as role_settable,
       exists (
         select 1 from pg_database d
         where d.datname = current_database() and d.datdba = r.oid
@@ -320,9 +374,19 @@ async function assertSafePrincipal(connection: DbConnection, roleName: string): 
       ) as direct_public_table_access
       , exists (
         select 1
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+        where n.nspname not in ('pg_catalog', 'information_schema')
+          and acl.grantee = r.oid
+          and acl.privilege_type = 'EXECUTE'
+      ) as direct_function_access
+      , exists (
+        select 1
         from reachable_roles rr
         join pg_roles reachable on reachable.oid = rr.oid
-        where reachable.rolname <> all(${Object.values(RUNTIME_ROLE_NAMES)}::text[])
+        where not rr.set_allowed
+           or reachable.rolname <> all(${Object.values(RUNTIME_ROLE_NAMES)}::text[])
            or reachable.rolsuper
            or reachable.rolbypassrls
            or reachable.rolcreatedb
@@ -339,6 +403,22 @@ async function assertSafePrincipal(connection: DbConnection, roleName: string): 
              where n.nspname = 'public'
                and c.relkind in ('r', 'p', 'v', 'm')
                and c.relowner = reachable.oid
+           )
+           or exists (
+             select 1
+             from pg_proc p
+             join pg_namespace n on n.oid = p.pronamespace
+             where n.nspname not in ('pg_catalog', 'information_schema') and p.proowner = reachable.oid
+           )
+           or exists (
+             select 1
+             from pg_proc p
+             join pg_namespace n on n.oid = p.pronamespace
+             cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+             where n.nspname not in ('pg_catalog', 'information_schema')
+               and acl.grantee = reachable.oid
+               and acl.privilege_type = 'EXECUTE'
+               and p.prosecdef
            )
       ) as unsafe_membership
     from pg_roles r
@@ -359,11 +439,14 @@ async function assertSafePrincipal(connection: DbConnection, roleName: string): 
   if (principal.table_owner) unsafeReasons.push("public table owner");
   if (principal.direct_tenant_access) unsafeReasons.push("direct tenant table access");
   if (principal.direct_public_table_access) unsafeReasons.push("direct public table access");
+  if (principal.direct_function_access) unsafeReasons.push("direct application function EXECUTE");
   if (principal.unsafe_membership) unsafeReasons.push("unsafe reachable role membership");
   if (!principal.role_member) unsafeReasons.push(`not a member of ${roleName}`);
+  if (!principal.role_settable) unsafeReasons.push(`membership for ${roleName} has SET FALSE`);
   if (unsafeReasons.length > 0) {
     throw new Error(`tenant connection principal rejected: ${unsafeReasons.join(", ")}`);
   }
+  return principal.backend_pid;
 }
 
 async function abortTransaction(transaction: { unsafe: DbConnection["unsafe"] }): Promise<never> {
@@ -397,19 +480,32 @@ export async function withTenant<T>(
   if (tenantContext.getStore() === connection) {
     throw new Error("nested withTenant on the same DbConnection is not allowed");
   }
-  await assertSafePrincipal(connection, selectedRoleName);
-
-  return tenantContext.run(
-    connection,
-    async () =>
-      (await connection.begin(async (transaction) => {
-        await transaction.unsafe("select set_config('app.tenant', $1, true)", [tenantId]);
-        await transaction.unsafe(`set local role ${selectedRole}`);
+  const reserved = await connection.reserve();
+  try {
+    const preflightBackendPid = await assertSafePrincipal(reserved, selectedRoleName);
+    const result = await tenantContext.run(connection, async () => {
+      let transactionStarted = false;
+      try {
+        await reserved.unsafe("begin");
+        transactionStarted = true;
+        const [transactionState] = await reserved.unsafe<Array<{ backend_pid: number }>>(
+          "select pg_backend_pid() as backend_pid",
+        );
+        if (Number(transactionState?.backend_pid) !== preflightBackendPid) {
+          throw new Error("tenant preflight and transaction used different backends");
+        }
+        await reserved.unsafe("set local statement_timeout = '5s'");
+        await reserved.unsafe("set local lock_timeout = '1s'");
+        await reserved.unsafe("set local idle_in_transaction_session_timeout = '30s'");
+        await reserved.unsafe("set local search_path = pg_catalog, public, pg_temp");
+        await reserved.unsafe("select set_config('app.tenant', $1, true)", [tenantId]);
+        await reserved.unsafe(`set local role ${selectedRole}`);
 
         let callbackCompleted = false;
         let active = true;
+        let result!: T;
         try {
-          const result = await callback({
+          result = await callback({
             unsafe: async <Row extends Record<string, unknown>>(
               query: string,
               values?: unknown[],
@@ -418,23 +514,42 @@ export async function withTenant<T>(
               try {
                 validateTenantQuery(query);
               } catch {
-                return abortTransaction(transaction);
+                return abortTransaction(reserved);
               }
-              return (await transaction.unsafe(query, values as never)) as Row[];
+              return (await reserved.unsafe(query, values as never)) as Row[];
             },
           });
           callbackCompleted = true;
-          return result;
         } finally {
           active = false;
-          // On callback failure PostgreSQL marks the transaction aborted; rollback
-          // at the begin boundary resets LOCAL state. On success reset explicitly
-          // before commit as an additional guard against borrowed-connection leaks.
-          if (callbackCompleted) {
-            await transaction.unsafe("reset role");
-            await transaction.unsafe("reset app.tenant");
+        }
+        // On callback failure PostgreSQL marks the transaction aborted; rollback
+        // below resets LOCAL state. On success reset explicitly before commit as
+        // an additional guard against borrowed-connection leaks.
+        if (callbackCompleted) {
+          await reserved.unsafe("reset role");
+          await reserved.unsafe("reset app.tenant");
+        }
+        await reserved.unsafe("commit");
+        return result as T;
+      } catch (error) {
+        if (transactionStarted) {
+          try {
+            await reserved.unsafe("rollback");
+          } catch {
+            // Preserve the original setup/callback/commit error.
           }
         }
-      })) as T,
-  );
+        throw error;
+      }
+    });
+    return result;
+  } finally {
+    try {
+      await reserved.unsafe("discard temp");
+      await reserved.unsafe("select 1 as tenant_connection_cleanup");
+    } finally {
+      reserved.release();
+    }
+  }
 }

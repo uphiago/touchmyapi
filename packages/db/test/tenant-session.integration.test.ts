@@ -166,6 +166,18 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
     expect(state?.tenant ?? "").toBe("");
   }
 
+  async function expectNoTemporaryTable(tableName: string): Promise<void> {
+    const [row] = await db`
+      select exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname like 'pg_temp_%' and c.relname = ${tableName}
+      ) as present
+    `;
+    expect(row?.present).toBe(false);
+  }
+
   beforeAll(async () => {
     const databaseUrl = databaseUrlForTest();
     adminDb = createDbConnection(databaseUrl);
@@ -184,33 +196,42 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
   });
 
   afterAll(async () => {
-    await db?.end();
-    if (fixture) {
-      await adminDb.begin(async (tx) => {
-        for (const table of [
-          "audit_event",
-          "credential",
-          "finding",
-          "assessment",
-          "session",
-          '"user"',
-        ]) {
-          await tx.unsafe(`delete from public.${table} where account_id in ($1, $2)`, [
-            fixture.accountA,
-            fixture.accountB,
-          ]);
+    try {
+      await db?.end();
+    } finally {
+      try {
+        if (fixture) {
+          await adminDb.begin(async (tx) => {
+            for (const table of [
+              "audit_event",
+              "credential",
+              "finding",
+              "assessment",
+              "session",
+              '"user"',
+            ]) {
+              await tx.unsafe(`delete from public.${table} where account_id in ($1, $2)`, [
+                fixture.accountA,
+                fixture.accountB,
+              ]);
+            }
+            await tx.unsafe("delete from public.account where id in ($1, $2)", [
+              fixture.accountA,
+              fixture.accountB,
+            ]);
+            await tx.unsafe("delete from public.playbook where key = $1", [fixture.playbookKey]);
+          });
         }
-        await tx.unsafe("delete from public.account where id in ($1, $2)", [
-          fixture.accountA,
-          fixture.accountB,
-        ]);
-        await tx.unsafe("delete from public.playbook where key = $1", [fixture.playbookKey]);
-      });
+      } finally {
+        try {
+          if (connectorRole) {
+            await adminDb.unsafe(`drop role ${quoteIdentifier(connectorRole)}`);
+          }
+        } finally {
+          await adminDb?.end();
+        }
+      }
     }
-    if (connectorRole) {
-      await adminDb.unsafe(`drop role ${quoteIdentifier(connectorRole)}`);
-    }
-    await adminDb?.end();
   });
 
   it("scopes reads and own mutations while hiding every other account", async () => {
@@ -313,7 +334,7 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
         }
         return "not-caught";
       }),
-    ).rejects.toThrow(/does not exist/i);
+    ).rejects.toThrow(/does not exist|current transaction is aborted/i);
 
     const [assessment] =
       await adminDb`select status from public.assessment where id = ${fixture.assessmentA}`;
@@ -407,6 +428,158 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
     await expect(
       withTenant(adminDb, fixture.accountA, "api_rls", async () => "unreachable"),
     ).rejects.toThrow(/privileged|owner|connector/i);
+  });
+
+  it("rejects direct public function EXECUTE grants on the connector", async () => {
+    const functionName = "public.rls_tenant_matches(uuid)";
+    await adminDb.unsafe(
+      `grant execute on function ${functionName} to ${quoteIdentifier(connectorRole)}`,
+    );
+    try {
+      await expect(
+        withTenant(db, fixture.accountA, "api_rls", async () => "unreachable"),
+      ).rejects.toThrow(/function EXECUTE|direct public function/i);
+    } finally {
+      await adminDb.unsafe(
+        `revoke execute on function ${functionName} from ${quoteIdentifier(connectorRole)}`,
+      );
+    }
+  });
+
+  it("rejects Unicode escape aliases before they can change tenant or role", async () => {
+    const blockedStatements: Array<{ query: string; values?: unknown[] }> = [
+      {
+        query: 'select U&"set\\005fconfig"($1, $2, true)',
+        values: ["app.tenant", fixture.accountB],
+      },
+      {
+        query: 'select u&"set\\005fconfig"($1, $2, true)',
+        values: ["role", "worker_rls"],
+      },
+      {
+        query: "select U&'app!002Etenant' UESCAPE '!'",
+      },
+      {
+        query: 'select u & "set\\005fconfig"($1, $2, true)',
+        values: ["app.tenant", fixture.accountB],
+      },
+    ];
+
+    for (const statement of blockedStatements) {
+      await expect(
+        withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+          await tenant.unsafe(statement.query, statement.values);
+        }),
+      ).rejects.toThrow(/blocked|Unicode|UESCAPE|forbidden/i);
+      await withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+        const [account] = await tenant.unsafe<{ id: string }>("select id from public.account");
+        expect(account?.id).toBe(fixture.accountA);
+      });
+      await expectCleanBorrowedConnection();
+    }
+  });
+
+  it("rejects SELECT INTO at every nesting level and clears temporary state", async () => {
+    const suffix = randomUUID().replaceAll("-", "");
+    const statements = [
+      `WITH source AS (SELECT 1) SELECT * INTO TEMP tma_temp_cte_${suffix} FROM source`,
+      `SELECT * INTO TEMP tma_temp_subquery_${suffix} FROM (SELECT 1) AS source`,
+      `WITH source AS (SELECT 1 INTO TEMP tma_temp_inner_${suffix}) SELECT * FROM source`,
+      `SELECT "insert" INTO TEMP tma_temp_quoted_${suffix} FROM (SELECT 1 AS "insert") AS source`,
+      "SELECT * FROM pg_temp.shadowed_table",
+    ];
+
+    for (const statement of statements) {
+      await expect(
+        withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+          await tenant.unsafe(statement);
+        }),
+      ).rejects.toThrow(/blocked|SELECT INTO|TEMP|temporary/i);
+      await expectCleanBorrowedConnection();
+    }
+
+    await withTenant(db, fixture.accountB, "api_rls", async (tenant) => {
+      const [account] = await tenant.unsafe<{ id: string }>("select id from public.account");
+      expect(account?.id).toBe(fixture.accountB);
+    });
+    for (const tableName of [
+      `tma_temp_cte_${suffix}`,
+      `tma_temp_subquery_${suffix}`,
+      `tma_temp_inner_${suffix}`,
+      `tma_temp_quoted_${suffix}`,
+    ]) {
+      await expectNoTemporaryTable(tableName);
+    }
+  });
+
+  it("rejects session-persistent and dangerous functions", async () => {
+    const blockedStatements = [
+      "select pg_sleep(0)",
+      "select pg_sleep_for(interval '0 seconds')",
+      "select pg_notify('tma_escape', 'blocked')",
+      "select pg_advisory_lock(901016)",
+      "select lo_import('/tmp/tma-escape')",
+    ];
+
+    for (const statement of blockedStatements) {
+      try {
+        await expect(
+          withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+            await tenant.unsafe(statement);
+          }),
+        ).rejects.toThrow(/blocked|dangerous|forbidden|function/i);
+      } finally {
+        await db`select pg_advisory_unlock_all()`;
+      }
+      await expectCleanBorrowedConnection();
+    }
+  });
+
+  it("allows data-modifying INSERT CTEs without allowing SELECT INTO", async () => {
+    const [before] = await adminDb`
+      select count(*)::int as count from public.audit_event where account_id = ${fixture.accountA}
+    `;
+    await expect(
+      withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+        const inserted = await tenant.unsafe<{ id: string }>(
+          "WITH created AS (INSERT INTO public.audit_event (account_id, actor, action, payload_json) VALUES ($1, 'probe', 'request', '{}'::jsonb) RETURNING id) SELECT id FROM created",
+          [fixture.accountA],
+        );
+        expect(inserted).toHaveLength(1);
+        throw new Error("rollback insert CTE probe");
+      }),
+    ).rejects.toThrow("rollback insert CTE probe");
+    const [after] = await adminDb`
+      select count(*)::int as count from public.audit_event where account_id = ${fixture.accountA}
+    `;
+    expect(after?.count).toBe(before?.count);
+  });
+
+  it("rejects a runtime membership whose SET option is false", async () => {
+    const restrictedRole = `tma_t016_set_false_${randomUUID().replaceAll("-", "")}`;
+    const restrictedPassword = randomUUID().replaceAll("-", "");
+    const roleIdentifier = quoteIdentifier(restrictedRole);
+    let restrictedDb: DbConnection | undefined;
+    try {
+      await adminDb.unsafe(
+        `create role ${roleIdentifier} login noinherit nosuperuser nobypassrls nocreatedb nocreaterole noreplication password ${sqlStringLiteral(restrictedPassword)}`,
+      );
+      await adminDb.unsafe(`grant api_rls to ${roleIdentifier} with set false`);
+      const restrictedUrl = new URL(databaseUrlForTest());
+      restrictedUrl.username = restrictedRole;
+      restrictedUrl.password = restrictedPassword;
+      restrictedDb = postgres(restrictedUrl.toString(), { max: 1 }) as DbConnection;
+
+      await expect(
+        withTenant(restrictedDb, fixture.accountA, "api_rls", async () => "unreachable"),
+      ).rejects.toThrow(/SET FALSE|set_option|membership/i);
+    } finally {
+      try {
+        await restrictedDb?.end();
+      } finally {
+        await adminDb.unsafe(`drop role ${roleIdentifier}`);
+      }
+    }
   });
 
   it("proves cross-tenant select, inference, DML, and foreign-key references fail closed", async () => {
@@ -534,6 +707,15 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
     });
     await expect(successfulCapture.unsafe("select 1")).rejects.toThrow(/no longer active/i);
 
+    let callbackErrorCapture!: TenantConnection;
+    await expect(
+      withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+        callbackErrorCapture = tenant;
+        throw new Error("callback cleanup probe");
+      }),
+    ).rejects.toThrow("callback cleanup probe");
+    await expect(callbackErrorCapture.unsafe("select 1")).rejects.toThrow(/no longer active/i);
+
     let captured!: TenantConnection;
     await expect(
       withTenant(db, fixture.accountA, "api_rls", async (outer) => {
@@ -550,11 +732,14 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
     ).rejects.toThrow(/nested/i);
     await expect(captured.unsafe("select 1")).rejects.toThrow(/no longer active/i);
 
+    let sqlErrorCapture!: TenantConnection;
     await expect(
       withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+        sqlErrorCapture = tenant;
         await tenant.unsafe("select * from public.table_that_does_not_exist");
       }),
     ).rejects.toThrow(/does not exist/i);
+    await expect(sqlErrorCapture.unsafe("select 1")).rejects.toThrow(/no longer active/i);
     const [state] =
       await db`select current_user as role, current_setting('app.tenant', true) as tenant`;
     expect(state?.role).toBe(connectorRole);
