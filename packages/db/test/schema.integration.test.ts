@@ -82,7 +82,7 @@ describe.skipIf(!RUN_DB_TESTS)("PostgreSQL foundation schema", () => {
   });
 
   afterAll(async () => {
-    await db.end();
+    if (db) await db.end();
   });
 
   it("uses PostgreSQL 16 and has exactly the foundation tables", async () => {
@@ -164,6 +164,46 @@ describe.skipIf(!RUN_DB_TESTS)("PostgreSQL foundation schema", () => {
     expect([...uniqueNames].some((value) => value.startsWith("billing_event:"))).toBe(true);
     expect([...uniqueNames].some((value) => value.startsWith("job:"))).toBe(true);
     expect([...uniqueNames].some((value) => value.startsWith("agent:"))).toBe(true);
+  });
+
+  it("requires and uniquely stores opaque session token hashes", async () => {
+    const rows = await db`
+      select column_name, is_nullable, data_type
+      from information_schema.columns
+      where table_schema = 'public' and table_name = 'session' and column_name = 'token_hash'
+    `;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.is_nullable).toBe("NO");
+    expect(rows[0]?.data_type).toBe("text");
+
+    const accountId = crypto.randomUUID();
+    const userId = crypto.randomUUID();
+    const sessionId = crypto.randomUUID();
+    const hash = `sha256:${crypto.randomUUID()}`;
+    const rollback = new Error("session hash fixture rollback");
+    await db
+      .begin(async (tx) => {
+        await tx`insert into account (id) values (${accountId})`;
+        await tx`insert into "user" (id, account_id, provider, provider_subject) values (${userId}, ${accountId}, 'google', ${`session-test-${userId}`})`;
+        await tx`insert into session (id, account_id, user_id, token_hash, expires_at) values (${sessionId}, ${accountId}, ${userId}, ${hash}, now() + interval '1 hour')`;
+        const [stored] = await tx`select token_hash from session where id = ${sessionId}`;
+        expect(stored?.token_hash).toBe(hash);
+
+        await tx`savepoint session_hash_check`;
+        await expect(
+          tx`insert into session (id, account_id, user_id, expires_at) values (${crypto.randomUUID()}, ${accountId}, ${userId}, now() + interval '1 hour')`,
+        ).rejects.toThrow();
+        await tx`rollback to savepoint session_hash_check`;
+        await tx`savepoint session_hash_unique_check`;
+        await expect(
+          tx`insert into session (id, account_id, user_id, token_hash, expires_at) values (${crypto.randomUUID()}, ${accountId}, ${userId}, ${hash}, now() + interval '1 hour')`,
+        ).rejects.toThrow();
+        await tx`rollback to savepoint session_hash_unique_check`;
+        throw rollback;
+      })
+      .catch((error) => {
+        expect(error).toBe(rollback);
+      });
   });
 
   it("rejects cross-account links through composite tenant foreign keys", async () => {

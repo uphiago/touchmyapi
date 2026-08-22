@@ -6,27 +6,19 @@ import {
   jsonb,
   pgTable,
   text,
-  timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import { assessmentStatus, targetCategory } from "./common";
+import { assessmentStatus, createdAt, id, targetCategory, updatedAt } from "./common";
 import { account, user } from "./identity";
 import { agent } from "./execution";
 import { verification } from "./verification";
 import { playbook } from "./catalog";
 
-const idColumn = () =>
-  uuid("id")
-    .default(sql`gen_random_uuid()`)
-    .primaryKey();
-const createdAt = () => timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
-const updatedAt = () => timestamp("updated_at", { withTimezone: true }).defaultNow().notNull();
-
 export const assessment = pgTable(
   "assessment",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     targetCategory: targetCategory("target_category").notNull(),
     targetJson: jsonb("target_json").notNull(),
@@ -73,13 +65,13 @@ export const assessment = pgTable(
 export const authorizationAttestation = pgTable(
   "authorization_attestation",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     assessmentId: uuid("assessment_id").notNull(),
     userId: uuid("user_id").notNull(),
     targetJson: jsonb("target_json").notNull(),
     termsVersion: text("terms_version").notNull(),
-    acceptedAt: timestamp("accepted_at", { withTimezone: true }).defaultNow().notNull(),
+    acceptedAt: createdAt("accepted_at"),
   },
   (table) => [
     unique("authorization_attestation_account_id_id_unique").on(table.accountId, table.id),

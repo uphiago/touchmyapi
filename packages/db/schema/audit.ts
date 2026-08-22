@@ -1,19 +1,13 @@
-import { sql } from "drizzle-orm";
 import { foreignKey, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { account } from "./identity";
 import { assessment } from "./assessment";
 import { job } from "./execution";
-import { auditAction } from "./common";
-
-const idColumn = () =>
-  uuid("id")
-    .default(sql`gen_random_uuid()`)
-    .primaryKey();
+import { auditAction, createdAt, id } from "./common";
 
 export const auditEvent = pgTable(
   "audit_event",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id"),
     assessmentId: uuid("assessment_id"),
     jobId: uuid("job_id"),
@@ -21,7 +15,7 @@ export const auditEvent = pgTable(
     action: auditAction("action").notNull(),
     prevEventId: uuid("prev_event_id"),
     payloadJson: jsonb("payload_json").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: createdAt(),
   },
   (table) => [
     unique("audit_event_account_id_id_unique").on(table.accountId, table.id),
@@ -51,12 +45,12 @@ export const auditEvent = pgTable(
 export const notification = pgTable(
   "notification",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     assessmentId: uuid("assessment_id"),
     kind: text("kind").notNull(),
     readAt: timestamp("read_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: createdAt(),
   },
   (table) => [
     unique("notification_account_id_id_unique").on(table.accountId, table.id),

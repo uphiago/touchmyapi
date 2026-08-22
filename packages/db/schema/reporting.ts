@@ -1,26 +1,11 @@
-import { sql } from "drizzle-orm";
-import {
-  boolean,
-  foreignKey,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  unique,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { boolean, foreignKey, jsonb, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
 import { assessment } from "./assessment";
-import { reportKind, severity } from "./common";
-
-const idColumn = () =>
-  uuid("id")
-    .default(sql`gen_random_uuid()`)
-    .primaryKey();
+import { createdAt, id, reportKind, severity } from "./common";
 
 export const finding = pgTable(
   "finding",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     assessmentId: uuid("assessment_id").notNull(),
     title: text("title").notNull(),
@@ -32,7 +17,7 @@ export const finding = pgTable(
     impact: text("impact"),
     remediation: text("remediation"),
     published: boolean("published").default(false).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: createdAt(),
   },
   (table) => [
     unique("finding_account_id_id_unique").on(table.accountId, table.id),
@@ -47,14 +32,14 @@ export const finding = pgTable(
 export const report = pgTable(
   "report",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     assessmentId: uuid("assessment_id").notNull(),
     kind: reportKind("kind").notNull(),
     objectKey: text("object_key").notNull(),
     contractVersion: text("contract_version").notNull(),
     sanitized: boolean("sanitized").default(false).notNull(),
-    generatedAt: timestamp("generated_at", { withTimezone: true }).defaultNow().notNull(),
+    generatedAt: createdAt("generated_at"),
   },
   (table) => [
     unique("report_account_id_id_unique").on(table.accountId, table.id),

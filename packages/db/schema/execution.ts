@@ -13,17 +13,12 @@ import {
 } from "drizzle-orm/pg-core";
 import { account } from "./identity";
 import { assessment } from "./assessment";
-import { agentStatus, jobStatus } from "./common";
-
-const idColumn = () =>
-  uuid("id")
-    .default(sql`gen_random_uuid()`)
-    .primaryKey();
+import { agentStatus, createdAt, id, jobStatus } from "./common";
 
 export const job = pgTable(
   "job",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     assessmentId: uuid("assessment_id").notNull(),
     playbookVersion: text("playbook_version").notNull(),
@@ -59,7 +54,7 @@ export const job = pgTable(
 export const runnerExecution = pgTable(
   "runner_execution",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     jobId: uuid("job_id").notNull(),
     sandboxImpl: text("sandbox_impl").notNull(),
@@ -85,14 +80,14 @@ export const runnerExecution = pgTable(
 export const agent = pgTable(
   "agent",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     name: text("name").notNull(),
     tokenHash: text("token_hash").notNull(),
     fingerprint: text("fingerprint").notNull(),
     status: agentStatus("status").default("active").notNull(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: createdAt(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
   },
   (table) => [

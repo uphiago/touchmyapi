@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import {
   boolean,
   foreignKey,
@@ -12,17 +11,19 @@ import {
 } from "drizzle-orm/pg-core";
 import { account } from "./identity";
 import { assessment } from "./assessment";
-import { billingProcessingStatus, bytea, entitlementPlan, entitlementStatus } from "./common";
-
-const idColumn = () =>
-  uuid("id")
-    .default(sql`gen_random_uuid()`)
-    .primaryKey();
+import {
+  billingProcessingStatus,
+  bytea,
+  createdAt,
+  entitlementPlan,
+  entitlementStatus,
+  id,
+} from "./common";
 
 export const credential = pgTable(
   "credential",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     assessmentId: uuid("assessment_id").notNull(),
     encryptedPayload: bytea("encrypted_payload").notNull(),
@@ -44,7 +45,7 @@ export const credential = pgTable(
 export const billingEvent = pgTable(
   "billing_event",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     stripeEventId: text("stripe_event_id").notNull(),
     type: text("type").notNull(),
@@ -54,7 +55,7 @@ export const billingEvent = pgTable(
     apiVersion: text("api_version"),
     processingStatus: billingProcessingStatus("processing_status").default("received").notNull(),
     resultJson: jsonb("result_json"),
-    receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+    receivedAt: createdAt("received_at"),
     processedAt: timestamp("processed_at", { withTimezone: true }),
   },
   (table) => [
@@ -71,12 +72,12 @@ export const billingEvent = pgTable(
 export const entitlement = pgTable(
   "entitlement",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     plan: entitlementPlan("plan").notNull(),
     status: entitlementStatus("status").default("active").notNull(),
     sourceEventId: uuid("source_event_id").notNull(),
-    startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+    startedAt: createdAt("started_at"),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
   },
   (table) => [
@@ -97,12 +98,12 @@ export const entitlement = pgTable(
 export const creditEntry = pgTable(
   "credit_entry",
   {
-    id: idColumn(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     assessmentId: uuid("assessment_id"),
     credits: integer("credits").notNull(),
     reason: text("reason").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: createdAt(),
   },
   (table) => [
     unique("credit_entry_account_id_id_unique").on(table.accountId, table.id),

@@ -1,5 +1,14 @@
-import { customType } from "drizzle-orm/pg-core";
-import { pgEnum } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { customType, pgEnum, timestamp, uuid } from "drizzle-orm/pg-core";
+
+export const id = () =>
+  uuid("id")
+    .default(sql`gen_random_uuid()`)
+    .primaryKey();
+export const createdAt = (columnName = "created_at") =>
+  timestamp(columnName, { withTimezone: true, mode: "date" }).defaultNow().notNull();
+export const updatedAt = (columnName = "updated_at") =>
+  timestamp(columnName, { withTimezone: true, mode: "date" }).defaultNow().notNull();
 
 export const citext = customType<{ data: string }>({
   dataType: () => "citext",

@@ -1,14 +1,11 @@
-import { sql } from "drizzle-orm";
 import { foreignKey, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
-import { verificationMethod, verificationStatus } from "./common";
+import { id, verificationMethod, verificationStatus } from "./common";
 import { account } from "./identity";
 
 export const verification = pgTable(
   "verification",
   {
-    id: uuid("id")
-      .default(sql`gen_random_uuid()`)
-      .primaryKey(),
+    id: id(),
     accountId: uuid("account_id").notNull(),
     targetJson: jsonb("target_json").notNull(),
     method: verificationMethod("method").default("http_file").notNull(),
