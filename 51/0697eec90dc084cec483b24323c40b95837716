@@ -1,0 +1,56 @@
+packages/db/test/schema.integration.test.ts
+  s_bc54431df54bf2::t_7daf8e0a6ab687 278,298,326,350-355
+  s_bc54431df54bf2::t_3f95472b7c450c 356
+packages/db/migrations/meta/0005_snapshot.json
+  s_bc54431df54bf2::t_fe6c867a2615cd 1-249,251-1412,1420-1456,1473-2074
+  s_bc54431df54bf2::t_b0ad8dc40b8475 250,1413-1419,1457-1472
+packages/db/test/roles.isolation.test.ts
+  s_bc54431df54bf2::t_778aff62228dc6 293-299,315,319,325,329-334,337,340-341,345-350,352-355,358,360-365,367
+  s_bc54431df54bf2::t_6f67e4d1fadc43 306
+  s_bc54431df54bf2::t_e768eb6d6372e6 128-129
+  s_bc54431df54bf2::t_3beddc4f34c68a 321-323,460
+  s_bc54431df54bf2::t_1d8c25a004495f 418-419,488-528,531-532,537-543
+  s_bc54431df54bf2::t_68c997190a9164 150-151,162-164,175-241
+  s_bc54431df54bf2::t_eb74cd822d7922 377,393,398-417
+  s_bc54431df54bf2::t_f0e8ef9c34f186 13
+  s_bc54431df54bf2::t_f816125c5d1c73 52-59,84-93,529-530,533-536
+  s_bc54431df54bf2::t_811c3a83e3be2e 32-51,60-83,94-119
+  s_bc54431df54bf2::t_18d1d48e0235f0 122
+  s_bc54431df54bf2::t_6374a6355c6129 123-127,130,324,327-328,339,342-344,351
+  s_bc54431df54bf2::t_37caa2d81e093a 121
+  s_bc54431df54bf2::t_f92195c12c3d99 320,326
+  s_bc54431df54bf2::t_ff03be6f1e1bd6 420
+packages/db/migrations/0006_security_hardening.sql
+  s_bc54431df54bf2::t_f68c181b0e5b74 1-215
+packages/db/schema/identity.ts
+  s_bc54431df54bf2::t_acf2682f26f58a 1,41,51
+tests/isolation/rls.test.ts
+  s_bc54431df54bf2::t_5a918593ee8ffd 416-423,515-537
+  s_bc54431df54bf2::t_c4f215a382df53 47
+  s_bc54431df54bf2::t_1a991623bde2cf 30-46,48-66
+  s_bc54431df54bf2::t_4c737c892dd9e0 180
+  s_bc54431df54bf2::t_eb2c513c99f814 400-415,424-426
+  s_bc54431df54bf2::t_335bc920a2f74e 538
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_18c46192113b18 39-52,55
+packages/db/migrations/0005_session_family.sql
+  s_bc54431df54bf2::t_3ac02d5c8f528a 1-5
+packages/db/migrations/meta/0006_snapshot.json
+  s_bc54431df54bf2::t_847f946e896733 1-2075
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "510697eec90dc084cec483b24323c40b95837716",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
