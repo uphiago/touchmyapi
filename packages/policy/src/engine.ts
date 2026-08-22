@@ -20,6 +20,8 @@ export type BlockCode =
   | "target_category_not_allowed"
   | "target_category_mismatch"
   | "unknown_plan"
+  | "invalid_entitlement"
+  | "entitlement_expired"
   | "invalid_context"
   | "scope_required"
   | "target_invalid"
@@ -62,7 +64,7 @@ export type ActionRequest = Readonly<{
   /** A URL string, or a target descriptor containing a candidate URL and DNS facts. */
   target: unknown;
   scope: CompiledScope;
-  entitlement: Plan | string;
+  entitlement: PolicyEntitlement;
   limits: LimitInput;
   attestation: unknown;
   verification: unknown;
@@ -91,7 +93,10 @@ const SAFE_VERSION = /^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,127}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UTC_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 const FINGERPRINT = /^sha256:[0-9a-f]{64}$/i;
+const STRIPE_EVENT = /^evt_[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const policyContextSet = new WeakSet<object>();
+const policyEntitlementSet = new WeakSet<object>();
+const policyEntitlementAccount = new WeakMap<object, string>();
 
 const ACTION_MAP = Object.freeze({
   "dns.records": Object.freeze({ type: "dns_lookup", capability: "dns_resolver" }),
@@ -280,6 +285,14 @@ export type PolicyContext = Readonly<{
   scopeFingerprint: string;
 }>;
 
+export type PolicyEntitlement = Readonly<{
+  plan: Plan;
+  source: "baseline" | "http_verification" | "stripe_webhook";
+  sourceId: string | null;
+  grantedAt: string;
+  expiresAt: string | null;
+}>;
+
 /** Compute the server-owned SHA-256 fingerprint of an authentic compiled scope. */
 export function fingerprintScope(scope: CompiledScope): string {
   if (!isCompiledScope(scope)) throw new TypeError("invalid compiled scope");
@@ -330,8 +343,128 @@ export function createPolicyContext(input: unknown, scope: CompiledScope): Polic
   return context;
 }
 
+/**
+ * Build an opaque entitlement from server-side state only.
+ * The API must pass a DB/webhook/verification row; request fields are never entitlement facts.
+ */
+export function createPolicyEntitlement(input: unknown, context: PolicyContext): PolicyEntitlement {
+  if (!isPolicyContext(context)) throw new TypeError("invalid policy context");
+  const keys = ["plan", "source", "sourceId", "grantedAt", "expiresAt"] as const;
+  const snapshot = snapshotObject(input, keys);
+  if (!snapshot.ok || !exactKeys(snapshot, keys)) throw new TypeError("invalid entitlement");
+  const value = snapshot.value;
+  if (
+    !isPlan(value.plan) ||
+    (value.source !== "baseline" &&
+      value.source !== "http_verification" &&
+      value.source !== "stripe_webhook") ||
+    (value.sourceId !== null && typeof value.sourceId !== "string") ||
+    !validUtc(value.grantedAt) ||
+    (value.expiresAt !== null && !validUtc(value.expiresAt))
+  )
+    throw new TypeError("invalid entitlement");
+  const grantedAt = Date.parse(value.grantedAt);
+  const evaluatedAt = Date.parse(context.evaluatedAt);
+  const expiresAt = value.expiresAt === null ? null : Date.parse(value.expiresAt);
+  if (grantedAt > evaluatedAt || (expiresAt !== null && expiresAt <= grantedAt))
+    throw new TypeError("invalid entitlement");
+  if (
+    value.plan === "free_unverified" &&
+    (value.source !== "baseline" || value.sourceId !== null || value.expiresAt !== null)
+  )
+    throw new TypeError("invalid entitlement");
+  if (
+    value.plan === "free_verified" &&
+    (value.source !== "http_verification" ||
+      value.sourceId === null ||
+      !UUID.test(value.sourceId) ||
+      expiresAt === null ||
+      expiresAt <= evaluatedAt)
+  )
+    throw new TypeError("invalid entitlement");
+  if (
+    (value.plan === "pro" || value.plan === "lifetime") &&
+    (value.source !== "stripe_webhook" ||
+      value.sourceId === null ||
+      !STRIPE_EVENT.test(value.sourceId))
+  )
+    throw new TypeError("invalid entitlement");
+  if (value.plan === "pro" && (expiresAt === null || expiresAt <= evaluatedAt))
+    throw new TypeError("invalid entitlement");
+  if (value.plan === "lifetime" && value.expiresAt !== null)
+    throw new TypeError("invalid entitlement");
+  const entitlement = Object.freeze({
+    plan: value.plan,
+    source: value.source,
+    sourceId: value.sourceId,
+    grantedAt: value.grantedAt,
+    expiresAt: value.expiresAt,
+  }) as PolicyEntitlement;
+  policyEntitlementSet.add(entitlement);
+  policyEntitlementAccount.set(entitlement, context.accountId);
+  return entitlement;
+}
+
 function validUtc(value: unknown): value is string {
   return typeof value === "string" && UTC_ISO.test(value) && Number.isFinite(Date.parse(value));
+}
+
+function isPolicyContext(input: unknown): input is PolicyContext {
+  return typeof input === "object" && input !== null && policyContextSet.has(input);
+}
+
+function parseEntitlement(
+  input: unknown,
+  context: PolicyContext | undefined,
+): { plan?: Plan; code?: BlockCode } {
+  if (
+    typeof input !== "object" ||
+    input === null ||
+    !policyEntitlementSet.has(input) ||
+    !context ||
+    policyEntitlementAccount.get(input) !== context.accountId
+  ) {
+    return { code: "invalid_entitlement" };
+  }
+  const keys = ["plan", "source", "sourceId", "grantedAt", "expiresAt"] as const;
+  const snapshot = snapshotObject(input, keys);
+  if (!snapshot.ok || !exactKeys(snapshot, keys)) return { code: "invalid_entitlement" };
+  const value = snapshot.value;
+  if (
+    !isPlan(value.plan) ||
+    (value.source !== "baseline" &&
+      value.source !== "http_verification" &&
+      value.source !== "stripe_webhook") ||
+    (value.sourceId !== null && typeof value.sourceId !== "string") ||
+    !validUtc(value.grantedAt) ||
+    (value.expiresAt !== null && !validUtc(value.expiresAt))
+  )
+    return { code: "invalid_entitlement" };
+  const evaluatedAt = Date.parse(context.evaluatedAt);
+  const grantedAt = Date.parse(value.grantedAt);
+  const expiresAt = value.expiresAt === null ? null : Date.parse(value.expiresAt);
+  if (grantedAt > evaluatedAt) return { code: "invalid_entitlement" };
+  if (expiresAt !== null && expiresAt <= evaluatedAt) return { code: "entitlement_expired" };
+  if (
+    value.plan === "free_unverified" &&
+    (value.source !== "baseline" || value.sourceId !== null || value.expiresAt !== null)
+  )
+    return { code: "invalid_entitlement" };
+  if (
+    value.plan === "free_verified" &&
+    (value.source !== "http_verification" || value.sourceId === null || !UUID.test(value.sourceId))
+  )
+    return { code: "invalid_entitlement" };
+  if (
+    (value.plan === "pro" || value.plan === "lifetime") &&
+    (value.source !== "stripe_webhook" ||
+      value.sourceId === null ||
+      !STRIPE_EVENT.test(value.sourceId))
+  )
+    return { code: "invalid_entitlement" };
+  if (value.plan === "pro" && expiresAt === null) return { code: "invalid_entitlement" };
+  if (value.plan === "lifetime" && value.expiresAt !== null) return { code: "invalid_entitlement" };
+  return { plan: value.plan };
 }
 
 function parseContext(input: unknown): { value?: PolicyContext; code?: BlockCode } {
@@ -364,7 +497,7 @@ function parseContext(input: unknown): { value?: PolicyContext; code?: BlockCode
     !FINGERPRINT.test(value.scopeFingerprint)
   )
     return { code: "invalid_context" };
-  return { value: value as PolicyContext };
+  return { value: input as PolicyContext };
 }
 
 function parseTarget(root: RecordValue): {
@@ -864,15 +997,12 @@ function authorizeUnsafe(input: ActionRequest): PolicyDecision {
     add("target_category_not_allowed");
   }
 
-  const plan =
-    rootValid && typeof root.entitlement === "string" && isPlan(root.entitlement)
-      ? root.entitlement
-      : undefined;
-  if (!plan) add("unknown_plan");
-
   const contextResult = parseContext(rootValid ? root.context : undefined);
   if (contextResult.code) add(contextResult.code);
   const context = contextResult.value;
+  const entitlement = parseEntitlement(rootValid ? root.entitlement : undefined, context);
+  if (entitlement.code) add(entitlement.code);
+  const plan = entitlement.plan;
 
   const target = rootValid
     ? parseTarget(root)

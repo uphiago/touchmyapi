@@ -24,7 +24,12 @@ export type {
   LimitResult,
   PlaybookLimits,
 } from "./limits";
-export { authorize, createPolicyContext, fingerprintScope } from "./engine";
+export {
+  authorize,
+  createPolicyContext,
+  createPolicyEntitlement,
+  fingerprintScope,
+} from "./engine";
 export type {
   ActionRequest,
   AuthorizedAction,
@@ -32,6 +37,7 @@ export type {
   PolicyBlock,
   PolicyContext,
   PolicyDecision,
+  PolicyEntitlement,
   RuntimeAction,
   TargetCategory,
 } from "./engine";

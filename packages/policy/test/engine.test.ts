@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   authorize,
+  createPolicyEntitlement,
   createPolicyContext,
   fingerprintScope,
   type ActionRequest,
@@ -31,6 +32,37 @@ const IPV6_CONTEXT = createPolicyContext(
   },
   ipv6Scope,
 );
+const entitlementFor = (
+  plan: "free_unverified" | "free_verified" | "pro" | "lifetime",
+  context = CONTEXT,
+) =>
+  createPolicyEntitlement(
+    plan === "free_unverified"
+      ? {
+          plan,
+          source: "baseline",
+          sourceId: null,
+          grantedAt: "2026-08-22T11:00:00.000Z",
+          expiresAt: null,
+        }
+      : plan === "free_verified"
+        ? {
+            plan,
+            source: "http_verification",
+            sourceId: "44444444-4444-4444-8444-444444444444",
+            grantedAt: "2026-08-22T11:00:00.000Z",
+            expiresAt: "2026-08-22T13:00:00.000Z",
+          }
+        : {
+            plan,
+            source: "stripe_webhook",
+            sourceId: "evt_1234567890",
+            grantedAt: "2026-08-22T11:00:00.000Z",
+            expiresAt: plan === "pro" ? "2026-08-22T13:00:00.000Z" : null,
+          },
+    context,
+  );
+const FREE_ENTITLEMENT = entitlementFor("free_unverified");
 
 const limits = () => ({
   playbook: {
@@ -100,7 +132,7 @@ const valid = (overrides: Record<string, unknown> = {}): ActionRequest => ({
   targetCategory: "surface",
   target: { candidate: "https://example.com/", resolvedAddresses: ["8.8.8.8"] },
   scope,
-  entitlement: "free_unverified",
+  entitlement: FREE_ENTITLEMENT,
   limits: limits(),
   attestation: {
     version: "terms@1",
@@ -119,6 +151,122 @@ const valid = (overrides: Record<string, unknown> = {}): ActionRequest => ({
 });
 
 describe("authorize", () => {
+  it("accepts only an opaque server-owned entitlement fact", () => {
+    expect(Object.isFrozen(FREE_ENTITLEMENT)).toBe(true);
+    expect(
+      authorize(valid({ entitlement: { plan: "free_unverified" } })).blocked.map(
+        (block) => block.code,
+      ),
+    ).toContain("invalid_entitlement");
+    expect(
+      authorize(valid({ entitlement: { ...FREE_ENTITLEMENT } })).blocked.map((block) => block.code),
+    ).toContain("invalid_entitlement");
+  });
+
+  it("requires closed provenance, server times, and plan-specific expiry", () => {
+    expect(() =>
+      createPolicyEntitlement(
+        {
+          plan: "pro",
+          source: "baseline",
+          sourceId: null,
+          grantedAt: "2026-08-22T11:00:00.000Z",
+          expiresAt: "2026-08-22T13:00:00.000Z",
+        },
+        CONTEXT,
+      ),
+    ).toThrow();
+    expect(() =>
+      createPolicyEntitlement(
+        {
+          plan: "free_verified",
+          source: "http_verification",
+          sourceId: "not-a-uuid",
+          grantedAt: "2026-08-22T11:00:00.000Z",
+          expiresAt: "2026-08-22T13:00:00.000Z",
+        },
+        CONTEXT,
+      ),
+    ).toThrow();
+    expect(() =>
+      createPolicyEntitlement(
+        {
+          plan: "pro",
+          source: "stripe_webhook",
+          sourceId: "evt_1234567890",
+          grantedAt: "2026-08-22T13:00:00.000Z",
+          expiresAt: "2026-08-22T12:00:00.000Z",
+        },
+        CONTEXT,
+      ),
+    ).toThrow();
+    expect(() =>
+      createPolicyEntitlement(
+        {
+          plan: "unknown",
+          source: "baseline",
+          sourceId: null,
+          grantedAt: "2026-08-22T11:00:00.000Z",
+          expiresAt: null,
+        },
+        CONTEXT,
+      ),
+    ).toThrow();
+  });
+
+  it("permits authenticated paid and verified facts while binding the context", () => {
+    expect(authorize(valid({ entitlement: entitlementFor("pro") })).allowed).toBe(true);
+    expect(
+      authorize(
+        valid({
+          action: "active_external",
+          entitlement: entitlementFor("free_verified"),
+          verification: {
+            method: "http_file",
+            status: "verified",
+            accountId: CONTEXT.accountId,
+            assessmentId: CONTEXT.assessmentId,
+            targetOrigin: "https://example.com",
+            scopeFingerprint: CONTEXT.scopeFingerprint,
+            challengeId: "44444444-4444-4444-8444-444444444444",
+            verifiedAt: "2026-08-22T11:58:00.000Z",
+            expiresAt: "2026-08-22T13:00:00.000Z",
+          },
+        }),
+      ).allowed,
+    ).toBe(true);
+  });
+
+  it("binds entitlement facts to the context account and rechecks expiry", () => {
+    const laterContext = createPolicyContext(
+      {
+        accountId: CONTEXT.accountId,
+        assessmentId: CONTEXT.assessmentId,
+        userId: CONTEXT.userId,
+        evaluatedAt: "2026-08-22T14:00:00.000Z",
+      },
+      scope,
+    );
+    expect(
+      authorize(valid({ context: laterContext, entitlement: entitlementFor("pro") })).blocked.map(
+        (block) => block.code,
+      ),
+    ).toContain("entitlement_expired");
+
+    const otherAccountContext = createPolicyContext(
+      {
+        accountId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        assessmentId: CONTEXT.assessmentId,
+        userId: CONTEXT.userId,
+        evaluatedAt: CONTEXT.evaluatedAt,
+      },
+      scope,
+    );
+    expect(
+      authorize(valid({ context: otherAccountContext })).blocked.map((block) => block.code),
+    ).toContain("invalid_entitlement");
+  });
+
   it("creates opaque server context fingerprints from the authentic scope", () => {
     expect(FACTORY_CONTEXT.scopeFingerprint).toBe(fingerprintScope(scope));
     expect(Object.isFrozen(FACTORY_CONTEXT)).toBe(true);
@@ -200,7 +348,7 @@ describe("authorize", () => {
     const result = authorize(
       valid({
         action: "active_external",
-        entitlement: "free_verified",
+        entitlement: entitlementFor("free_verified"),
         verification: {
           method: "http_file",
           status: "verified",
@@ -221,7 +369,7 @@ describe("authorize", () => {
     const result = authorize(
       valid({
         action: "active_external",
-        entitlement: "pro",
+        entitlement: entitlementFor("pro"),
         verification: { method: "dns_txt", status: "verified" },
       }),
     );
@@ -256,7 +404,7 @@ describe("authorize", () => {
     expect(result.blocked.map((block) => block.code)).toEqual([
       "unknown_action",
       "unknown_target_category",
-      "unknown_plan",
+      "invalid_entitlement",
       "port_not_allowed",
       "forbidden_target",
       "target_category_mismatch",
@@ -476,7 +624,7 @@ describe("authorize", () => {
       const result = authorize(
         valid({
           action: "active_external",
-          entitlement: "pro",
+          entitlement: entitlementFor("pro"),
           verification: { ...verification, [field]: wrongValues[field] },
         }),
       );
@@ -487,7 +635,7 @@ describe("authorize", () => {
       authorize(
         valid({
           action: "active_external",
-          entitlement: "pro",
+          entitlement: entitlementFor("pro"),
           verification: { ...verification, expiresAt: "2026-08-22T12:00:00.000Z" },
         }),
       ).blocked.map((block) => block.code),
@@ -496,7 +644,7 @@ describe("authorize", () => {
       authorize(
         valid({
           action: "active_external",
-          entitlement: "pro",
+          entitlement: entitlementFor("pro"),
           verification: { ...verification, verifiedAt: "2026-08-22T12:01:00.000Z" },
         }),
       ).blocked.map((block) => block.code),
@@ -505,7 +653,7 @@ describe("authorize", () => {
       authorize(
         valid({
           action: "active_external",
-          entitlement: "pro",
+          entitlement: entitlementFor("pro"),
           verification: { method: "dns_txt" },
         }),
       ).blocked.map((block) => block.code),
@@ -525,6 +673,7 @@ describe("authorize", () => {
     const passive = authorize(
       valid({
         context: IPV6_CONTEXT,
+        entitlement: entitlementFor("free_unverified", IPV6_CONTEXT),
         scope: ipv6Scope,
         target: { candidate: target, resolvedAddresses: ["2001:4860:4860::8888"] },
         attestation,
@@ -548,7 +697,7 @@ describe("authorize", () => {
       valid({
         context: IPV6_CONTEXT,
         action: "active_external",
-        entitlement: "pro",
+        entitlement: entitlementFor("pro", IPV6_CONTEXT),
         scope: ipv6Scope,
         target: { candidate: target, resolvedAddresses: ["2001:4860:4860::8888"] },
         attestation,
@@ -559,7 +708,7 @@ describe("authorize", () => {
     const mismatch = authorize(
       valid({
         action: "active_external",
-        entitlement: "pro",
+        entitlement: entitlementFor("pro", IPV6_CONTEXT),
         scope: ipv6Scope,
         target: { candidate: target, resolvedAddresses: ["2001:4860:4860::8888"] },
         attestation,
