@@ -13,8 +13,6 @@ describe("GET /health", () => {
       headers: { Origin: "http://localhost:5173" },
     });
 
-    expect(response.headers.get("access-control-allow-origin")).toBe(
-      "http://localhost:5173",
-    );
+    expect(response.headers.get("access-control-allow-origin")).toBe("http://localhost:5173");
   });
 });

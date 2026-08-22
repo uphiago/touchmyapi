@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+.specify/
+.opencode/
+specs/
+docs/
+AGENTS.md
+bun.lock
+packages/db/migrations/

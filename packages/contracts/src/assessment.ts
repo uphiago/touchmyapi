@@ -20,12 +20,6 @@ export type AssessmentState = z.infer<typeof assessmentStateSchema>;
 /**
  * Target category. Mirrors `assessment.target_category` in the data model.
  */
-export const targetCategorySchema = z.enum([
-  "web",
-  "api",
-  "surface",
-  "genai",
-  "internal",
-]);
+export const targetCategorySchema = z.enum(["web", "api", "surface", "genai", "internal"]);
 
 export type TargetCategory = z.infer<typeof targetCategorySchema>;

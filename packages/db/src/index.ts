@@ -11,9 +11,7 @@ export type DbConnection = ReturnType<typeof postgres>;
  *
  * The first migration is intentionally deferred until the RLS schema task.
  */
-export function createDbConnection(
-  databaseUrl: string | undefined,
-): DbConnection {
+export function createDbConnection(databaseUrl: string | undefined): DbConnection {
   if (!databaseUrl) {
     throw new Error(
       "DATABASE_URL is required to create a database connection. Set it before calling createDbConnection.",

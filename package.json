@@ -1,7 +1,11 @@
 {
   "name": "touchmyapi",
   "private": true,
-  "workspaces": ["apps/*", "packages/*", "tests/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "tests/*"
+  ],
   "scripts": {
     "dev:api": "bun --cwd apps/api dev",
     "dev:web": "bun --cwd apps/web dev",
@@ -14,12 +18,30 @@
     "test:e2e": "vitest run --project e2e",
     "db:migrate": "bun packages/db/scripts/migrate.ts",
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "format": "prettier --check . --ignore-unknown",
+    "format:write": "prettier --write . --ignore-unknown",
+    "prepare": "husky",
     "verify:workspace": "bun scripts/verify-workspace.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "drizzle-kit": "^0.31.10",
+    "eslint": "^8.57.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.5.3",
     "typescript": "^5.6.3",
     "vitest": "^3.2.4"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": "prettier --write"
   }
 }

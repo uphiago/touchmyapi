@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+if [ "${CI:-}" = "true" ]; then
+  exit 0
+fi
+
+bunx lint-staged || {
+  echo "Pre-commit checks reported issues; continuing because this hook is non-blocking." >&2
+  exit 0
+}

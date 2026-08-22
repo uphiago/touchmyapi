@@ -3,7 +3,16 @@ import { assessmentStateSchema } from "../src/assessment";
 
 describe("assessment state contract", () => {
   it("accepts every persisted state", () => {
-    for (const state of ["draft", "awaiting_verification", "queued", "running", "analyzing", "completed", "failed", "cancelled"]) {
+    for (const state of [
+      "draft",
+      "awaiting_verification",
+      "queued",
+      "running",
+      "analyzing",
+      "completed",
+      "failed",
+      "cancelled",
+    ]) {
       expect(assessmentStateSchema.parse(state)).toBe(state);
     }
   });
