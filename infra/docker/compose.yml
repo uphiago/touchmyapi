@@ -21,5 +21,23 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    image: minio/minio:latest
+    container_name: touchmyapi-minio
+    restart: unless-stopped
+    environment:
+      # Local development only. Supply non-default credentials outside local
+      # development; application credentials use OBJECT_STORAGE_* variables.
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-touchmyapi_dev}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-touchmyapi_dev_change_me}
+    command: server /data --console-address ":9001"
+    ports:
+      # Loopback-only binds keep the development object store private.
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio_data:/data
+
 volumes:
   postgres_data:
+  minio_data:
