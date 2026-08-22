@@ -45,12 +45,10 @@ Consolidates findings that resolve the technical unknowns in the implementation 
 
 ## R7. Proof-of-control verification for non-HTTP targets
 
-- **Decision**: Two-tier rule, validated server-side:
-  - **HTTP-file verification required** when a public web origin is reachable (web-admin rights are stronger proof than DNS).
-  - **DNS TXT proof accepted** when the target is non-HTTP-serving (bare IPs, APIs, GraphQL): namespaced challenge label `_tma-<service>-challenge.<domain>` with a >=128-bit random token, short expiry, provider-attributed so a user cannot certify a third-party service.
-  - Re-verification required on scope changes; records expire after a short window.
-- **Rationale**: DNS TXT proves authoritative control of the zone independent of web serving - the correct primitive for API/GraphQL/IP targets where a writable web root does not exist. Keeps abuse resistance: world-readable web origins still require the file, preventing "borrowed subdomain" attacks.
-- **Alternatives considered**: CNAME challenge (only when TXT impossible), DomainAttest-style registrar attestation (still emerging, not for IP targets), manual support-case verification (audited fallback only).
+- **Decision**: Launch supports active external assessments only when an HTTP-file challenge can be completed on the target origin. Re-verification is required on scope changes, and challenge records expire after a short window. Non-HTTP-serving external targets remain ineligible for active execution at launch.
+- **Rationale**: Constitution principle I explicitly requires completed HTTP verification before every active external test. A DNS TXT challenge may prove zone control, but accepting it as an execution gate would require a documented constitution amendment and migration plan first.
+- **Future option (disabled)**: The data model may reserve `dns_txt` for a later, constitution-approved flow using a namespaced label such as `_tma-<service>-challenge.<domain>`, a >=128-bit random token, short expiry, and provider attribution. Until then it MUST NOT authorize execution.
+- **Alternatives considered**: DNS TXT, CNAME challenge, registrar attestation, and manual audited verification. All remain disabled as execution gates at launch.
 
 ## R8. SSRF-safe verification fetch
 
@@ -92,7 +90,7 @@ All technical context unknowns from the plan are resolved above. No `NEEDS CLARI
 - Stripe: raw-body constructEvent + dedupe-insert-before-side-effect.
 - Google: openid-client PKCE.
 - Runner: rootless Podman + gVisor runsc behind `SandboxProvider`, credentials via per-job tmpfs channel.
-- Verification: HTTP-file required for web-reachable; DNS TXT for non-HTTP targets; SSRF-safe pinned fetch.
+- Verification: HTTP-file required for every active external assessment; non-HTTP alternatives remain disabled pending a constitution amendment; SSRF-safe pinned fetch.
 - AI: DeepSeek planner/triage + Codex reports, both non-executor, policy-reduced.
 - Reports: react-pdf + sanitization layer; versioned JSON contract.
 - Private agent: outbound WS to control worker with signed job specs.

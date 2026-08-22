@@ -83,7 +83,7 @@ A paying customer installs the private agent inside their environment. The agent
 - What happens on concurrent dispatch for the same target/account? (second attempt rejected; one active execution per target/account)
 - What happens on Stripe webhook redelivery or out-of-order events? (idempotent processing by external event id; no credit duplication)
 - What happens when the AI provider is unavailable or disabled per account? (analyzing state must not hard-block; deterministic fallback triage completes the run)
-- What happens when a target is external but exposes no HTTP server (e.g., API host at bare TCP)? (verification rule decided at plan time - file-host, TXT record, or HTTP-serving-only policy)
+- What happens when a target is external but exposes no HTTP server (e.g., API host at bare TCP)? (active execution is unavailable at launch; accepting TXT or another proof later requires a constitution amendment and migration plan)
 - What happens on account deletion with active agents/schedules/webhooks? (cancel schedules, revoke agents/tokens, request session revocation, start data elimination per retention)
 
 ## Requirements *(mandatory)*
@@ -154,6 +154,6 @@ A paying customer installs the private agent inside their environment. The agent
 - Redis, Kafka, and Kubernetes are not launch prerequisites; PostgreSQL is the durable queue and source of truth initially.
 - The runner abstraction sits behind a `SandboxProvider` so persistent/managed sandboxes can replace ephemeral containers without changing product domain.
 - One active execution per target/account plus conservative global limits; minimum metrics: queue depth, job age, failure rate per playbook, duration, cancellations, credit usage, policy blocks, webhook failures, cross-account-access attempts; internal alerts are not customer integrations.
-- Verification of non-HTTP-serving targets (bare APIs) requires a decided rule at plan time (file-host, TXT record, or HTTP-serving-only).
+- Active external assessments at launch are limited to HTTP-serving targets that can complete HTTP-file verification; other proof methods require a constitution amendment.
 - Playbooks and contract schemas are defined before the policy engine; no scanner is built before the policy engine.
 - Edge cases around AI-provider unavailability and plan gating require deterministic fallbacks so analysis never hard-blocks.

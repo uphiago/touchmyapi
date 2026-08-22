@@ -79,16 +79,16 @@ Versioned declaration.
 
 ### verification
 
-HTTP-file or DNS-TXT proof of control for a target.
+HTTP-file proof of control for a target. The schema reserves a disabled DNS-TXT method for possible future use.
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | id | uuid pk | |
 | account_id | uuid fk | |
 | target_json | jsonb | |
-| method | enum | `http_file` / `dns_txt` |
+| method | enum | `http_file`; `dns_txt` is reserved but disabled pending a constitution amendment |
 | challenge_token | text | >=128-bit random token |
-| challenge_host | text | `_tma-<service>-challenge.<domain>` for TXT |
+| challenge_host | text | reserved for a future, constitution-approved TXT flow |
 | status | enum | `pending` / `verified` / `expired` / `failed` |
 | verified_at / expires_at | timestamptz | re-verify on scope change |
 | fetch_evidence | jsonb | sanitized fetch metadata |

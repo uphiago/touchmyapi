@@ -20,7 +20,7 @@ Base path: `/api/v1`. Auth: HttpOnly session cookie (Google OAuth PKCE). JSON ev
 | GET | `/assessments/:id` | detail; field visibility gated by plan |
 | POST | `/assessments/:id/cancel` | idempotent transition; stop signal + cleanup for active runner |
 | GET | `/assessments/:id/verification` | current verification record for active external run |
-| POST | `/assessments/:id/verification` | (re)submit HTTP-file or DNS-TXT challenge |
+| POST | `/assessments/:id/verification` | (re)submit HTTP-file challenge; DNS-TXT is modeled but disabled at launch |
 | GET | `/assessments/:id/findings` | plan-permitted findings (free-verified: title/category/severity only) |
 | GET | `/assessments/:id/reports` | list report objects (kind, generated_at, url) |
 | GET | `/assessments/:id/reports/:reportId/download` | single-use signed URL |
