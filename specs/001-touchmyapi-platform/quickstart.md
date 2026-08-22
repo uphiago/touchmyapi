@@ -1,95 +1,103 @@
-# Quickstart: TouchMyAPI Platform
+# Quickstart: TouchMyAPI Foundation
 
-**Phase 1 output** | **Date**: 2026-08-17
+**Foundation validation** | **Updated**: 2026-08-22
 
-Runnable validation guide proving the feature works end-to-end. No full implementation code here - links point to contracts and data model. Used by the implement phase and `/speckit.converge`.
+This guide validates the code that exists today. It does not claim that the full platform scenarios in the [product spec](./spec.md) are implemented.
+
+## Implemented scope
+
+- Bun workspace with TypeScript strict mode
+- Shared Zod contracts for assessment states, target categories, health, and errors
+- Hono `GET /health` API with a JSON 404 envelope
+- React/Vite shell that validates the health response
+- Explicit PostgreSQL connection factory with an opt-in integration smoke test
+- PostgreSQL 16 Compose service bound to loopback only
+
+No assessment execution, external target access, authentication, RLS schema, queue, billing mutation, AI execution, or runner exists in this foundation.
 
 ## Prerequisites
 
 - Bun 1.x
-- PostgreSQL 16+ (local via `infra/docker/compose.yml`)
-- Stripe test keys in `.env` (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_*`)
-- Google OAuth client credentials in `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`)
-- Podman with rootless support + gVisor `runsc` installed (or `SANDBOX_IMPL=noop` for CI)
-- Private object storage (S3-compatible) credentials, or local MinIO in compose
+- Docker with Compose v2 for the Compose configuration check and optional local PostgreSQL test
 
-## Setup
+If Docker is unavailable, complete all Bun checks locally and run the Compose command on a Docker-enabled development or CI machine. The absence of Docker does not justify skipping Compose validation before release.
+
+## Environment
+
+The checks require no OAuth, Stripe, object-storage, or target credentials. Optional local overrides can be copied from the safe template:
+
+```bash
+cp .env.example .env
+```
+
+`.env` remains ignored. The Compose PostgreSQL port is `127.0.0.1:5433`, matching `DATABASE_URL` in `.env.example`. `VITE_API_BASE_URL` is public; do not place secrets in any `VITE_*` variable.
+
+## Foundation verification
+
+Run from the repository root, in order:
 
 ```bash
 bun install
-cp .env.example .env   # fill Google + Stripe test keys
-bun run db:up          # start Postgres + MinIO (compose)
-bun run db:migrate     # drizzle-kit: schema + RLS policies via pgPolicy/pgRole
-bun run db:seed        # playbook catalog + a sandbox account fixture
+bun run verify:workspace
+bun test
+bun run typecheck
+bun run --cwd apps/web build
+docker compose -f infra/docker/compose.yml config
 ```
 
-## Validation scenarios (in order)
+The foundation implementation plan used `bun --cwd apps/web run build`. With Bun 1.4, use the equivalent `bun run --cwd apps/web build` shown in the runnable sequence.
 
-### 1. Login and isolation smoke test
+Expected:
+
+- workspace manifests are present;
+- contract, API, and DB boundary unit tests pass;
+- the live DB smoke test is skipped unless `RUN_DB_TESTS=1`;
+- TypeScript strict checking exits successfully;
+- Vite creates ignored files under `apps/web/dist`;
+- Compose resolves a PostgreSQL 16 service exposed only on `127.0.0.1:5433`.
+
+No command above starts an assessment or contacts an external target.
+
+## Run the API and web shell
+
+Start the API:
 
 ```bash
-bun run dev:web    # Vite client
-bun run dev:api    # Bun API
-# Open http://localhost:5173, sign in with Google test account
-# Verify: /auth/me returns account + plan free_unverified
+bun run dev:api
 ```
 
-Expected: Google PKCE login works, session cookie is HttpOnly/Secure/SameSite, and a second signed-out browser cannot call any owned endpoint.
+Check `http://localhost:3000/health`; the response is:
 
-### 2. RLS isolation (automated)
+```json
+{"status":"ok"}
+```
+
+Optionally start the web shell in another terminal:
 
 ```bash
-bun run test:isolation
+bun run dev:web
 ```
 
-Expected: green. Two accounts created; each account's queries return zero rows of the other's data; policy blocks direct role escalation (see [data model, RLS](../data-model.md)).
+Open `http://localhost:5173`. The shell reports `API online` only after validating the response against the shared Zod schema.
 
-### 3. Passive free assessment (no verification)
-
-- Create assessment: category `surface`, target `example.com`, playbook `surface-public-posture`.
-- No HTTP verification required for passive slice.
-- Wait for `completed`; dashboard shows aggregated posture only.
-
-Expected: `queued -> running -> analyzing -> completed` (or `failed` with reason); no active-test actions; in-product notification `assessment_completed`; free-unverified cannot see finding detail (only aggregate).
-
-### 4. Active test requires verification
-
-- Create assessment with active slice. It must enter `awaiting_verification`.
-- Without placing the challenge file, status stays `awaiting_verification`; submit fails or retries.
-- Place the challenge token file on the target origin (or add the `_tma-<service>-challenge.<domain>` TXT record for a non-HTTP target), resubmit, and confirm `verified`.
-- Confirm the fetch policy rejected a localhost/192.168.x.x verification URL (SSRF-safe; see [research R8](../research.md)).
-
-Expected: active execution never begins before `verified`; SSRF-literal/private targets rejected.
-
-### 5. Queue durability and policy enforcement
-
-- Kill the control worker mid-run; restart it.
-- Confirm a leased job is recovered (`stale_recovered`) and eventually completes or fails with reason - never stuck (SC-004).
-- Launch a second assessment for the same target/account: rejected (one execution per target/account).
-
-### 6. Entitlement via webhook only (Stripe test)
+## Optional PostgreSQL integration smoke test
 
 ```bash
-stripe listen --forward-to localhost:3001/api/v1/webhooks/stripe
-# complete a checkout.session in test mode (Pix or card)
+docker compose -f infra/docker/compose.yml up -d postgres
+RUN_DB_TESTS=1 bun test packages/db/test/connection.test.ts
 ```
 
-Expected: webhook signature verified (raw body), dedupe insert on `stripe_event_id`, entitlement flips to `pro` exactly once; replaying the same event id changes nothing (SC-005). Browser checkout page only began intent; no client-side entitlement logic.
+The current DB package only proves an explicit connection boundary. Schema migrations, runtime roles, tenant transaction setup, default-deny RLS policies, and cross-account isolation tests remain blocking work before user data is stored.
 
-### 7. Plan gating on findings and reports
+## Next validation milestones
 
-- Free verified: dashboard finding shows title/category/severity only; `/reports` returns empty or 403.
-- Paid (`pro`): evidence + reproduction + PDF technical + PDF executive + JSON available; JSON matches [export contract](../contracts/export.md) and contains no secrets (SC-009).
+The end-to-end scenarios formerly listed here are not runnable yet. Implement them in the order defined by [tasks.md](./tasks.md):
 
-### 8. Private agent internal target
+1. Google OAuth sessions, schema migrations, runtime roles, and RLS isolation tests.
+2. Assessment state machine, policy engine, durable PostgreSQL queue, and passive visualization.
+3. Webhook-only Stripe entitlement and server-side catalog gating.
+4. HTTP-file verification and SSRF-safe fetching before any active external assessment.
+5. Least-privilege sandbox runner, redacted evidence, private reports, and signed downloads.
+6. AI as a non-executor and, later, the outbound-only private agent.
 
-- Install agent in a controlled environment; connect outbound via `WS /agents/connect`.
-- Onboarding shows unique token, fingerprint, status, last activity, revocation.
-- Dispatch internal job to agent; artifacts return; internal credentials never reach the server (SC-007).
-- Revoke agent; next job dispatch refused (FR-017).
-
-## Notes
-
-- Each scenario references the authoritative definitions in [contracts](../contracts/index.md) and the [data model](../data-model.md); treat drift from those as a bug.
-- These scenarios map 1:1 to acceptance criteria SC-001..SC-010 in [spec.md](../spec.md).
-- AI-provider fallback: with external AI disabled or unreachable, `analyzing` must still resolve via deterministic triage (no hard block).
+The authoritative design references are the [constitution](../../.specify/memory/constitution.md), [data model](./data-model.md), [research](./research.md), and [contracts](./contracts/index.md). Drift from those documents is a bug; when they conflict, the constitution wins.
