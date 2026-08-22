@@ -1,0 +1,27 @@
+tests/contract/foundation-config.test.ts
+  s_bc54431df54bf2::t_ea27a12f97e99d 1,14,26-28,68-72,98-104,106,114-117,119
+README.md
+  s_bc54431df54bf2::t_6973ae58c6d4ae 57-62
+packages/db/scripts/migrate.ts
+  s_bc54431df54bf2::t_6973ae58c6d4ae 1-2,12
+infra/docker/postgres/init/002_test_database.sql
+  s_bc54431df54bf2::t_6973ae58c6d4ae 1-5
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_6973ae58c6d4ae 98-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "a841506a6a49ae16b348a75e9e3802594bd641ba",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
