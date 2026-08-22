@@ -29,6 +29,7 @@ export type {
   ActionRequest,
   BlockCode,
   PolicyBlock,
+  PolicyContext,
   PolicyDecision,
   RuntimeAction,
   TargetCategory,

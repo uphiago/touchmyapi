@@ -3,6 +3,7 @@ import {
   normalizeExternalUrl,
   validateResolvedAddresses,
   type CompiledScope,
+  type NormalizedTarget,
 } from "./scope";
 import { isPlan, rightsForPlan, type Plan } from "./entitlement";
 import { reduceLimits, type EffectiveLimits, type LimitInput } from "./limits";
@@ -17,6 +18,7 @@ export type BlockCode =
   | "target_category_not_allowed"
   | "target_category_mismatch"
   | "unknown_plan"
+  | "invalid_context"
   | "scope_required"
   | "target_invalid"
   | "target_out_of_scope"
@@ -25,9 +27,12 @@ export type BlockCode =
   | "port_not_allowed"
   | "attestation_required"
   | "invalid_attestation"
+  | "attestation_context_mismatch"
   | "verification_required"
   | "verification_method_not_allowed"
   | "verification_not_verified"
+  | "verification_context_mismatch"
+  | "verification_expired"
   | "playbook_required"
   | "invalid_playbook"
   | "unknown_playbook_action"
@@ -40,6 +45,7 @@ export type BlockCode =
 export type PolicyBlock = Readonly<{ code: BlockCode }>;
 
 export type ActionRequest = Readonly<{
+  context: PolicyContext;
   action: string;
   targetCategory: string;
   /** A URL string, or a target descriptor containing a candidate URL and DNS facts. */
@@ -60,6 +66,9 @@ export type PolicyDecision = Readonly<{
   actions: readonly string[];
   capabilities: readonly string[];
   limits: EffectiveLimits | null;
+  target: NormalizedTarget | null;
+  resolvedAddresses: readonly string[];
+  scopeFingerprint: string | null;
 }>;
 
 type RecordValue = Record<string, unknown>;
@@ -68,6 +77,9 @@ type Snapshot = { ok: true; value: RecordValue; keys: readonly string[] } | { ok
 const TARGET_CATEGORIES = new Set<TargetCategory>(["web", "api", "surface", "genai", "internal"]);
 const ACTIONS = new Set<RuntimeAction>(["passive_external", "active_external"]);
 const SAFE_VERSION = /^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,127}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UTC_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
+const FINGERPRINT = /^sha256:[0-9a-f]{64}$/i;
 
 const ACTION_MAP = Object.freeze({
   "dns.records": Object.freeze({ type: "dns_lookup", capability: "dns_resolver" }),
@@ -156,6 +168,9 @@ function denied(blocked: readonly BlockCode[]): PolicyDecision {
     actions: [],
     capabilities: [],
     limits: null,
+    target: null,
+    resolvedAddresses: [],
+    scopeFingerprint: null,
   });
 }
 
@@ -163,6 +178,9 @@ function allowed(
   actions: readonly string[],
   capabilities: readonly string[],
   limits: EffectiveLimits,
+  target: NormalizedTarget,
+  resolvedAddresses: readonly string[],
+  scopeFingerprint: string,
 ): PolicyDecision {
   return freezeDeep({
     allowed: true,
@@ -171,7 +189,52 @@ function allowed(
     actions: [...actions],
     capabilities: [...capabilities],
     limits,
+    target,
+    resolvedAddresses: [...resolvedAddresses],
+    scopeFingerprint,
   });
+}
+
+export type PolicyContext = Readonly<{
+  accountId: string;
+  assessmentId: string;
+  userId: string;
+  evaluatedAt: string;
+  scopeFingerprint: string;
+}>;
+
+function validUtc(value: unknown): value is string {
+  return typeof value === "string" && UTC_ISO.test(value) && Number.isFinite(Date.parse(value));
+}
+
+function parseContext(input: unknown): { value?: PolicyContext; code?: BlockCode } {
+  const snapshot = snapshotObject(input, [
+    "accountId",
+    "assessmentId",
+    "userId",
+    "evaluatedAt",
+    "scopeFingerprint",
+  ]);
+  if (
+    !snapshot.ok ||
+    !exactKeys(snapshot, ["accountId", "assessmentId", "userId", "evaluatedAt", "scopeFingerprint"])
+  ) {
+    return { code: "invalid_context" };
+  }
+  const value = snapshot.value;
+  if (
+    typeof value.accountId !== "string" ||
+    !UUID.test(value.accountId) ||
+    typeof value.assessmentId !== "string" ||
+    !UUID.test(value.assessmentId) ||
+    typeof value.userId !== "string" ||
+    !UUID.test(value.userId) ||
+    !validUtc(value.evaluatedAt) ||
+    typeof value.scopeFingerprint !== "string" ||
+    !FINGERPRINT.test(value.scopeFingerprint)
+  )
+    return { code: "invalid_context" };
+  return { value: value as PolicyContext };
 }
 
 function parseTarget(root: RecordValue): {
@@ -179,51 +242,22 @@ function parseTarget(root: RecordValue): {
   addresses: readonly string[] | undefined;
   malformed: boolean;
 } {
-  let candidate: unknown;
-  let addresses: unknown;
-  let malformed = false;
-  if (isOwn(root, "target")) {
-    const target = root.target;
-    if (typeof target === "string") {
-      candidate = target;
-    } else {
-      const targetSnapshot = snapshotObject(target, [
-        "candidate",
-        "candidateUrl",
-        "url",
-        "resolvedAddresses",
-      ]);
-      if (!targetSnapshot.ok) malformed = true;
-      else {
-        candidate = isOwn(targetSnapshot.value, "candidate")
-          ? targetSnapshot.value.candidate
-          : isOwn(targetSnapshot.value, "candidateUrl")
-            ? targetSnapshot.value.candidateUrl
-            : targetSnapshot.value.url;
-        addresses = targetSnapshot.value.resolvedAddresses;
-      }
-    }
+  const targetSnapshot = snapshotObject(root.target, ["candidate", "resolvedAddresses"]);
+  if (!targetSnapshot.ok || !exactKeys(targetSnapshot, ["candidate", "resolvedAddresses"])) {
+    return { candidate: undefined, addresses: undefined, malformed: true };
   }
-  if (isOwn(root, "candidate")) candidate = root.candidate;
-  if (isOwn(root, "candidateUrl")) candidate = root.candidateUrl;
-  if (isOwn(root, "resolvedAddresses")) addresses = root.resolvedAddresses;
-  if (candidate !== undefined && typeof candidate !== "string") malformed = true;
-  if (addresses !== undefined) {
-    const addressSnapshot = snapshotArray(addresses);
-    if (
-      addressSnapshot === null ||
-      addressSnapshot.some((address) => typeof address !== "string")
-    ) {
-      malformed = true;
-      addresses = undefined;
-    } else {
-      addresses = addressSnapshot as readonly string[];
-    }
-  }
+  const candidate = targetSnapshot.value.candidate;
+  const addressSnapshot = snapshotArray(targetSnapshot.value.resolvedAddresses);
   return {
     candidate: typeof candidate === "string" ? candidate : undefined,
-    addresses: Array.isArray(addresses) ? (addresses as readonly string[]) : undefined,
-    malformed,
+    addresses:
+      addressSnapshot && addressSnapshot.every((address) => typeof address === "string")
+        ? (addressSnapshot as readonly string[])
+        : undefined,
+    malformed:
+      typeof candidate !== "string" ||
+      addressSnapshot === null ||
+      addressSnapshot.some((address) => typeof address !== "string"),
   };
 }
 
@@ -237,71 +271,133 @@ function parseScope(root: RecordValue): {
   if (raw === null || typeof raw !== "object") {
     return { scope: undefined, candidate: undefined, addresses: undefined, malformed: true };
   }
-  const wrapper = snapshotObject(raw, [
-    "compiled",
-    "compiledScope",
-    "candidate",
-    "candidateUrl",
-    "resolvedAddresses",
-  ]);
-  if (wrapper.ok && (isOwn(wrapper.value, "compiled") || isOwn(wrapper.value, "compiledScope"))) {
-    const compiled = isOwn(wrapper.value, "compiled")
-      ? wrapper.value.compiled
-      : wrapper.value.compiledScope;
-    const candidate = isOwn(wrapper.value, "candidate")
-      ? wrapper.value.candidate
-      : wrapper.value.candidateUrl;
-    const addresses = wrapper.value.resolvedAddresses;
-    let normalizedAddresses: readonly string[] | undefined;
-    let malformed =
-      (candidate !== undefined && typeof candidate !== "string") ||
-      (addresses !== undefined && !Array.isArray(addresses));
-    if (!malformed && addresses !== undefined) {
-      const addressSnapshot = snapshotArray(addresses);
-      if (
-        addressSnapshot === null ||
-        addressSnapshot.some((address) => typeof address !== "string")
-      ) {
-        malformed = true;
-      } else {
-        normalizedAddresses = addressSnapshot as readonly string[];
-      }
-    }
-    return {
-      scope: compiled,
-      candidate: typeof candidate === "string" ? candidate : undefined,
-      addresses: normalizedAddresses,
-      malformed,
-    };
-  }
   return { scope: raw, candidate: undefined, addresses: undefined, malformed: false };
 }
 
-function validAttestation(input: unknown): "required" | "invalid" | "ok" {
-  if (input === null || input === undefined) return "required";
-  const snapshot = snapshotObject(input, ["version"]);
-  if (!snapshot.ok || !isOwn(snapshot.value, "version")) return "invalid";
-  return typeof snapshot.value.version === "string" && SAFE_VERSION.test(snapshot.value.version)
-    ? "ok"
-    : "invalid";
+function targetOrigin(target: NormalizedTarget): string {
+  const defaultPort = target.protocol === "https:" ? 443 : 80;
+  return `${target.protocol}//${target.hostname}${target.port === defaultPort ? "" : `:${target.port}`}`;
 }
 
-type VerificationState =
-  "none" | "invalid" | "http_verified" | "http_unverified" | "other_verified" | "other_unverified";
-function parseVerification(input: unknown): VerificationState {
+type FactState =
+  "none" | "invalid" | "mismatch" | "expired" | "unverified" | "ok" | "method_not_allowed";
+
+function parseVerification(
+  input: unknown,
+  context: PolicyContext | undefined,
+  target: NormalizedTarget | undefined,
+): FactState {
   if (input === null || input === undefined) return "none";
-  const snapshot = snapshotObject(input, ["method", "status"]);
+  const methodProbe = snapshotObject(input);
+  if (methodProbe.ok && methodProbe.value.method === "dns_txt") return "method_not_allowed";
+  const snapshot = snapshotObject(input, [
+    "method",
+    "status",
+    "accountId",
+    "assessmentId",
+    "targetOrigin",
+    "scopeFingerprint",
+    "challengeId",
+    "verifiedAt",
+    "expiresAt",
+  ]);
+  const keys = [
+    "method",
+    "status",
+    "accountId",
+    "assessmentId",
+    "targetOrigin",
+    "scopeFingerprint",
+    "challengeId",
+    "verifiedAt",
+    "expiresAt",
+  ];
+  if (!snapshot.ok || !exactKeys(snapshot, keys)) return "invalid";
+  const value = snapshot.value;
   if (
-    !snapshot.ok ||
-    typeof snapshot.value.method !== "string" ||
-    typeof snapshot.value.status !== "string"
-  ) {
+    value.method !== "http_file" ||
+    (value.status !== "pending" && value.status !== "verified" && value.status !== "expired") ||
+    typeof value.accountId !== "string" ||
+    !UUID.test(value.accountId) ||
+    typeof value.assessmentId !== "string" ||
+    !UUID.test(value.assessmentId) ||
+    typeof value.targetOrigin !== "string" ||
+    typeof value.scopeFingerprint !== "string" ||
+    !FINGERPRINT.test(value.scopeFingerprint) ||
+    typeof value.challengeId !== "string" ||
+    !UUID.test(value.challengeId) ||
+    !validUtc(value.verifiedAt) ||
+    !validUtc(value.expiresAt) ||
+    !context ||
+    !target
+  )
     return "invalid";
-  }
-  if (snapshot.value.method === "http_file") {
-    return snapshot.value.status === "verified" ? "http_verified" : "http_unverified";
-  }
-  return snapshot.value.status === "verified" ? "other_verified" : "other_unverified";
+  if (
+    value.accountId !== context.accountId ||
+    value.assessmentId !== context.assessmentId ||
+    value.scopeFingerprint !== context.scopeFingerprint ||
+    value.targetOrigin !== targetOrigin(target)
+  )
+    return "mismatch";
+  const evaluated = Date.parse(context.evaluatedAt);
+  const verified = Date.parse(value.verifiedAt);
+  const expires = Date.parse(value.expiresAt);
+  if (verified > evaluated) return "unverified";
+  if (expires <= evaluated || expires <= verified || value.status === "expired") return "expired";
+  if (value.status !== "verified") return "unverified";
+  return "ok";
+}
+
+function parseAttestation(
+  input: unknown,
+  context: PolicyContext | undefined,
+  target: NormalizedTarget | undefined,
+  playbook: ParsedPlaybook | undefined,
+): "required" | "invalid" | "mismatch" | "ok" {
+  if (input === null || input === undefined) return "required";
+  const keys = [
+    "version",
+    "accountId",
+    "assessmentId",
+    "userId",
+    "target",
+    "scopeFingerprint",
+    "playbookKey",
+    "playbookVersion",
+    "acceptedAt",
+  ];
+  const snapshot = snapshotObject(input, keys);
+  if (!snapshot.ok || !exactKeys(snapshot, keys)) return "invalid";
+  const value = snapshot.value;
+  if (
+    value.version !== "terms@1" ||
+    typeof value.accountId !== "string" ||
+    !UUID.test(value.accountId) ||
+    typeof value.assessmentId !== "string" ||
+    !UUID.test(value.assessmentId) ||
+    typeof value.userId !== "string" ||
+    !UUID.test(value.userId) ||
+    typeof value.target !== "string" ||
+    typeof value.scopeFingerprint !== "string" ||
+    !FINGERPRINT.test(value.scopeFingerprint) ||
+    value.playbookKey !== "surface-public-posture" ||
+    value.playbookVersion !== "1.0.0" ||
+    !validUtc(value.acceptedAt) ||
+    !context ||
+    !target ||
+    !playbook
+  )
+    return "invalid";
+  if (
+    value.accountId !== context.accountId ||
+    value.assessmentId !== context.assessmentId ||
+    value.userId !== context.userId ||
+    value.target !== target.url ||
+    value.scopeFingerprint !== context.scopeFingerprint
+  )
+    return "mismatch";
+  if (Date.parse(value.acceptedAt) > Date.parse(context.evaluatedAt)) return "invalid";
+  return "ok";
 }
 
 type ParsedPlaybook = {
@@ -417,13 +513,15 @@ function parsePlaybook(
     )
       hasActiveHttpVerification = true;
   }
-  if (!hasActiveHttpVerification) return { code: "invalid_playbook" };
+  if (!hasActiveHttpVerification || preconditionKeys.size !== 1)
+    return { code: "invalid_playbook" };
 
   const actionValues = snapshotArray(value.actions);
   if (actionValues === null || actionValues.length === 0) return { code: "invalid_playbook" };
   const actions: string[] = [];
   const capabilities: string[] = [];
   const actionDurations: number[] = [];
+  const actionRequests: number[] = [];
   for (const action of actionValues) {
     const actionSnapshot = snapshotObject(action, PLAYBOOK_ACTION_KEYS);
     if (
@@ -441,6 +539,12 @@ function parsePlaybook(
     if (actionSnapshot.value.type !== descriptor.type) return { code: "unknown_playbook_action" };
     if (actionSnapshot.value.allowedTargets !== "scope")
       return { code: "target_category_not_allowed" };
+    if (HTTP_ACTION_TYPES.has(descriptor.type)) {
+      if (!isOwn(actionSnapshot.value, "method") || actionSnapshot.value.method !== "GET")
+        return { code: "invalid_playbook" };
+    } else if (isOwn(actionSnapshot.value, "method")) {
+      return { code: "invalid_playbook" };
+    }
     if (isOwn(actionSnapshot.value, "method")) {
       if (
         typeof actionSnapshot.value.method !== "string" ||
@@ -465,6 +569,7 @@ function parsePlaybook(
     if (actions.includes(id)) return { code: "unknown_playbook_action" };
     actions.push(id);
     actionDurations.push(actionLimit.value.durationS);
+    actionRequests.push(actionLimit.value.requests);
     if (!capabilities.includes(descriptor.capability)) capabilities.push(descriptor.capability);
   }
 
@@ -489,6 +594,9 @@ function parsePlaybook(
   if (actionDurations.some((durationS) => durationS > maxDurationS)) {
     return { code: "invalid_playbook" };
   }
+  if (actionRequests.some((requests) => requests > maxRatePerMin)) {
+    return { code: "invalid_playbook" };
+  }
   const egress = snapshotObject(playbookLimits.value.egress, ["allow", "blockDefaults"]);
   const allow = egress.ok ? snapshotArray(egress.value.allow) : null;
   if (
@@ -503,7 +611,8 @@ function parsePlaybook(
   if (uniqueSafeStrings(playbookLimits.value.impactLevels, SEVERITY_LEVELS) === null)
     return { code: "invalid_playbook" };
 
-  if (uniqueSafeStrings(value.stopSignals, STOP_SIGNALS) === null)
+  const stopSignals = uniqueSafeStrings(value.stopSignals, STOP_SIGNALS);
+  if (stopSignals === null || stopSignals.length !== STOP_SIGNALS.size)
     return { code: "invalid_playbook" };
   const evidence = snapshotObject(value.evidence, ["expected", "format"]);
   if (
@@ -570,6 +679,12 @@ function authorizeUnsafe(input: ActionRequest): PolicyDecision {
   } else {
     add("target_invalid");
   }
+  if (
+    rootValid &&
+    ["candidate", "candidateUrl", "url", "resolvedAddresses"].some((key) => isOwn(root, key))
+  ) {
+    add("target_invalid");
+  }
 
   const action = rootValid && typeof root.action === "string" ? root.action : undefined;
   if (!action || !ACTIONS.has(action as RuntimeAction)) add("unknown_action");
@@ -587,16 +702,16 @@ function authorizeUnsafe(input: ActionRequest): PolicyDecision {
       : undefined;
   if (!plan) add("unknown_plan");
 
+  const contextResult = parseContext(rootValid ? root.context : undefined);
+  if (contextResult.code) add(contextResult.code);
+  const context = contextResult.value;
+
   const target = rootValid
     ? parseTarget(root)
     : { candidate: undefined, addresses: undefined, malformed: true };
   const scoped = rootValid
     ? parseScope(root)
     : { scope: undefined, candidate: undefined, addresses: undefined, malformed: true };
-  if (target.candidate === undefined && scoped.candidate !== undefined)
-    target.candidate = scoped.candidate;
-  if (target.addresses === undefined && scoped.addresses !== undefined)
-    target.addresses = scoped.addresses;
   if (scoped.malformed) target.malformed = true;
   const normalized =
     target.candidate === undefined ? undefined : normalizeExternalUrl(target.candidate);
@@ -621,36 +736,48 @@ function authorizeUnsafe(input: ActionRequest): PolicyDecision {
     !isOwn(scopeShape.value, "exclusions")
   ) {
     add("scope_required");
+    add("target_invalid");
   } else if (normalized?.ok && !matchesScope(scope as CompiledScope, target.candidate ?? "")) {
     add("target_out_of_scope");
   }
+  let resolvedAddresses: readonly string[] | undefined;
   if (normalized?.ok) {
     const addresses = validateResolvedAddresses(normalized.value.hostname, target.addresses ?? []);
     if (!addresses.ok) {
       if (addresses.code === "resolved_addresses_required") add("resolved_addresses_required");
       else if (addresses.code === "forbidden_resolved_address") add("forbidden_target");
       else add("target_invalid");
-    }
-  }
-
-  const attestation = validAttestation(rootValid ? root.attestation : undefined);
-  if (attestation === "required") add("attestation_required");
-  else if (attestation === "invalid") add("invalid_attestation");
-
-  const verification = parseVerification(rootValid ? root.verification : undefined);
-  if (verification === "other_verified" || verification === "other_unverified") {
-    add("verification_method_not_allowed");
-  }
-  if (action === "active_external") {
-    if (verification === "none" || verification === "invalid") add("verification_required");
-    else if (verification === "http_unverified") add("verification_not_verified");
-    else if (verification === "other_unverified") {
-      add("verification_not_verified");
-    }
+    } else resolvedAddresses = addresses.value;
   }
 
   const parsedPlaybook = parsePlaybook(rootValid ? root.playbook : undefined, category ?? "");
   if (parsedPlaybook.code) add(parsedPlaybook.code);
+
+  const normalizedTarget = normalized?.ok ? normalized.value : undefined;
+  const attestation = parseAttestation(
+    rootValid ? root.attestation : undefined,
+    context,
+    normalizedTarget,
+    parsedPlaybook.value,
+  );
+  if (attestation === "required") add("attestation_required");
+  else if (attestation === "mismatch") add("attestation_context_mismatch");
+  else if (attestation === "invalid") add("invalid_attestation");
+
+  const verification = parseVerification(
+    rootValid ? root.verification : undefined,
+    context,
+    normalizedTarget,
+  );
+  if (verification === "method_not_allowed") add("verification_method_not_allowed");
+  else if (verification === "mismatch") add("verification_context_mismatch");
+  else if (verification === "expired") add("verification_expired");
+  else if (verification === "invalid") {
+    if (action === "active_external") add("verification_required");
+    else add("verification_required");
+  } else if (action === "active_external" && verification === "unverified")
+    add("verification_not_verified");
+  if (action === "active_external" && verification === "none") add("verification_required");
   if (rootValid && ["actions", "capabilities", "commands"].some((field) => isOwn(root, field))) {
     add("caller_execution_fields_not_allowed");
   }
@@ -663,6 +790,7 @@ function authorizeUnsafe(input: ActionRequest): PolicyDecision {
   if (plan === undefined) return denied(["unknown_plan"]);
   if (action !== "passive_external" && action !== "active_external")
     return denied(["unknown_action"]);
+  if (!normalizedTarget || !resolvedAddresses || !context) return denied(["target_invalid"]);
   // rightsForPlan is deliberately consulted only after validation; it is the server-owned matrix.
   try {
     const rights = rightsForPlan(plan);
@@ -678,6 +806,9 @@ function authorizeUnsafe(input: ActionRequest): PolicyDecision {
       parsedPlaybook.value.actions,
       parsedPlaybook.value.capabilities,
       effectiveLimits,
+      normalizedTarget,
+      resolvedAddresses,
+      context.scopeFingerprint,
     );
   } catch {
     return denied(["unknown_plan"]);

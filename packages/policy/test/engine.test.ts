@@ -3,6 +3,13 @@ import { authorize, type ActionRequest } from "../src/engine";
 import { compileScope } from "../src/scope";
 
 const scope = compileScope({ inclusions: ["example.com"], exclusions: [] });
+const CONTEXT = {
+  accountId: "11111111-1111-4111-8111-111111111111",
+  assessmentId: "22222222-2222-4222-8222-222222222222",
+  userId: "33333333-3333-4333-8333-333333333333",
+  evaluatedAt: "2026-08-22T12:00:00.000Z",
+  scopeFingerprint: `sha256:${"a".repeat(64)}`,
+} as const;
 
 const limits = () => ({
   playbook: {
@@ -67,13 +74,24 @@ const ACTION_TYPES = {
 } as const;
 
 const valid = (overrides: Record<string, unknown> = {}): ActionRequest => ({
+  context: CONTEXT,
   action: "passive_external",
   targetCategory: "surface",
   target: { candidate: "https://example.com/", resolvedAddresses: ["8.8.8.8"] },
   scope,
   entitlement: "free_unverified",
   limits: limits(),
-  attestation: { version: "terms@1" },
+  attestation: {
+    version: "terms@1",
+    accountId: CONTEXT.accountId,
+    assessmentId: CONTEXT.assessmentId,
+    userId: CONTEXT.userId,
+    target: "https://example.com/",
+    scopeFingerprint: CONTEXT.scopeFingerprint,
+    playbookKey: "surface-public-posture",
+    playbookVersion: "1.0.0",
+    acceptedAt: "2026-08-22T11:59:00.000Z",
+  },
   verification: null,
   playbook: playbook(),
   ...overrides,
@@ -99,6 +117,18 @@ describe("authorize", () => {
       credits: 1,
       egress: ["scope_target"],
     });
+    expect(result.target).toEqual({
+      url: "https://example.com/",
+      hostname: "example.com",
+      port: 443,
+      path: "/",
+      protocol: "https:",
+    });
+    expect(result.resolvedAddresses).toEqual(["8.8.8.8"]);
+    expect(result.scopeFingerprint).toBe(CONTEXT.scopeFingerprint);
+    expect(Object.isFrozen(result.target)).toBe(true);
+    expect(Object.isFrozen(result.resolvedAddresses)).toBe(true);
+    expect(() => (result.resolvedAddresses as string[]).push("1.1.1.1")).toThrow();
   });
 
   it("allows active verified assessments only for plans with active rights", () => {
@@ -106,7 +136,17 @@ describe("authorize", () => {
       valid({
         action: "active_external",
         entitlement: "free_verified",
-        verification: { method: "http_file", status: "verified" },
+        verification: {
+          method: "http_file",
+          status: "verified",
+          accountId: CONTEXT.accountId,
+          assessmentId: CONTEXT.assessmentId,
+          targetOrigin: "https://example.com",
+          scopeFingerprint: CONTEXT.scopeFingerprint,
+          challengeId: "44444444-4444-4444-8444-444444444444",
+          verifiedAt: "2026-08-22T11:58:00.000Z",
+          expiresAt: "2026-08-22T13:00:00.000Z",
+        },
       }),
     );
     expect(result.allowed).toBe(true);
@@ -144,6 +184,9 @@ describe("authorize", () => {
     expect(result.actions).toEqual([]);
     expect(result.capabilities).toEqual([]);
     expect(result.limits).toBeNull();
+    expect(result.target).toBeNull();
+    expect(result.resolvedAddresses).toEqual([]);
+    expect(result.scopeFingerprint).toBeNull();
     expect(result.reason).toBe("assessment blocked by policy");
     expect(result.blocked.map((block) => block.code)).toEqual([
       "unknown_action",
@@ -151,9 +194,9 @@ describe("authorize", () => {
       "unknown_plan",
       "port_not_allowed",
       "forbidden_target",
+      "target_category_mismatch",
       "attestation_required",
       "verification_method_not_allowed",
-      "target_category_mismatch",
       "caller_execution_fields_not_allowed",
       "invalid_limits",
     ]);
@@ -252,5 +295,159 @@ describe("authorize", () => {
     );
     expect(result.allowed).toBe(true);
     expect(result.limits).toMatchObject({ durationS: 300, ratePerMin: 10 });
+  });
+
+  it.each([
+    ["missing context", { context: undefined }],
+    ["bad account id", { context: { ...CONTEXT, accountId: "not-an-id" } }],
+    ["bad evaluatedAt", { context: { ...CONTEXT, evaluatedAt: "2026-99-99T00:00:00Z" } }],
+    ["bad fingerprint", { context: { ...CONTEXT, scopeFingerprint: "sha256:bad" } }],
+  ])("requires strict server context facts (%s)", (_name, overrides) => {
+    const result = authorize(valid(overrides));
+    expect(result.allowed).toBe(false);
+    expect(result.blocked.map((block) => block.code)).toContain("invalid_context");
+  });
+
+  it.each([
+    {
+      target: {
+        candidate: "https://example.com/",
+        resolvedAddresses: ["8.8.8.8"],
+        url: "https://other.example/",
+      },
+    },
+    {
+      target: { candidate: "https://example.com/", resolvedAddresses: ["8.8.8.8"] },
+      candidate: "https://other.example/",
+    },
+    {
+      target: { candidate: "https://example.com/", resolvedAddresses: ["8.8.8.8"] },
+      candidateUrl: "https://other.example/",
+    },
+    {
+      target: { candidate: "https://example.com/", resolvedAddresses: ["8.8.8.8"] },
+      resolvedAddresses: ["8.8.8.8"],
+    },
+    {
+      scope: { compiled: scope, candidate: "https://example.com/", resolvedAddresses: ["8.8.8.8"] },
+    },
+  ])("rejects target and scope aliases or conflicting extras", (overrides) => {
+    const result = authorize(valid(overrides));
+    expect(result.allowed).toBe(false);
+    expect(result.blocked.map((block) => block.code)).toContain("target_invalid");
+  });
+
+  it("binds attestation to every server context fact and playbook", () => {
+    const base = valid().attestation as Record<string, unknown>;
+    const wrongValues: Record<string, unknown> = {
+      accountId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      assessmentId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      userId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      target: "https://other.example/",
+      scopeFingerprint: `sha256:${"b".repeat(64)}`,
+      playbookKey: "other-playbook",
+      playbookVersion: "2.0.0",
+    };
+    for (const field of Object.keys(wrongValues)) {
+      const result = authorize(valid({ attestation: { ...base, [field]: wrongValues[field] } }));
+      expect(result.allowed).toBe(false);
+      expect(result.blocked.map((block) => block.code)).toContain(
+        field === "playbookKey" || field === "playbookVersion"
+          ? "invalid_attestation"
+          : "attestation_context_mismatch",
+      );
+    }
+    expect(authorize(valid({ attestation: { ...base, version: "terms@2" } })).allowed).toBe(false);
+    expect(
+      authorize(valid({ attestation: { ...base, acceptedAt: "2026-08-22T12:01:00.000Z" } }))
+        .allowed,
+    ).toBe(false);
+  });
+
+  it("binds active verification and rejects replay, expiry, and DNS TXT", () => {
+    const verification = {
+      method: "http_file",
+      status: "verified",
+      accountId: CONTEXT.accountId,
+      assessmentId: CONTEXT.assessmentId,
+      targetOrigin: "https://example.com",
+      scopeFingerprint: CONTEXT.scopeFingerprint,
+      challengeId: "44444444-4444-4444-8444-444444444444",
+      verifiedAt: "2026-08-22T11:58:00.000Z",
+      expiresAt: "2026-08-22T13:00:00.000Z",
+    };
+    const wrongValues: Record<string, unknown> = {
+      accountId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      assessmentId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      targetOrigin: "https://other.example",
+      scopeFingerprint: `sha256:${"b".repeat(64)}`,
+    };
+    for (const field of Object.keys(wrongValues)) {
+      const result = authorize(
+        valid({
+          action: "active_external",
+          entitlement: "pro",
+          verification: { ...verification, [field]: wrongValues[field] },
+        }),
+      );
+      expect(result.allowed).toBe(false);
+      expect(result.blocked.map((block) => block.code)).toContain("verification_context_mismatch");
+    }
+    expect(
+      authorize(
+        valid({
+          action: "active_external",
+          entitlement: "pro",
+          verification: { ...verification, expiresAt: "2026-08-22T12:00:00.000Z" },
+        }),
+      ).blocked.map((block) => block.code),
+    ).toContain("verification_expired");
+    expect(
+      authorize(
+        valid({
+          action: "active_external",
+          entitlement: "pro",
+          verification: { ...verification, verifiedAt: "2026-08-22T12:01:00.000Z" },
+        }),
+      ).blocked.map((block) => block.code),
+    ).toContain("verification_not_verified");
+    expect(
+      authorize(
+        valid({
+          action: "active_external",
+          entitlement: "pro",
+          verification: { method: "dns_txt" },
+        }),
+      ).blocked.map((block) => block.code),
+    ).toContain("verification_method_not_allowed");
+  });
+
+  it("requires exact playbook stop/precondition sets and conservative action facts", () => {
+    const current = playbook();
+    expect(
+      authorize(valid({ playbook: { ...current, stopSignals: ["scope_escape"] } })).allowed,
+    ).toBe(false);
+    expect(
+      authorize(
+        valid({
+          playbook: {
+            ...current,
+            preconditions: [
+              { kind: "http_verification_required", when: "active_external" },
+              { kind: "future", when: "never" },
+            ],
+          },
+        }),
+      ).allowed,
+    ).toBe(false);
+    const missingMethod = structuredClone(current);
+    delete (missingMethod.actions[2] as Record<string, unknown>).method;
+    expect(authorize(valid({ playbook: missingMethod })).allowed).toBe(false);
+    const dnsMethod = structuredClone(current);
+    (dnsMethod.actions[0] as Record<string, unknown>).method = "GET";
+    expect(authorize(valid({ playbook: dnsMethod })).allowed).toBe(false);
+    const hugeRequests = structuredClone(current);
+    (hugeRequests.actions[0] as Record<string, unknown>).limit = { requests: 11, durationS: 30 };
+    expect(authorize(valid({ playbook: hugeRequests })).allowed).toBe(false);
   });
 });
