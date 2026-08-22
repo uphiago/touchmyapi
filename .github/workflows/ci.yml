@@ -69,7 +69,7 @@ jobs:
         run: bun run format
 
       - name: Build web application
-        run: bun --cwd apps/web build
+        run: bun run --cwd apps/web build
 
       - name: Validate compose configuration
         run: docker compose -f infra/docker/compose.yml config
