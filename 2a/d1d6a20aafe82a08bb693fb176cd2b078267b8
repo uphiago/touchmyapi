@@ -1,0 +1,33 @@
+packages/policy/test/engine.test.ts
+  s_bc54431df54bf2::t_437f0b13c28252 4,35-65,135,154-161,163-239
+  s_bc54431df54bf2::t_042af1c8e1a135 162,407,676,700,711
+  s_bc54431df54bf2::t_5eef877b349e89 351,372,627,638,647,656
+  s_bc54431df54bf2::t_cf3a437985c9e7 240-269
+packages/policy/src/index.ts
+  s_bc54431df54bf2::t_fd1e332d931e4e 27-32,40
+packages/policy/src/engine.ts
+  s_bc54431df54bf2::t_6d32587f77cc2b 96
+  s_bc54431df54bf2::t_794913d076d8bc 500
+  s_bc54431df54bf2::t_d7ae579df3b8b9 1003-1005
+  s_bc54431df54bf2::t_ab01decad094e3 23-24,67,98
+  s_bc54431df54bf2::t_f479ebbfbd604d 288-295,346-349,351-403,405-407,412-424,427,429-459,463-465,467-468
+  s_bc54431df54bf2::t_02fc795a27140c 99,404,425
+  s_bc54431df54bf2::t_2597b1d66441c0 350,426,428,460-462,466
+  s_bc54431df54bf2::t_7759ac8ccc014e 469
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "2ad1d6a20aafe82a08bb693fb176cd2b078267b8",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
