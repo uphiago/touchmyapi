@@ -1,0 +1,21 @@
+tests/isolation/rls.test.ts
+  s_bc54431df54bf2::t_143cd19e8eb7fb 384-407,463-495,531-536
+packages/db/test/roles.isolation.test.ts
+  s_bc54431df54bf2::t_9a8e59b87cbdab 287,290-332
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "cd5becee1456f983a5156e62c7b2f42b656210ff",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
