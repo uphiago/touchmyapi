@@ -1,0 +1,37 @@
+packages/policy/package.json
+  s_bc54431df54bf2::t_d794f7626f63f2 1-11
+packages/policy/src/index.ts
+  s_bc54431df54bf2::t_85deb2457dc5df 1-16
+tests/isolation/policy.test.ts
+  s_bc54431df54bf2::t_d794f7626f63f2 1-10,15-18,23-25,28-33
+  s_bc54431df54bf2::t_4dcdfc7b8508b1 11-14,19-22,26-27
+packages/policy/src/scope.ts
+  s_bc54431df54bf2::t_c5343befbaeb39 90
+  s_bc54431df54bf2::t_de697169497d9c 105-109,158-161,191-197,199-204,220-231,256-260,269-280,307-308,312-322,330-331,356-362,420-424,437-438,444-447,464-471,479-482,486-489
+  s_bc54431df54bf2::t_85deb2457dc5df 1-59,68-89,91-104,110-157,162-190,198,205-213,219,232-255,261-266,268,281-283,286-305,323-329,332-355,363-373,376-419,425-436,439-443,448-463,472-478,483-485,490-504
+  s_bc54431df54bf2::t_eb7f9dfe0c61f2 60-67
+  s_bc54431df54bf2::t_211fbf8cf8cbf8 214-218,284-285
+  s_bc54431df54bf2::t_770ded7f685161 267,309-311,374-375
+  s_bc54431df54bf2::t_449ec83b211623 306
+packages/policy/test/scope.test.ts
+  s_bc54431df54bf2::t_211fbf8cf8cbf8 91
+  s_bc54431df54bf2::t_d794f7626f63f2 1-53,62-65,68-90,92-105,109-118,123-160,167-168,183-190
+  s_bc54431df54bf2::t_d63edb27281ae8 175
+  s_bc54431df54bf2::t_4dcdfc7b8508b1 54-61,66-67,106-108,119-122,161-166,169-174,176-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "373f1645c52688303f9593aae60a45980b68c030",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
