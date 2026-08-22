@@ -1,0 +1,34 @@
+tests/isolation/no-execution-surface.test.ts
+  s_bc54431df54bf2::t_21d21460b08309 1-13
+.github/workflows/ci.yml
+  s_bc54431df54bf2::t_1d94bc067b05bf 1-71,73-78
+  s_bc54431df54bf2::t_f96b659450ae50 72
+package.json
+  s_bc54431df54bf2::t_5f3e6185232297 4-7
+tsconfig.json
+  s_bc54431df54bf2::t_5f3e6185232297 6
+vitest.config.ts
+  s_bc54431df54bf2::t_5f3e6185232297 3,7,17-19,21-35
+tests/e2e/pending.test.ts
+  s_bc54431df54bf2::t_21d21460b08309 1-7
+.husky/pre-commit
+  s_bc54431df54bf2::t_5f3e6185232297 3,7
+tests/unit/test-topology.test.ts
+  s_bc54431df54bf2::t_21d21460b08309 1-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "2bb304a414fcf3c35ffde79678ee2141dc38ed91",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
