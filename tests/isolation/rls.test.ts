@@ -381,6 +381,30 @@ describeDb("PostgreSQL default-deny tenant isolation", () => {
           (await tx`delete from public.credential where id = ${rowsA.credentialId}`).count,
         ).toBe(1);
         expect((await tx`delete from public.agent where id = ${rowsA.agentId}`).count).toBe(1);
+
+        await tx.unsafe("reset app.tenant");
+        for (const operation of [
+          () => tx`insert into public.assessment
+            (account_id, target_category, target_json, scope_json, playbook_id, playbook_version, limits_json)
+            values (${rowsA.accountId}, 'surface', '{}'::jsonb, '{}'::jsonb, ${playbookKey}, '1.0.0', '{}'::jsonb)`,
+          () => tx`insert into public.authorization_attestation
+            (account_id, assessment_id, user_id, target_json, terms_version)
+            values (${rowsA.accountId}, ${rowsA.assessmentId}, ${rowsA.userId}, '{}'::jsonb, ${`insert-${run}`})`,
+          () => tx`insert into public.verification
+            (account_id, target_json, challenge_token, challenge_host)
+            values (${rowsA.accountId}, '{}'::jsonb, ${`insert-${run}`}, 'example.test')`,
+          () => tx`insert into public.credential
+            (account_id, assessment_id, encrypted_payload, key_id, purpose)
+            values (${rowsA.accountId}, ${rowsA.assessmentId}, decode('01', 'hex'), ${`insert-${run}`}, 'fixture')`,
+          () => tx`insert into public.audit_event
+            (account_id, actor, action, payload_json)
+            values (${rowsA.accountId}, ${`insert-${run}`}, 'request', '{}'::jsonb)`,
+          () => tx`insert into public.agent
+            (account_id, name, token_hash, fingerprint)
+            values (${rowsA.accountId}, ${`insert-${run}`}, ${sha256(`insert-agent-${run}`)}, 'fixture')`,
+        ])
+          await expectDenied(tx, operation, /row-level security/);
+
         for (const operation of [
           () =>
             tx`update public.account set settings_ia_enabled = false where id = ${rowsB.accountId}`,
@@ -436,6 +460,39 @@ describeDb("PostgreSQL default-deny tenant isolation", () => {
           (await tx`delete from public.runner_execution where id = ${rowsA.runnerExecutionId}`)
             .count,
         ).toBe(1);
+
+        await tx.unsafe("reset app.tenant");
+        for (const operation of [
+          () => tx`insert into public.job
+            (account_id, assessment_id, playbook_version, job_spec_json, dedupe_key)
+            values (${rowsA.accountId}, ${rowsA.assessmentId}, '1.0.0', '{}'::jsonb, ${`insert-${run}`})`,
+          () => tx`insert into public.runner_execution
+            (account_id, job_id, sandbox_impl)
+            values (${rowsA.accountId}, ${rowsA.jobId}, 'fixture')`,
+          () => tx`insert into public.finding
+            (account_id, assessment_id, title, category, severity)
+            values (${rowsA.accountId}, ${rowsA.assessmentId}, ${`insert-${run}`}, 'fixture', 'low')`,
+          () => tx`insert into public.report
+            (account_id, assessment_id, kind, object_key, contract_version, sanitized)
+            values (${rowsA.accountId}, ${rowsA.assessmentId}, 'json', ${`insert-${run}`}, '1', false)`,
+          () => tx`insert into public.credit_entry
+            (account_id, assessment_id, credits, reason)
+            values (${rowsA.accountId}, ${rowsA.assessmentId}, 1, ${`insert-${run}`})`,
+          () => tx`insert into public.billing_event
+            (account_id, stripe_event_id, type, payload_minimal_json, signature_valid, event_version)
+            values (${rowsA.accountId}, ${`insert-${run}`}, 'fixture', '{}'::jsonb, true, '1')`,
+          () => tx`insert into public.entitlement
+            (account_id, plan, source_event_id)
+            values (${rowsA.accountId}, 'free_unverified', ${rowsA.billingEventId})`,
+          () => tx`insert into public.audit_event
+            (account_id, actor, action, payload_json)
+            values (${rowsA.accountId}, ${`worker-insert-${run}`}, 'runner', '{}'::jsonb)`,
+          () => tx`insert into public.notification
+            (account_id, assessment_id, kind)
+            values (${rowsA.accountId}, ${rowsA.assessmentId}, ${`insert-${run}`})`,
+        ])
+          await expectDenied(tx, operation, /row-level security/);
+
         for (const operation of [
           () => tx`update public.assessment set status = 'failed' where id = ${rowsB.assessmentId}`,
           () =>
@@ -471,6 +528,12 @@ describeDb("PostgreSQL default-deny tenant isolation", () => {
         expect(await tx`select id from public.assessment`).toHaveLength(1);
         await tx`select set_config('app.tenant', ${rowsB.accountId}, true)`;
         expect(await tx`select id from public.account where id = ${rowsA.accountId}`).toEqual([]);
+        await expectDenied(
+          tx,
+          () =>
+            tx`insert into public.account (status, settings_ia_enabled) values ('active', true)`,
+          /permission denied/,
+        );
         await expectDenied(
           tx,
           () =>

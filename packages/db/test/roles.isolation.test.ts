@@ -284,42 +284,52 @@ describeDb("PostgreSQL least-privilege roles", () => {
       });
   });
 
-  it("does not relogin a Google subject whose account is revoked", async () => {
+  it("does not relogin Google subjects on revoked, deleted, or inconsistent accounts", async () => {
     await db
       .begin(async (tx) => {
-        const revokedRun = randomUUID();
-        const firstHash = sha256(`revoked-first-${revokedRun}`);
-        const secondHash = sha256(`revoked-second-${revokedRun}`);
-        const revokedSubject = `revoked-${randomUUID()}`;
-        await tx.unsafe("set local role auth_bootstrap");
-        const [first] = await tx`select * from public.auth_complete_google_login(
-          ${revokedSubject}, 'before@example.test'::citext, ${firstHash}, now() + interval '1 hour', null, null
-        )`;
-        if (!first) throw new Error("revoked fixture missing");
-        await tx.unsafe("reset role");
-        await tx`update public.account set status = 'revoked' where id = ${first.account_id}`;
-        const before =
-          await tx`select u.email, count(s.id)::int as sessions, count(a.id)::int as audits
-          from public."user" u
-          left join public.session s on s.user_id = u.id
-          left join public.audit_event a on a.account_id = u.account_id
-          where u.id = ${first.user_id}
-          group by u.email`;
-        await tx.unsafe("set local role auth_bootstrap");
-        expect(
-          await tx`select * from public.auth_complete_google_login(
-          ${revokedSubject}, 'after@example.test'::citext, ${secondHash}, now() + interval '1 hour', null, null
-        )`,
-        ).toEqual([]);
-        await tx.unsafe("reset role");
-        const after =
-          await tx`select u.email, count(s.id)::int as sessions, count(a.id)::int as audits
-          from public."user" u
-          left join public.session s on s.user_id = u.id
-          left join public.audit_event a on a.account_id = u.account_id
-          where u.id = ${first.user_id}
-          group by u.email`;
-        expect(after).toEqual(before);
+        for (const scenario of [
+          { name: "revoked", status: "revoked", deletedAt: false },
+          { name: "deleted", status: "deleted", deletedAt: true },
+          { name: "active-deleted-at", status: "active", deletedAt: true },
+        ]) {
+          const run = randomUUID();
+          const firstHash = sha256(`${scenario.name}-first-${run}`);
+          const secondHash = sha256(`${scenario.name}-second-${run}`);
+          const subject = `${scenario.name}-${randomUUID()}`;
+          await tx.unsafe("set local role auth_bootstrap");
+          const [first] = await tx`select * from public.auth_complete_google_login(
+            ${subject}, ${`before-${scenario.name}@example.test`}::citext, ${firstHash}, now() + interval '1 hour', null, null
+          )`;
+          if (!first) throw new Error(`${scenario.name} fixture missing`);
+          await tx.unsafe("reset role");
+          if (scenario.deletedAt) {
+            await tx`update public.account set status = ${scenario.status}, deleted_at = now() where id = ${first.account_id}`;
+          } else {
+            await tx`update public.account set status = ${scenario.status} where id = ${first.account_id}`;
+          }
+          const before =
+            await tx`select u.email, count(s.id)::int as sessions, count(a.id)::int as audits
+            from public."user" u
+            left join public.session s on s.user_id = u.id
+            left join public.audit_event a on a.account_id = u.account_id
+            where u.id = ${first.user_id}
+            group by u.email`;
+          await tx.unsafe("set local role auth_bootstrap");
+          expect(
+            await tx`select * from public.auth_complete_google_login(
+              ${subject}, ${`after-${scenario.name}@example.test`}::citext, ${secondHash}, now() + interval '1 hour', null, null
+            )`,
+          ).toEqual([]);
+          await tx.unsafe("reset role");
+          const after =
+            await tx`select u.email, count(s.id)::int as sessions, count(a.id)::int as audits
+            from public."user" u
+            left join public.session s on s.user_id = u.id
+            left join public.audit_event a on a.account_id = u.account_id
+            where u.id = ${first.user_id}
+            group by u.email`;
+          expect(after).toEqual(before);
+        }
         throw new Error("rollback revoked fixture");
       })
       .catch((error) => {
