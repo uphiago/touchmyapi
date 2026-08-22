@@ -1,0 +1,35 @@
+packages/policy/test/entitlement.test.ts
+  s_bc54431df54bf2::t_37732f0fd9e99d 47
+  s_bc54431df54bf2::t_bcec2b59d719fe 55-62
+  s_bc54431df54bf2::t_4acf7460831d0e 1-39,41-46,48-54,63
+  s_bc54431df54bf2::t_418443e7ca709d 40
+packages/policy/src/limits.ts
+  s_bc54431df54bf2::t_cc0ecd65051c12 39-44,67,148-150
+  s_bc54431df54bf2::t_37732f0fd9e99d 86-90
+  s_bc54431df54bf2::t_81d839a984faf8 1-29,38,45-59,61-66,68-85,91-147,151-162
+  s_bc54431df54bf2::t_3c879a988ad972 30-37,60
+packages/policy/src/entitlement.ts
+  s_bc54431df54bf2::t_81d839a984faf8 1-66
+packages/policy/src/index.ts
+  s_bc54431df54bf2::t_81d839a984faf8 17-26
+packages/policy/test/limits.test.ts
+  s_bc54431df54bf2::t_4acf7460831d0e 1-61,79-141,143-153
+  s_bc54431df54bf2::t_2ee50ef523cf10 62-78
+  s_bc54431df54bf2::t_cc0ecd65051c12 142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d9e612a3fe3d77326d3c9cce923ae01693dc3513",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
