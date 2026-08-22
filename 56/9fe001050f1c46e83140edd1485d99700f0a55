@@ -1,0 +1,26 @@
+packages/db/scripts/README.md
+  s_bc54431df54bf2::t_386ee48badc946 3-5,8-10
+tests/contract/foundation-config.test.ts
+  s_bc54431df54bf2::t_91a479b8669139 12,17-21,25-32,68-93,102,104-108,111-115
+  s_bc54431df54bf2::t_21837bc7e37101 22-24
+  s_bc54431df54bf2::t_bffd6a581bec8a 94,109-110
+  s_bc54431df54bf2::t_243327027e0151 95-101,103
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_386ee48badc946 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "569fe001050f1c46e83140edd1485d99700f0a55",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
