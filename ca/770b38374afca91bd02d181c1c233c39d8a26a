@@ -1,0 +1,47 @@
+specs/001-touchmyapi-platform/research.md
+  s_bc54431df54bf2::t_d280fe097b935b 19,23,25,84-86,88,90-92,96,102,104,121-122
+docs/superpowers/plans/2026-08-22-multiuser-queue-admin.md
+  s_bc54431df54bf2::t_e95b86b5b245f3 92,103,115,162-163,174,184,195,207,218,230,244-245
+  s_bc54431df54bf2::t_d280fe097b935b 5,7,9,13,15-23,28-31,33,35,40-41,43-45,47,50,54,56-58,60,65,67-69,71,74-77,79-81,83,86-89,91,93,95,99,102,104,106,109-111,114,116,118,121-124,126-128,130,133-134,137-139,141,144,146-148,150-152,155-160,164,166,169-171,173,175,177,180-181,183,185,187,190-192,194,196,198,201-204,206,208,210,213-215,217,219,221,224-229,231,233,235,238-240,242,246,248,251-254,256-258,260,263-265,267-269,271,274-276,278-280,282,285-287,289-291,293,296-301,303-305,307,311,313,315-317,319,321
+  s_bc54431df54bf2::t_2c1727d1b23032 27
+specs/001-touchmyapi-platform/spec.md
+  s_bc54431df54bf2::t_d280fe097b935b 81,83,102-103,133-137,143-145,162-163,179,182
+specs/001-touchmyapi-platform/contracts/admin.md
+  s_bc54431df54bf2::t_81ea8f837bfaad 3,7,15-16,18-23,28
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_d280fe097b935b 122-124
+.specify/memory/constitution.md
+  s_bc54431df54bf2::t_91519020dd8922 47
+docs/superpowers/specs/2026-08-22-multiuser-queue-admin-design.md
+  s_bc54431df54bf2::t_40c18ffa6fc8eb 12,22,32,34-36,38,42-44,48-51,53,55,59,61,67,69-71,85-87,92,102,104,115-117,119-121,126,128-133,143,146,148
+specs/001-touchmyapi-platform/contracts/api.md
+  s_bc54431df54bf2::t_05dae0c9689d96 3,12,18,21-23,26-27
+specs/001-touchmyapi-platform/contracts/job.md
+  s_bc54431df54bf2::t_46a2aa73f40927 69,71
+specs/001-touchmyapi-platform/contracts/membership.md
+  s_bc54431df54bf2::t_0c64c4ef497d33 3,15,28,30,38,40-41
+specs/001-touchmyapi-platform/contracts/queue.md
+  s_bc54431df54bf2::t_12208c715f0de9 9,16-25,30,32,36
+specs/001-touchmyapi-platform/data-model.md
+  s_bc54431df54bf2::t_4bc229af2eff59 5,13,22,24,37,42,45,47,49,62,65,74,107,162-175,190-192,196,314,326-339,350-362,374,377-388,444
+specs/001-touchmyapi-platform/plan.md
+  s_bc54431df54bf2::t_4c2973d85d0740 11,17
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_e5fad5ec514da0 13,47,69-70,75,77,181,185-216,226-230,238,251,291-293,302,306
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ca770b38374afca91bd02d181c1c233c39d8a26a",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
