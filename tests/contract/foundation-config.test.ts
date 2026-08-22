@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,8 +11,7 @@ describe("foundation configuration contracts", () => {
     const atlas = read("specs/001-touchmyapi-platform/atlas.html");
 
     expect(atlas).toContain("HTTP-file-only");
-    expect(atlas).not.toMatch(/arquivo HTTP ou DNS TXT/i);
-    expect(atlas).not.toMatch(/DNS[- ]TXT.*(?:autoriza|verifica)/i);
+    expect(atlas).not.toMatch(/dns[\s_-]*txt/i);
   });
 
   it("keeps migration failure and subprocess propagation fail-closed", () => {
@@ -23,7 +23,9 @@ describe("foundation configuration contracts", () => {
       'cmd: ["bunx", "drizzle-kit", "migrate", "--config=drizzle.config.ts"]',
     );
     expect(migrate).toContain('"drizzle-kit", "migrate", "--config=drizzle.config.ts"');
-    expect(migrate).toContain('cwd: new URL("../../../", import.meta.url).pathname');
+    expect(migrate).toContain('import { fileURLToPath } from "node:url"');
+    expect(migrate).toContain('cwd: fileURLToPath(new URL("../../../", import.meta.url))');
+    expect(migrate).not.toContain(".pathname");
     expect(migrate).toContain('stdin: "inherit"');
     expect(migrate).toContain('stdout: "inherit"');
     expect(migrate).toContain('stderr: "inherit"');
@@ -63,7 +65,11 @@ describe("foundation configuration contracts", () => {
     expect(compose).toMatch(/postgres:[\s\S]*?profiles:\s*\n\s+- local/);
     expect(compose).toMatch(/minio:[\s\S]*?profiles:\s*\n\s+- local/);
     expect(compose).toContain('"127.0.0.1:5433:5432"');
-    expect(testDatabaseInit).toMatch(/CREATE DATABASE touchmyapi_test;/i);
+    expect(testDatabaseInit).toMatch(/SELECT\s+'CREATE DATABASE touchmyapi_test'/i);
+    expect(testDatabaseInit).toMatch(/FROM\s+pg_database/i);
+    expect(testDatabaseInit).toMatch(/datname\s*=\s*'touchmyapi_test'/i);
+    expect(testDatabaseInit).toMatch(/\\gexec/);
+    expect(testDatabaseInit).not.toMatch(/^CREATE DATABASE touchmyapi_test;/im);
   });
 
   it("preserves the foundation PostgreSQL extensions", () => {
@@ -89,28 +95,27 @@ describe("foundation configuration contracts", () => {
   });
 });
 
-const dockerAvailable = typeof Bun !== "undefined" && Boolean(Bun.which("docker"));
-const conditionalIt = dockerAvailable
-  ? typeof it.runIf === "function"
-    ? it.runIf(true)
-    : it
-  : typeof it.skipIf === "function"
-    ? it.skipIf(true)
-    : it.skip;
+const dockerAvailable = (() => {
+  try {
+    return spawnSync("docker", ["--version"], { encoding: "utf8" }).status === 0;
+  } catch {
+    return false;
+  }
+})();
 
-conditionalIt("validates both local Docker Compose configurations", () => {
+it.skipIf(!dockerAvailable)("validates both local Docker Compose configurations", () => {
   const composeFile = resolve(repositoryRoot, "infra/docker/compose.yml");
   const commands = [
     ["compose", "-f", composeFile, "config", "--quiet"],
     ["compose", "--profile", "local", "-f", composeFile, "config", "--quiet"],
   ];
 
-  if (typeof Bun === "undefined") return;
-
   for (const args of commands) {
-    const result = Bun.spawnSync({ cmd: ["docker", ...args], stderr: "pipe" });
-    const stderr = new TextDecoder().decode(result.stderr);
+    const result = spawnSync("docker", args, {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+    });
 
-    expect(result.exitCode, stderr).toBe(0);
+    expect(result.status, result.stderr).toBe(0);
   }
 });

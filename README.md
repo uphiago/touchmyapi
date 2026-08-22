@@ -54,7 +54,12 @@ DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@localhost:5433/touchmyapi_
   RUN_DB_TESTS=1 bun test packages/db/test/connection.integration.test.ts
 ```
 
-The fresh-volume init scripts create both `touchmyapi` and `touchmyapi_test`; the test database is created only when PostgreSQL initializes a new volume. Recreate local data deliberately if that one-time initialization is needed again.
+The fresh-volume init scripts create both `touchmyapi` and `touchmyapi_test`; the test database is created only when PostgreSQL initializes a new volume. For an existing volume, the idempotent init SQL can be applied safely without deleting data:
+
+```bash
+docker compose --profile local -f infra/docker/compose.yml exec -T postgres psql -U touchmyapi_dev -d postgres \
+  < infra/docker/postgres/init/002_test_database.sql
+```
 
 ## Run locally
 

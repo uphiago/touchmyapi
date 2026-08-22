@@ -95,7 +95,12 @@ DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@localhost:5433/touchmyapi_
   RUN_DB_TESTS=1 bun test packages/db/test/connection.integration.test.ts
 ```
 
-On a fresh PostgreSQL volume, the init scripts create the separate `touchmyapi_test` database. Init scripts run only during first volume initialization; the test database is therefore not recreated on every container start.
+On a fresh PostgreSQL volume, the init scripts create the separate `touchmyapi_test` database. Init scripts run only during first volume initialization. For an existing volume, apply the idempotent init SQL safely without deleting data:
+
+```bash
+docker compose --profile local -f infra/docker/compose.yml exec -T postgres psql -U touchmyapi_dev -d postgres \
+  < infra/docker/postgres/init/002_test_database.sql
+```
 
 The current DB package only proves an explicit connection boundary. Schema migrations, runtime roles, tenant transaction setup, default-deny RLS policies, and cross-account isolation tests remain blocking work before user data is stored.
 

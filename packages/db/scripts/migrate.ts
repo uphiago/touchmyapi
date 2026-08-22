@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
@@ -7,7 +9,7 @@ if (!databaseUrl) {
 
 const migration = Bun.spawn({
   cmd: ["bunx", "drizzle-kit", "migrate", "--config=drizzle.config.ts"],
-  cwd: new URL("../../../", import.meta.url).pathname,
+  cwd: fileURLToPath(new URL("../../../", import.meta.url)),
   stdin: "inherit",
   stdout: "inherit",
   stderr: "inherit",
