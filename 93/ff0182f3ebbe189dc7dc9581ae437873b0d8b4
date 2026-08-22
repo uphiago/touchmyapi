@@ -1,0 +1,53 @@
+docs/superpowers/specs/2026-08-22-multiuser-queue-admin-design.md
+  s_bc54431df54bf2::t_e4a70526700f2a 44,59,131
+specs/001-touchmyapi-platform/contracts/queue.md
+  s_bc54431df54bf2::t_b1c83660eb706a 11-12,42
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_4820ce231383c5 76
+  s_bc54431df54bf2::t_0e7bbbe2cd9ec3 74,192-193,196,204
+  s_bc54431df54bf2::t_109e9929d57d87 200
+specs/001-touchmyapi-platform/spec.md
+  s_bc54431df54bf2::t_731110ee1e4724 183
+  s_bc54431df54bf2::t_b3da5712e2d8e4 135,162
+specs/001-touchmyapi-platform/contracts/export.md
+  s_bc54431df54bf2::t_07aeab381b2bf7 78
+docs/superpowers/plans/2026-08-22-multiuser-queue-admin.md
+  s_bc54431df54bf2::t_d722b4c29e26b0 258-259
+  s_bc54431df54bf2::t_0e7bbbe2cd9ec3 108,200
+  s_bc54431df54bf2::t_a5c3fef351eaa3 176,186,197,220,232,317
+  s_bc54431df54bf2::t_e1896d4cf59cc3 100-101,104-105,208-209
+  s_bc54431df54bf2::t_f718ef5c5bab62 318
+  s_bc54431df54bf2::t_c863e18a6e8046 20,56-57,91-93,116-117,139-140,148
+  s_bc54431df54bf2::t_329fa632afdd58 149
+  s_bc54431df54bf2::t_32fcf8f5f40d1c 164-165,175,185,196,219,231,246-247,269-270
+specs/001-touchmyapi-platform/data-model.md
+  s_bc54431df54bf2::t_1dc0102c03ac80 80
+  s_bc54431df54bf2::t_b516bfb497ee08 69,73-77,79,82,171,180,397-417
+  s_bc54431df54bf2::t_e9b9d01d7616ba 81
+specs/001-touchmyapi-platform/contracts/admin.md
+  s_bc54431df54bf2::t_b1c83660eb706a 25
+  s_bc54431df54bf2::t_e4a70526700f2a 37-38
+  s_bc54431df54bf2::t_b5a0f5a427ef27 22
+specs/001-touchmyapi-platform/research.md
+  s_bc54431df54bf2::t_b3da5712e2d8e4 90
+specs/001-touchmyapi-platform/contracts/api.md
+  s_bc54431df54bf2::t_b1c83660eb706a 79-80,82-85,87-89
+  s_bc54431df54bf2::t_48fe908e02517e 75
+  s_bc54431df54bf2::t_b5a0f5a427ef27 86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "93ff0182f3ebbe189dc7dc9581ae437873b0d8b4",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
