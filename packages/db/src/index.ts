@@ -1,5 +1,7 @@
 import postgres from "postgres";
 
+export * from "../schema";
+
 export type DbConnection = ReturnType<typeof postgres>;
 
 /**
@@ -9,7 +11,6 @@ export type DbConnection = ReturnType<typeof postgres>;
  * module import and no credentials are read from ambient state. Throws a clear
  * configuration error when the URL is absent rather than failing lazily.
  *
- * The first migration is intentionally deferred until the RLS schema task.
  */
 export function createDbConnection(databaseUrl: string | undefined): DbConnection {
   if (!databaseUrl) {
