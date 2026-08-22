@@ -1,6 +1,10 @@
 {
   "name": "touchmyapi",
   "private": true,
+  "packageManager": "bun@1.4.0",
+  "engines": {
+    "bun": "1.4.0"
+  },
   "workspaces": [
     "apps/*",
     "packages/*",
