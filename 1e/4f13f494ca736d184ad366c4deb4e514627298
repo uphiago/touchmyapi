@@ -1,0 +1,41 @@
+packages/policy/test/engine.test.ts
+  s_bc54431df54bf2::t_9e5307f2377499 1-94,96-97,99-125
+  s_bc54431df54bf2::t_30847cff4a8cbe 95,98
+  s_bc54431df54bf2::t_db7e61be8e35a7 126-164
+packages/policy/src/index.ts
+  s_bc54431df54bf2::t_0e3d5b186cbf43 27-35
+packages/policy/src/engine.ts
+  s_bc54431df54bf2::t_400235c5dd0c89 103-107,113-124,127-132,303,310-311,319
+  s_bc54431df54bf2::t_52e9db8855e25e 264,279,288-300,341-343,348-359
+  s_bc54431df54bf2::t_44d0eff327dcd6 480
+  s_bc54431df54bf2::t_f8dbef566b18b2 445-455
+  s_bc54431df54bf2::t_1dec3e6b458769 474-476,481-482
+  s_bc54431df54bf2::t_58dc704ec61bd0 108-112,125-126,161-165,265,269-273,283-286,313-315,324-333,335-340,344-347,361,366-369,382-383,409-412,417-420,423-432,434-435,437-438,441-442,497-498,510-514
+  s_bc54431df54bf2::t_352119c79f970f 413-415
+  s_bc54431df54bf2::t_def84b161e451f 189-194,199-201,228-241,244
+  s_bc54431df54bf2::t_f22d1d51072cef 207
+  s_bc54431df54bf2::t_35bd58ba5cf516 436,439-440,456-458
+  s_bc54431df54bf2::t_a4f35a3b712258 501-509
+  s_bc54431df54bf2::t_4457ee9275e4a3 1-102,133-160,166-188,195-198,202-206,208-217,255-263,266-268,274-278,280-282,287,301-302,304-309,312,316-318,320-323,334,360,364-365,370-381,384-408,416,421-422,443,459-473,477-479,483-496,499-500,515-518
+  s_bc54431df54bf2::t_9470bfef5419fb 218-227,242-243,245-254,433,444
+  s_bc54431df54bf2::t_35a8e95ff3c907 362-363
+tests/isolation/policy.test.ts
+  s_bc54431df54bf2::t_0e3d5b186cbf43 10-12
+  s_bc54431df54bf2::t_e863cabb1fe882 13-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "1e4f13f494ca736d184ad366c4deb4e514627298",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
