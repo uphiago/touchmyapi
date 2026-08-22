@@ -1,0 +1,22 @@
+packages/policy/src/engine.ts
+  s_bc54431df54bf2::t_30dcc3eb201a51 279-280
+packages/policy/test/engine.test.ts
+  s_bc54431df54bf2::t_96e22f7c403658 6-9,429-478
+  s_bc54431df54bf2::t_7c26fd3fedffa7 479-480
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "76fe3002866c41412bd00c2a89b8efe3af8d8445",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
