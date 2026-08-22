@@ -8,7 +8,7 @@ The scaffold does **not** execute assessments or contact external targets. Authe
 
 ## Prerequisites
 
-- Bun 1.x
+- Bun 1.4.0
 - Docker with Compose v2 for validating or running local PostgreSQL
 
 Docker is not needed for the unit tests or web build. If Docker is unavailable on a worker, run the Compose validation below on a development machine or CI runner that has Docker; `config` validates the file without starting containers.
@@ -23,10 +23,10 @@ bun run verify:workspace
 bun test
 bun run typecheck
 bun run --cwd apps/web build
-docker compose -f infra/docker/compose.yml config
+docker compose --profile local -f infra/docker/compose.yml config
 ```
 
-The foundation plan records the older Bun spelling `bun --cwd apps/web run build`. Bun 1.4 uses `bun run --cwd apps/web build`, shown above; both invoke the `build` script in `apps/web` on Bun versions that support the respective spelling.
+The foundation plan records the older Bun spelling `bun --cwd apps/web run build`. Bun 1.4.0 uses `bun run --cwd apps/web build`, shown above. CI must run this full validation sequence (including the Compose config check) before accepting changes.
 
 Expected results: workspace verification succeeds, four or more unit tests pass, the PostgreSQL integration test is skipped unless explicitly enabled, TypeScript strict checking succeeds, Vite writes ignored output to `apps/web/dist`, and Compose reports a valid configuration. None of these commands starts an assessment or contacts an external target.
 
@@ -38,14 +38,23 @@ The foundation runs without third-party credentials. To override local defaults:
 cp .env.example .env
 ```
 
-`.env` is ignored by Git. Never commit OAuth credentials, Stripe keys, database passwords, target credentials, tokens, or other secrets. Variables prefixed with `VITE_` are public by definition.
+`.env` is ignored by Git. Never commit OAuth credentials, Stripe keys, database passwords, target credentials, tokens, or other secrets. Variables prefixed with `VITE_` are public by definition. The template leaves `DATABASE_URL` and real credentials empty; set `DATABASE_URL` in the shell or `.env` before running migrations.
+
+Database migrations require an explicit URL and fail closed when it is absent:
+
+```bash
+DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@localhost:5433/touchmyapi bun run db:migrate
+```
 
 The Compose service binds PostgreSQL to `127.0.0.1:5433`. Start it, then optionally run the database smoke test:
 
 ```bash
-docker compose -f infra/docker/compose.yml up -d postgres
-RUN_DB_TESTS=1 bun test packages/db/test/connection.test.ts
+docker compose --profile local -f infra/docker/compose.yml up -d postgres
+DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@localhost:5433/touchmyapi_test \
+  RUN_DB_TESTS=1 bun test packages/db/test/connection.integration.test.ts
 ```
+
+The fresh-volume init scripts create both `touchmyapi` and `touchmyapi_test`; the test database is created only when PostgreSQL initializes a new volume. Recreate local data deliberately if that one-time initialization is needed again.
 
 ## Run locally
 

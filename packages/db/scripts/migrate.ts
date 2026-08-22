@@ -1,8 +1,8 @@
 const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
-  console.log("Skipping database migrations: DATABASE_URL is not set.");
-  process.exit(0);
+  console.error("DATABASE_URL is required for migrations");
+  process.exit(1);
 }
 
 const migration = Bun.spawn({

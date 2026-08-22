@@ -17,7 +17,7 @@ No assessment execution, external target access, authentication, RLS schema, que
 
 ## Prerequisites
 
-- Bun 1.x
+- Bun 1.4.0
 - Docker with Compose v2 for the Compose configuration check and optional local PostgreSQL test
 
 If Docker is unavailable, complete all Bun checks locally and run the Compose command on a Docker-enabled development or CI machine. The absence of Docker does not justify skipping Compose validation before release.
@@ -42,10 +42,17 @@ bun run verify:workspace
 bun test
 bun run typecheck
 bun run --cwd apps/web build
-docker compose -f infra/docker/compose.yml config
+docker compose --profile local -f infra/docker/compose.yml config
 ```
 
-The foundation implementation plan used `bun --cwd apps/web run build`. With Bun 1.4, use the equivalent `bun run --cwd apps/web build` shown in the runnable sequence.
+The foundation implementation plan used `bun --cwd apps/web run build`. With Bun 1.4.0, use the equivalent `bun run --cwd apps/web build` shown in the runnable sequence. CI must run this complete validation sequence, including the Compose config check, before accepting changes.
+
+Database migrations require an explicit `DATABASE_URL`; there is no application fallback:
+
+```bash
+DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@localhost:5433/touchmyapi \
+  bun run db:migrate
+```
 
 Expected:
 
@@ -83,9 +90,12 @@ Open `http://localhost:5173`. The shell reports `API online` only after validati
 ## Optional PostgreSQL integration smoke test
 
 ```bash
-docker compose -f infra/docker/compose.yml up -d postgres
-RUN_DB_TESTS=1 bun test packages/db/test/connection.test.ts
+docker compose --profile local -f infra/docker/compose.yml up -d postgres
+DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@localhost:5433/touchmyapi_test \
+  RUN_DB_TESTS=1 bun test packages/db/test/connection.integration.test.ts
 ```
+
+On a fresh PostgreSQL volume, the init scripts create the separate `touchmyapi_test` database. Init scripts run only during first volume initialization; the test database is therefore not recreated on every container start.
 
 The current DB package only proves an explicit connection boundary. Schema migrations, runtime roles, tenant transaction setup, default-deny RLS policies, and cross-account isolation tests remain blocking work before user data is stored.
 
