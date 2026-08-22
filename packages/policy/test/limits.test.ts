@@ -114,6 +114,34 @@ describe("non-escalating limits", () => {
     });
   });
 
+  it.each([Number.NaN, 1])(
+    "rejects requested values inherited from a non-standard prototype (%j)",
+    (durationS) => {
+      const requested = Object.create({ durationS });
+      expect(reduceLimits({ ...validInput(), requested })).toEqual({
+        ok: false,
+        code: "invalid_requested_limit",
+      });
+    },
+  );
+
+  it("rejects an invalid own non-enumerable requested value", () => {
+    const requested: Record<string, unknown> = {};
+    Object.defineProperty(requested, "durationS", { value: Number.NaN });
+    expect(reduceLimits({ ...validInput(), requested })).toEqual({
+      ok: false,
+      code: "invalid_requested_limit",
+    });
+  });
+
+  it("rejects symbol keys in requested limits", () => {
+    const requested = { durationS: 10, [Symbol("unknown")]: 1 };
+    expect(reduceLimits({ ...validInput(), requested })).toEqual({
+      ok: false,
+      code: "invalid_requested_limit",
+    });
+  });
+
   it.each([
     undefined,
     [],

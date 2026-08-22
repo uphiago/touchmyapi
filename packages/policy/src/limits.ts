@@ -95,11 +95,26 @@ function validatePlaybook(value: unknown): { limits: LimitCeiling; egress: true 
 }
 
 function validateRequested(value: unknown): Partial<LimitCeiling> | null {
-  if (!isRecord(value) || !hasOnlyKeys(value, CEILING_KEYS)) return null;
-  for (const key of Object.keys(value) as CeilingKey[]) {
-    if (!isPositiveSafeInteger(value[key])) return null;
+  try {
+    if (!isRecord(value) || Object.getPrototypeOf(value) !== Object.prototype) return null;
+
+    const requested = Object.create(null) as Partial<Record<CeilingKey, number>>;
+    for (const key of Reflect.ownKeys(value)) {
+      if (typeof key !== "string" || !CEILING_KEYS.includes(key as CeilingKey)) return null;
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (
+        descriptor === undefined ||
+        !("value" in descriptor) ||
+        !isPositiveSafeInteger(descriptor.value)
+      ) {
+        return null;
+      }
+      requested[key as CeilingKey] = descriptor.value;
+    }
+    return requested;
+  } catch {
+    return null;
   }
-  return value as Partial<LimitCeiling>;
 }
 
 function minFor(
