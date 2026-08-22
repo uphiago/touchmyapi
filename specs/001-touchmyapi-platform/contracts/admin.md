@@ -19,8 +19,10 @@ Allowed queue capabilities are policy-aware metadata/status actions: inspect que
 | POST | `/admin/auth/webauthn/register` | register staff MFA factor |
 | POST | `/admin/auth/webauthn/assert/options` | issue WebAuthn assertion challenge |
 | POST | `/admin/auth/webauthn/assert` | verify assertion and refresh MFA |
+| POST | `/admin/auth/recovery/verify` | consume one-time hashed recovery material; MFA reset still needs dual approval |
 | POST | `/admin/auth/mfa/reset/request` | request dual-approved MFA reset |
 | POST | `/admin/auth/mfa/reset/approve` | second staff approval for reset |
+| POST | `/admin/auth/logout` | revoke the separate staff session and clear the admin cookie |
 | POST | `/admin/capability-grants` | request a reasoned, ticketed, TTL-bound tenant grant |
 | POST | `/admin/capability-grants/:id/approve` | approve normal grant; second approval required for break-glass |
 | GET | `/admin/accounts/:accountId/queue` | policy-permitted queue metadata/status only |
@@ -32,3 +34,5 @@ Allowed queue capabilities are policy-aware metadata/status actions: inspect que
 ## Mandatory denials
 
 There is no impersonation endpoint, owner/BYPASSRLS role, arbitrary SQL endpoint, secret/raw-evidence endpoint, billing mutation, credit grant, entitlement override, or unbounded queue operation. Missing MFA, grant, approval, ticket, reason, TTL, membership/account policy, or fencing token returns `403` and appends a redacted admin audit event. Admin audit is append-only and includes staff actor, account, grant, ticket, reason, operation, outcome, and request ID.
+
+`admin_audit_event` stores `id`, nullable `account_id` (NULL only for the system/bootstrap boundary), nullable `staff_identity_id`, nullable `staff_session_id`, nullable `grant_id`, nullable `approval_id`, `request_id`, closed `action`, safe subject type/id, ticket/reference and reason, outcome, redacted payload, `prev_event_hash`, `event_hash`, and `created_at`. Foreign keys point to the named staff/session/grant/approval tables; each account and the system boundary has an independent canonical hash chain. Runtime roles may insert through the audit writer but cannot update/delete, cross-link tenant chains, or bypass RLS. An audit write failure fails closed for security-sensitive admin mutations.

@@ -66,15 +66,20 @@ Single-use explicit invitation; raw token never persists.
 
 ### session
 
-Server-side session (HttpOnly Secure cookie id → row), bound to one active account.
+Server-side session bound to one active account. The HttpOnly Secure cookie carries an opaque raw token; the raw cookie is never a row ID and never persists.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| id | uuid pk | cookie value (hashed at rest) |
-| account_id / user_id | composite fk → account_membership | exactly one active tenant/user membership per session |
+| id | uuid pk | server row identifier; never the raw cookie value |
+| account_id | uuid fk | exactly one active account/workspace selected for this session |
+| user_id | uuid fk | authenticated global `user`; composite membership reference with `account_id` |
+| family_id | uuid | rotation/revocation family |
+| token_hash | text unique | SHA-256 of the opaque raw cookie token; raw token never persists |
 | account_session_version | bigint | changes on switch/revocation-sensitive membership change |
-| rotated_at / expires_at / revoked_at | timestamptz | |
-| ip / user_agent | text | audit |
+| expires_at / rotated_at / revoked_at | timestamptz | expiry, rotation, and revocation state |
+| ip / user_agent (ua) | text | request audit metadata |
+
+`(account_id,user_id)` has a composite foreign key to `account_membership`; no browser-selected account field is authoritative.
 
 ### assessment
 
@@ -163,7 +168,7 @@ At most one active job exists for `(account_id, normalized_target_key)` through 
 
 ### queue_tenant_state
 
-One row per account used by the fair scheduler.
+One row per active account used by the fair scheduler. Account creation transactionally upserts the row; migration backfill and the reconciler create missing rows for every active account.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -172,7 +177,7 @@ One row per account used by the fair scheduler.
 | running_count / concurrency_limit | int | atomically maintained and policy-capped |
 | updated_at | timestamptz | reconciler/audit timestamp |
 
-Claim locks an eligible tenant with `FOR UPDATE SKIP LOCKED`, orders by `last_dispatched_at NULLS FIRST, account_id`, checks `running_count < concurrency_limit` and global capacity, then locks the tenant's highest-priority eligible job ordered by `priority DESC, available_at, created_at, id`. It increments `running_count` and updates `last_dispatched_at` atomically. Terminal completion and reaper recovery decrement the counter; a reconciler repairs drift.
+Claim locks an eligible tenant with `FOR UPDATE SKIP LOCKED`, orders by `last_dispatched_at NULLS FIRST, account_id`, checks `running_count < concurrency_limit` and global capacity, then locks the tenant's highest-priority eligible job ordered by `priority DESC, available_at, created_at, id`. It increments `running_count` and updates `last_dispatched_at` atomically. Terminal completion and reaper recovery decrement the counter; a reconciler repairs drift and creates missing state. If state is missing or inconsistent, enqueue/claim fails closed, raises an operational signal, and leaves the job queued for reconciliation rather than stranding or dropping it.
 
 ### outbox_event
 
@@ -389,7 +394,27 @@ Approval record for a support grant. `break_glass` requires two distinct staff i
 
 ### admin_audit_event
 
-Append-only staff action record with account, grant, ticket, reason, operation, outcome, and request ID. Payload is redacted before persistence.
+Separate append-only staff action chain. Each tenant has its own hash chain; system/bootstrap events use the `account_id IS NULL` system boundary and never link events across tenants. Runtime admin roles may insert through the audit writer but cannot update/delete or bypass RLS.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | uuid pk | event identifier |
+| account_id | uuid fk → account | nullable only for system/bootstrap boundary |
+| staff_identity_id | uuid fk → staff_identity | nullable only for system event |
+| staff_session_id | uuid fk → staff_session | nullable for out-of-band bootstrap |
+| grant_id | uuid fk → support_access_grant | nullable operation grant |
+| approval_id | uuid fk → support_access_approval | nullable approval decision |
+| request_id | text | correlation identifier |
+| action | text/enum | closed admin operation vocabulary |
+| subject_type / subject_id | text / uuid | safe target reference, never raw evidence |
+| ticket_reference / reason | text | required for support operations |
+| outcome | text/enum | `allowed` / `denied` / `error` |
+| payload_json | jsonb | redacted safe metadata only |
+| prev_event_hash | text | previous event hash in the same account/system chain |
+| event_hash | text unique | hash of canonical event fields plus `prev_event_hash` |
+| created_at | timestamptz | immutable event time |
+
+The application enforces append-only semantics, canonical hashing, and chain continuity; security-sensitive admin mutations fail closed if this event cannot be committed.
 
 ### audit_event
 

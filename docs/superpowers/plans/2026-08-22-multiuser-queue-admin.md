@@ -17,7 +17,7 @@ T071–T080 are the membership gate and MUST run after T021 is green. T081–T08
 Every task is TDD: write a failing test, run the exact red command, implement the smallest change, run the exact green command, then commit only that task's paths. Database commands always use PostgreSQL 16, `RUN_DB_TESTS=1`, an explicit local test URL, and `--maxWorkers=1` when state/order assumptions exist:
 
 ```bash
-RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- <pattern>
+RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- <pattern>
 ```
 
 `LISTEN/NOTIFY` is only a wake-up hint. Never use Redis/Kafka, a second customer identity table, email auto-linking, URL bearer tokens, owner/BYPASSRLS runtime access, impersonation, arbitrary SQL, secret/raw-evidence admin access, or billing writes.
@@ -53,8 +53,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: `packages/db/test/membership-schema.integration.test.ts`
 - Create: next generated Drizzle migration after journal inspection
 
-- [ ] **RED:** Assert `account_membership(account_id,user_id)`, `account_invitation`, composite foreign keys, unique `(account_id,user_id)`, multiple active owners, and no second identity table. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- membership-schema`; expected `FAIL` before schema/migration.
-- [ ] **GREEN:** Generate the next migration with `DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bunx drizzle-kit generate --config=drizzle.config.ts --name multiuser_queue_admin`, inspect the journal for the actual path, add membership/invitation tables and expand columns without removing `user.account_id`, and backfill one `owner` membership per valid legacy `user.account_id`. Quarantine missing users; never match by email. Run the explicit DB command above; expected `PASS`.
+- [ ] **RED:** Assert `account_membership(account_id,user_id)`, `account_invitation`, composite foreign keys, unique `(account_id,user_id)`, multiple active owners, and no second identity table. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- membership-schema`; expected `FAIL` before schema/migration.
+- [ ] **GREEN:** Generate the next migration with `DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bunx drizzle-kit generate --config=drizzle.config.ts --name multiuser_queue_admin`, inspect the journal for the actual path, add membership/invitation tables and expand columns without removing `user.account_id`, and backfill one `owner` membership per valid legacy `user.account_id`. Quarantine missing users; never match by email. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- membership-schema`; expected `PASS`.
 - [ ] **Commit:** `git add packages/db/schema packages/db/migrations packages/db/test/membership-schema.integration.test.ts && git commit -m "db: add account membership expand migration"`.
 
 ### Task T073: Membership role policy (parallel, US5)
@@ -88,22 +88,24 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: `packages/db/test/invitations.integration.test.ts`
 - Modify: `specs/001-touchmyapi-platform/contracts/membership.md`
 
-- [ ] **RED:** Test 32 random bytes, SHA-256-only persistence, no URL token, body redaction before access/app logs, expiry/revocation/replay, same-user idempotency, other-user generic invalid, and equal-email non-linking. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- invitations`; expected `FAIL`.
-- [ ] **GREEN:** Implement `POST /invitations/accept` with `{token}` body redacted before all logs; lock invitation, validate authenticated `user_id`, expiry/status/hash, insert membership, set `accepted_by_user_id`, rotate `session.account_id`, and append audit atomically. Replay by the same accepted user returns prior result; a different user, invalid, expired, or revoked token returns generic `invalid_invitation`. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- invitations && bun run typecheck`; expected `PASS`.
-- [ ] **Verify/commit:** Run the explicit DB command above and `bun run typecheck`; expected `PASS`. Commit `git add packages/db/src/invitations.ts apps/api/src/routes/invitations.ts packages/db/test/invitations.integration.test.ts specs/001-touchmyapi-platform/contracts/membership.md && git commit -m "feat: accept hashed invitations explicitly"`.
+- [ ] **RED:** Test 32 random bytes, SHA-256-only persistence, no URL token, body redaction before access/app logs, expiry/revocation/replay, same-user idempotency, other-user generic invalid, and equal-email non-linking. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- invitations`; expected `FAIL`.
+- [ ] **GREEN:** Implement `POST /invitations/accept` with `{token}` body redacted before all logs; lock invitation, validate authenticated `user_id`, expiry/status/hash, insert membership, set `accepted_by_user_id`, rotate `session.account_id`, and append audit atomically. Replay by the same accepted user returns prior result; a different user, invalid, expired, or revoked token returns generic `invalid_invitation`. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- invitations && bun run typecheck`; expected `PASS`.
+- [ ] **Verify/commit:** Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- invitations && bun run typecheck`; expected `PASS`. Commit `git add packages/db/src/invitations.ts apps/api/src/routes/invitations.ts packages/db/test/invitations.integration.test.ts specs/001-touchmyapi-platform/contracts/membership.md && git commit -m "feat: accept hashed invitations explicitly"`.
 
 ### Task T076: Membership/lifecycle API (US5)
 
 **Files:**
 - Create: `apps/api/src/routes/memberships.ts`
 - Modify: `apps/api/src/routes/account.ts`
+- Modify: `packages/policy/src/engine.ts`
+- Modify: existing T026 assessment service and existing T028 assessment routes
 - Create: `apps/api/test/memberships-api.test.ts`
 
-- [ ] **RED:** Test list/invite/accept/role/status/remove/switch, path account mismatch, suspended membership, and last-owner transaction guard. Run `bun run test:unit -- memberships-api`; expected `FAIL`.
-- [ ] **GREEN:** Implement routes with `session.account_id`, active membership capability, schema/policy/audit checks, multiple-owner support, and a locked active-owner count that rejects only last-owner removal/demotion. Account deletion cancels jobs/schedules, revokes agents/sessions, and preserves audit retention. Run `bun run test:unit -- memberships-api && bun run typecheck`; expected `PASS`.
+- [ ] **RED:** Test list/invite/accept/role/status/remove/switch, active membership + role capability through `packages/policy/src/engine.ts`, T026 assessment-service authorization, T028 assessment-route membership-required behavior (not generic ownership), path account mismatch, suspended membership, and last-owner transaction guard. Run `bun run test:unit -- memberships-api`; expected `FAIL`.
+- [ ] **GREEN:** Implement routes with `session.account_id`, active membership capability, schema/policy/audit checks, and the T026/T028 integration; require membership rather than generic ownership for assessment access, support multiple owners, and use a locked active-owner count that rejects only last-owner removal/demotion. Account deletion cancels jobs/schedules, revokes agents/sessions, and preserves audit retention. Run `bun run test:unit -- memberships-api && bun run typecheck`; expected `PASS`.
 - [ ] **Verify/commit:** Run `bun run test:unit -- memberships-api && bun run typecheck`; expected `PASS`. Commit `git add apps/api/src/routes/memberships.ts apps/api/src/routes/account.ts apps/api/test/memberships-api.test.ts && git commit -m "api: enforce membership lifecycle"`.
 
-### Task T077: Membership RLS and composite references (parallel, US5)
+### Task T077: Membership RLS and composite references (US5)
 
 **Files:**
 - Modify: next generated migration after journal inspection
@@ -111,8 +113,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Modify: `packages/db/schema/identity.ts`
 - Create: `tests/isolation/multiuser-rls.test.ts`
 
-- [ ] **RED:** With two accounts/users, prove membership, invitation, session, assessment, and attestation cannot cross-read/write/reference under missing or wrong tenant. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:isolation --maxWorkers=1 -- multiuser-rls`; expected `FAIL`.
-- [ ] **GREEN:** Add RLS policies and composite `(account_id,user_id)` membership FKs; bind `session.account_id` and attestation actor to membership where applicable. Keep global `user` lookup only in fixed auth functions. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:isolation --maxWorkers=1 -- multiuser-rls`; expected `PASS`.
+- [ ] **RED:** With two accounts/users, prove membership, invitation, session, assessment, and attestation cannot cross-read/write/reference under missing or wrong tenant. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:isolation --maxWorkers=1 -- multiuser-rls`; expected `FAIL`.
+- [ ] **GREEN:** Add RLS policies and composite `(account_id,user_id)` membership FKs; bind `session.account_id` and attestation actor to membership where applicable. Keep global `user` lookup only in fixed auth functions. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:isolation --maxWorkers=1 -- multiuser-rls`; expected `PASS`.
 - [ ] **Commit:** `git add packages/db/schema packages/db/migrations tests/isolation/multiuser-rls.test.ts && git commit -m "security: enforce membership rls boundaries"`.
 
 ### Task T078: Customer account UI and API client (parallel, US5)
@@ -134,8 +136,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: `docs/reviews/2026-08-22-multiuser-membership.md`
 - Modify: `specs/001-touchmyapi-platform/quickstart.md`
 
-- [ ] **RED:** Test legacy `user.account_id` + unique remains during expand, owner backfill, session account backfill, dual-read authorization, and explicit quarantine of missing users. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- multiuser-migration`; expected `FAIL`.
-- [ ] **GREEN:** Document generate/inspect-next-journal procedure, dual-read, cutover to membership/session account, first-request rotation, and later removal of `user.account_id`/unique only after enforcement. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run db:migrate && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- multiuser-migration`; expected `PASS`.
+- [ ] **RED:** Test legacy `user.account_id` + unique remains during expand, owner backfill, session account backfill, dual-read authorization, and explicit quarantine of missing users. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- multiuser-migration`; expected `FAIL`.
+- [ ] **GREEN:** Document generate/inspect-next-journal procedure, dual-read, cutover to membership/session account, first-request rotation, and later removal of `user.account_id`/unique only after enforcement. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run db:migrate && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- multiuser-migration`; expected `PASS`.
 - [ ] **Commit:** `git add tests/integration/multiuser-migration.test.ts docs/reviews/2026-08-22-multiuser-membership.md specs/001-touchmyapi-platform/quickstart.md && git commit -m "docs: review membership expand contract"`.
 
 ### Task T080: Membership acceptance gate (US5)
@@ -143,8 +145,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 **Files:**
 - Create: `docs/reviews/2026-08-22-multiuser-membership-acceptance.md`
 
-- [ ] **RED:** Run `bun run test:unit && bun run test:contract && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:isolation --maxWorkers=1`; expected failure until T071–T079 evidence is complete.
-- [ ] **GREEN:** Record FR-022/FR-023/SC-011/SC-013 evidence, exact user-only identity names, multiple owners/last-owner guard, body-token redaction, auth list/switch functions, and legacy expand-contract. Run the same command; expected `PASS`.
+- [ ] **RED:** Run `bun run test:unit && bun run test:contract && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:isolation --maxWorkers=1`; expected failure until T071–T079 evidence is complete.
+- [ ] **GREEN:** Record FR-022/FR-023/SC-011/SC-012/SC-013 evidence, active membership + role capability in `packages/policy/src/engine.ts` and T026/T028, exact user-only identity names, multiple owners/last-owner guard, body-token redaction, auth list/switch functions, and legacy expand-contract. Run `bun run test:unit && bun run test:contract && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:isolation --maxWorkers=1`; expected `PASS`.
 - [ ] **Commit:** `git add docs/reviews/2026-08-22-multiuser-membership-acceptance.md && git commit -m "docs: accept multiuser membership gate"`.
 
 ## Phase 2B queue/outbox infrastructure: T081–T087 (before T022)
@@ -159,8 +161,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: next generated migration after journal inspection
 - Test: `packages/contracts/test/queue.test.ts`, `packages/db/test/queue-schema.integration.test.ts`
 
-- [ ] **RED:** Test closed queue/outbox schemas, `queue_tenant_state`, statuses, fencing, outbox lease/heartbeat, and partial active index statuses. Run `bun run test:contract -- queue && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- queue-schema`; expected `FAIL`.
-- [ ] **GREEN:** Define `queue_tenant_state(account_id,last_dispatched_at,running_count,concurrency_limit)`, job fields, outbox `lease_owner/lease_expires_at/fencing_token/heartbeat_at`, and partial unique `(account_id,normalized_target_key)` for `queued/stale_recovered/running`. Generate and inspect the next migration, then run `bun run test:contract -- queue && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- queue-schema && bun run typecheck`; expected `PASS`.
+- [ ] **RED:** Test closed queue/outbox schemas, `queue_tenant_state`, statuses, fencing, outbox lease/heartbeat, and partial active index statuses. Run `bun run test:contract -- queue && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-schema`; expected `FAIL`.
+- [ ] **GREEN:** Define `queue_tenant_state(account_id,last_dispatched_at,running_count,concurrency_limit)`, job fields, outbox `lease_owner/lease_expires_at/fencing_token/heartbeat_at`, and partial unique `(account_id,normalized_target_key)` for `queued/stale_recovered/running`. Generate and inspect the next migration, backfill every active account, and transactionally upsert state during account creation. Run `bun run test:contract -- queue && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-schema && bun run typecheck`; expected `PASS`.
 - [ ] **Commit:** `git add packages/contracts packages/db/schema packages/db/migrations packages/contracts/test/queue.test.ts packages/db/test/queue-schema.integration.test.ts && git commit -m "queue: define fenced postgres schema"`.
 
 ### Task T082: Enqueue and exact fair claim (INFRA)
@@ -170,8 +172,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: `packages/db/test/queue-claim.integration.test.ts`
 - Modify: `apps/worker-control/src/scheduler.ts`
 
-- [ ] **RED:** Concurrently enqueue/claim jobs and assert eligible statuses are `queued`/`stale_recovered`, tenant lock order is `last_dispatched_at NULLS FIRST, account_id`, job order is `priority DESC, available_at, created_at, id`, global/tenant capacity holds, and no duplicate claim occurs. Run the explicit DB integration command with `-- queue-claim`; expected `FAIL`.
-- [ ] **GREEN:** Implement one transaction: lock eligible tenant with `FOR UPDATE SKIP LOCKED`; lock its job with `FOR UPDATE SKIP LOCKED`; check limits; increment `fencing_token`; set `running`, lease, owner, started time; increment counter/update timestamp; commit before dispatch. Use the current `postgres` (postgres.js) driver boundary. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- queue-claim && bun run typecheck`; expected `PASS`.
+- [ ] **RED:** Concurrently enqueue/claim jobs and assert eligible statuses are `queued`/`stale_recovered`, tenant lock order is `last_dispatched_at NULLS FIRST, account_id`, job order is `priority DESC, available_at, created_at, id`, global/tenant capacity holds, and no duplicate claim occurs. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-claim`; expected `FAIL`.
+- [ ] **GREEN:** Implement one transaction: lock eligible tenant with `FOR UPDATE SKIP LOCKED`; lock its job with `FOR UPDATE SKIP LOCKED`; check limits; increment `fencing_token`; set `running`, lease, owner, started time; increment counter/update timestamp; commit before dispatch. Use the current `postgres` (postgres.js) driver boundary. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-claim && bun run typecheck`; expected `PASS`.
 - [ ] **Commit:** `git add packages/db/src/queue.ts packages/db/test/queue-claim.integration.test.ts apps/worker-control/src/scheduler.ts && git commit -m "queue: claim jobs with exact tenant fairness"`.
 
 ### Task T083: Heartbeat, acknowledge, failure, cancel (INFRA)
@@ -180,8 +182,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Modify: `packages/db/src/queue.ts`
 - Create: `packages/db/test/queue-fencing.integration.test.ts`
 
-- [ ] **RED:** Test heartbeat before half lease, completion/failure/cancel with matching account/lease owner/fencing, stale no-op, terminal counter decrement, and monotonic token after admin-style lease clearing. Run the explicit DB integration command with `-- queue-fencing`; expected `FAIL`.
-- [ ] **GREEN:** Implement `heartbeat`, `complete`, `fail`, and `requestCancel` with fencing predicates; never reset token. Clear lease fields only for explicit requeue while leaving token unchanged. Require runner cleanup before terminal result. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- queue-fencing && bun run typecheck`; expected `PASS`.
+- [ ] **RED:** Test heartbeat before half lease, completion/failure/cancel with matching account/lease owner/fencing, stale no-op, terminal counter decrement, and monotonic token after admin-style lease clearing. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-fencing`; expected `FAIL`.
+- [ ] **GREEN:** Implement `heartbeat`, `complete`, `fail`, and `requestCancel` with fencing predicates; never reset token. Clear lease fields only for explicit requeue while leaving token unchanged. Require runner cleanup before terminal result. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-fencing && bun run typecheck`; expected `PASS`.
 - [ ] **Commit:** `git add packages/db/src/queue.ts packages/db/test/queue-fencing.integration.test.ts && git commit -m "queue: fence heartbeat and terminal writes"`.
 
 ### Task T084: Reaper and stale retry recovery (INFRA)
@@ -191,11 +193,11 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Modify: `packages/db/src/queue.ts`
 - Create: `packages/db/test/queue-recovery.integration.test.ts`
 
-- [ ] **RED:** Test expired `running`→`stale_recovered`, attempts increment, backoff/available_at, counter decrement, next claim stale→running with incremented fencing, exhausted attempts→failed, timeout/cancel cleanup, and preserved safe reason. Run explicit DB integration with `-- queue-recovery`; expected `FAIL`.
-- [ ] **GREEN:** Implement atomic reaper and bounded retry/jitter; never widen scope/policy or reset fencing. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- queue-recovery && bun run typecheck`; expected `PASS`.
+- [ ] **RED:** Test expired `running`→`stale_recovered`, attempts increment, backoff/available_at, counter decrement, next claim stale→running with incremented fencing, exhausted attempts→failed, timeout/cancel cleanup, and preserved safe reason. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-recovery`; expected `FAIL`.
+- [ ] **GREEN:** Implement atomic reaper and bounded retry/jitter; never widen scope/policy or reset fencing. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-recovery && bun run typecheck`; expected `PASS`.
 - [ ] **Commit:** `git add apps/worker-control/src/reaper.ts packages/db/src/queue.ts packages/db/test/queue-recovery.integration.test.ts && git commit -m "queue: recover stale leases with backoff"`.
 
-### Task T085: Reconciler and exact fairness proof (parallel, INFRA)
+### Task T085: Reconciler and exact fairness proof (INFRA)
 
 **Files:**
 - Create: `apps/worker-control/src/fair-scheduler.ts`
@@ -203,8 +205,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: `apps/worker-control/test/fair-scheduler.test.ts`
 - Create: `packages/db/test/queue-reconcile.integration.test.ts`
 
-- [ ] **RED:** Test one noisy and three quiet accounts, null timestamp ordering, running counter increments/decrements, drift repair, tenant/global cap, and the absence of an alternate fairness-score/deficit algorithm. Run `bun run test:unit -- fair-scheduler` and explicit DB integration `-- queue-reconcile`; expected `FAIL`.
-- [ ] **GREEN:** Implement only the `queue_tenant_state` lock/order algorithm and reconciler that derives `running_count` from running jobs. Run `bun run test:unit -- fair-scheduler && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- queue-reconcile && bun run typecheck`; expected `PASS`.
+- [ ] **RED:** Test one noisy and three quiet accounts, null timestamp ordering, running counter increments/decrements, drift repair, tenant/global cap, missing-state fail-closed behavior, active-account state backfill, and the absence of an alternate fairness-score/deficit algorithm. Run `bun run test:unit -- fair-scheduler` and `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-reconcile`; expected `FAIL`.
+- [ ] **GREEN:** Implement only the `queue_tenant_state` lock/order algorithm and reconciler that derives `running_count` from running jobs, creates missing rows for active accounts, repairs drift, fails closed without discarding queued jobs, and verifies account-create upsert. Run `bun run test:unit -- fair-scheduler && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-reconcile && bun run typecheck`; expected `PASS`.
 - [ ] **Commit:** `git add apps/worker-control/src packages/worker-control/test packages/db/test/queue-reconcile.integration.test.ts && git commit -m "queue: prove tenant fairness and reconcile counters"`.
 
 ### Task T086: Transactional outbox and notification hint (INFRA)
@@ -214,8 +216,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: `apps/worker-control/src/outbox-dispatcher.ts`
 - Create: `packages/db/test/outbox.integration.test.ts`
 
-- [ ] **RED:** Test state+outbox atomic commit/rollback, outbox claim `SKIP LOCKED`, short lease/heartbeat/fencing, expired `processing`→`pending` recovery, at-least-once duplicate delivery, idempotent `event_key`, and missed `NOTIFY` polling. Run explicit DB integration with `-- outbox`; expected `FAIL`.
-- [ ] **GREEN:** Implement outbox claim/heartbeat/ack/reaper with lease owner/expiry/fencing; keep `pg_notify` optional and never authoritative. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- outbox && bun run typecheck`; expected `PASS`.
+- [ ] **RED:** Test state+outbox atomic commit/rollback, outbox claim `SKIP LOCKED`, short lease/heartbeat/fencing, expired `processing`→`pending` recovery, at-least-once duplicate delivery, idempotent `event_key`, and missed `NOTIFY` polling. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- outbox`; expected `FAIL`.
+- [ ] **GREEN:** Implement outbox claim/heartbeat/ack/reaper with lease owner/expiry/fencing; keep `pg_notify` optional and never authoritative. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- outbox && bun run typecheck`; expected `PASS`.
 - [ ] **Commit:** `git add packages/db/src/outbox.ts apps/worker-control/src/outbox-dispatcher.ts packages/db/test/outbox.integration.test.ts && git commit -m "queue: add fenced transactional outbox"`.
 
 ### Task T087: US1 integration and queue gate (US1)
@@ -226,8 +228,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Modify: `specs/001-touchmyapi-platform/tasks.md`
 - Create: `docs/reviews/2026-08-22-queue-integration.md`
 
-- [ ] **RED:** Extend T024 to consume T084 and select `stale_recovered` on recovery; extend T025 to consume the partial active index over `queued/stale_recovered/running`, with distinct accounts allowed. Run explicit DB integration commands `-- queue-recovery` and `-- assessment-concurrency`; expected `FAIL` until integration is wired.
-- [ ] **GREEN:** Wire existing T027/T029 to the queue module delivered T081–T086; do not duplicate queue semantics in T027/T029. Record FR-024/FR-025/SC-004/SC-014/SC-015 evidence and leave T022 unchecked until this gate. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- queue-recovery && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- assessment-concurrency && bun run test:contract && git diff --check`; expected `PASS`.
+- [ ] **RED:** Extend T024 to consume T084 and select `stale_recovered` on recovery; extend T025 to consume the partial active index over `queued/stale_recovered/running`, with distinct accounts allowed. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-recovery && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- assessment-concurrency`; expected `FAIL` until integration is wired.
+- [ ] **GREEN:** Wire existing T027/T029 to the queue module delivered T081–T086; do not duplicate queue semantics in T027/T029. Record FR-024/FR-025/SC-004/SC-014/SC-015 evidence and leave T022 unchecked until this gate. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-recovery && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- assessment-concurrency && bun run test:contract && git diff --check`; expected `PASS`.
 - [ ] **Commit:** `git add tests/integration/queue-recovery.test.ts tests/integration/assessment-concurrency.test.ts specs/001-touchmyapi-platform/tasks.md docs/reviews/2026-08-22-queue-integration.md && git commit -m "docs: accept queue integration gate"`.
 
 ## Phase 2C admin control plane: T088–T094 (after queue and billing read dependencies)
@@ -241,8 +243,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Modify: `packages/db/schema/index.ts`
 - Create: `packages/db/test/admin-schema.integration.test.ts`
 
-- [ ] **RED:** Test exact names `staff_identity`, `staff_mfa_factor`, `staff_session`, `staff_role_assignment`, `support_access_grant`, `support_access_approval`, `admin_audit_event`; separate origin/cookie, closed capabilities, reason/ticket/TTL, dual approval, and read-only billing. Run `bun run test:contract -- admin && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- admin-schema`; expected `FAIL`.
-- [ ] **GREEN:** Add strict contracts/tables with no owner/BYPASSRLS/arbitrary SQL path. Staff bootstrap is out-of-band CLI/migration-owner provision by immutable Workspace subject; domain-only provisioning is denied. Run `bun run test:contract -- admin && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 -- admin-schema && bun run typecheck`; expected `PASS`.
+- [ ] **RED:** Test exact names `staff_identity`, `staff_mfa_factor`, `staff_session`, `staff_role_assignment`, `support_access_grant`, `support_access_approval`, `admin_audit_event`; separate origin/cookie, closed capabilities, reason/ticket/TTL, dual approval, and read-only billing. Run `bun run test:contract -- admin && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- admin-schema`; expected `FAIL`.
+- [ ] **GREEN:** Add strict contracts/tables with no owner/BYPASSRLS/arbitrary SQL path. Staff bootstrap is out-of-band CLI/migration-owner provision by immutable Workspace subject; domain-only provisioning is denied. Run `bun run test:contract -- admin && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- admin-schema && bun run typecheck`; expected `PASS`.
 - [ ] **Commit:** `git add packages/contracts/src/admin.ts packages/db/schema/admin.ts packages/contracts/src/index.ts packages/db/schema/index.ts packages/db/test/admin-schema.integration.test.ts && git commit -m "admin: define staff and support access schema"`.
 
 ### Task T089: Separate staff OIDC, WebAuthn, recovery (US6)
@@ -253,8 +255,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: `apps/admin/src/auth/recovery.ts`
 - Create: `apps/admin/test/auth.test.ts`
 
-- [ ] **RED:** Test admin login/callback, customer-cookie rejection, immutable Workspace subject lookup, WebAuthn registration/assertion, hashed one-time recovery, and dual-approved MFA reset. Run `bun run test:unit -- admin-auth`; expected `FAIL`.
-- [ ] **GREEN:** Implement separate Google OIDC adapter/config, staff cookies/sessions, local WebAuthn MFA, one-time recovery hashes, and reset request/approval requiring two distinct staff identities. Run `bun run test:unit -- admin-auth && bun run typecheck`; expected `PASS`.
+- [ ] **RED:** Test admin login/callback, customer-cookie rejection, immutable Workspace subject lookup, WebAuthn registration/assertion, `POST /admin/auth/recovery/verify` one-time hashed recovery, and dual-approved MFA reset. Run `bun run test:unit -- admin-auth`; expected `FAIL`.
+- [ ] **GREEN:** Implement separate Google OIDC adapter/config, staff cookies/sessions, local WebAuthn MFA, one-time recovery hashes, `POST /admin/auth/recovery/verify`, and reset request/approval requiring two distinct staff identities. Run `bun run test:unit -- admin-auth && bun run typecheck`; expected `PASS`.
 - [ ] **Commit:** `git add apps/admin/src/auth apps/admin/test/auth.test.ts && git commit -m "admin: add separate oidc and webauthn mfa"`.
 
 ### Task T090: JIT grants, approvals, break-glass (US6)
@@ -264,8 +266,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: `apps/api/src/routes/admin-grants.ts`
 - Create: `packages/db/test/admin-grants.integration.test.ts`
 
-- [ ] **RED:** Test missing MFA/grant/reason/ticket/TTL, normal one-approval, distinct dual break-glass, expiry/revocation, and append-only audit. Run explicit DB integration `-- admin-grants`; expected `FAIL`.
-- [ ] **GREEN:** Implement `support_access_grant` plus `support_access_approval`, short TTL, capability enum, distinct approvers, and no customer impersonation. Run explicit DB integration and `bun run typecheck`; expected `PASS`.
+- [ ] **RED:** Test missing MFA/grant/reason/ticket/TTL, normal one-approval, distinct dual break-glass, expiry/revocation, and append-only audit. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- admin-grants`; expected `FAIL`.
+- [ ] **GREEN:** Implement `support_access_grant` plus `support_access_approval`, short TTL, capability enum, distinct approvers, and no customer impersonation. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- admin-grants && bun run typecheck`; expected `PASS`.
 - [ ] **Commit:** `git add packages/db/src/admin.ts apps/api/src/routes/admin-grants.ts packages/db/test/admin-grants.integration.test.ts && git commit -m "admin: enforce jit support approvals"`.
 
 ### Task T091: Safe support and read-only billing API (after T045, US6)
@@ -312,8 +314,8 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: `docs/reviews/2026-08-22-multiuser-queue-admin.md`
 - Modify: `specs/001-touchmyapi-platform/quickstart.md`
 
-- [ ] **RED:** Test customer/admin cookie separation, staff RLS, no owner/BYPASSRLS, no arbitrary SQL, no impersonation, no secrets/raw evidence, no billing writes, MFA/reset dual approval, grant TTL, queue fencing/fairness/reaper, invite body redaction/idempotency, and cross-account isolation. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:isolation --maxWorkers=1 -- admin-rls` and `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:e2e --maxWorkers=1 -- multiuser-admin`; expected `FAIL` before the full plane is wired.
-- [ ] **GREEN:** Record FR-022–FR-027, SC-011–SC-016, Constitution III, migration/cutover, contracts, and exact T071–T094 traceability. Run `bun run verify:workspace && bun run test:unit && bun run test:contract && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1 && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:isolation --maxWorkers=1 && bun run typecheck && bun run lint && bun run format && bun run --cwd apps/web build && docker compose -f infra/docker/compose.yml config && git diff --check`; expected `PASS` with e2e explicitly reported as pending only where not yet implemented.
+- [ ] **RED:** Test customer/admin cookie separation, staff RLS, no owner/BYPASSRLS, no arbitrary SQL, no impersonation, no secrets/raw evidence, no billing writes, MFA/reset dual approval, grant TTL, queue fencing/fairness/reaper, invite body redaction/idempotency, and cross-account isolation. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:isolation --maxWorkers=1 -- admin-rls` and `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:e2e --maxWorkers=1 -- multiuser-admin`; expected `FAIL` before the full plane is wired.
+- [ ] **GREEN:** Record FR-022–FR-027, SC-011–SC-016, Constitution III, migration/cutover, contracts, and exact T071–T094 traceability. Run `bun run verify:workspace && bun run test:unit && bun run test:contract && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:isolation --maxWorkers=1 && bun run typecheck && bun run lint && bun run format && bun run --cwd apps/web build && docker compose -f infra/docker/compose.yml config && git diff --check`; expected `PASS` with e2e explicitly reported as pending only where not yet implemented.
 - [ ] **Commit:** `git add tests/isolation/admin-rls.test.ts tests/e2e/multiuser-admin.test.ts docs/reviews/2026-08-22-multiuser-queue-admin.md specs/001-touchmyapi-platform/quickstart.md && git commit -m "docs: review multiuser queue admin control plane"`.
 
 ## Handoff constraints

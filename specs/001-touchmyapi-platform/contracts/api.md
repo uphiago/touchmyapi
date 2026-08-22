@@ -72,11 +72,21 @@ Base path: `/api/v1`. Auth: HttpOnly customer session cookie (Google OAuth PKCE)
 
 ## Admin control plane
 
-Admin uses a separate origin/API and cookies; these routes are not customer routes and require staff MFA plus an unexpired capability grant. Billing is read-only.
+Admin uses a separate origin/API and cookies; login/callback/recovery/MFA routes establish or refresh staff authentication, while operational routes require staff MFA plus an unexpired capability grant. These routes are never customer routes. Billing is read-only.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| GET | `/admin/auth/login` | start separate staff Google OIDC login |
+| GET | `/admin/auth/callback` | complete staff OIDC callback; customer cookies are rejected |
 | POST | `/admin/auth/mfa/verify` | establish/refresh staff MFA session |
+| POST | `/admin/auth/webauthn/register/options` | issue WebAuthn registration challenge |
+| POST | `/admin/auth/webauthn/register` | register a staff WebAuthn MFA factor |
+| POST | `/admin/auth/webauthn/assert/options` | issue WebAuthn assertion challenge |
+| POST | `/admin/auth/webauthn/assert` | verify WebAuthn assertion and refresh MFA |
+| POST | `/admin/auth/recovery/verify` | consume one-time hashed recovery material; MFA reset still needs dual approval |
+| POST | `/admin/auth/mfa/reset/request` | request a dual-approved MFA reset |
+| POST | `/admin/auth/mfa/reset/approve` | approve the second staff action for MFA reset |
+| POST | `/admin/auth/logout` | revoke staff session and clear the admin cookie |
 | POST | `/admin/capability-grants` | request reason/ticket/TTL-bound tenant capability |
 | POST | `/admin/capability-grants/:id/approve` | approve; break-glass needs two distinct approvers |
 | GET | `/admin/accounts/:accountId/queue` | policy-aware queue metadata/status |

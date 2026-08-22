@@ -8,6 +8,8 @@ Each job has `id`, `account_id`, `assessment_id`, immutable `dedupe_key`, normal
 
 A partial unique index permits one active job per `(account_id, normalized_target_key)` where status is `queued`, `stale_recovered`, or `running`. Policy separately enforces tenant/global limits.
 
+`queue_tenant_state` has one row for every active account. Account creation upserts it in the same transaction as the account/membership write, migration backfills it, and the reconciler creates missing rows and repairs `running_count` drift. Enqueue and claim fail closed when the state row is missing or inconsistent; the job remains queued and is retried after reconciliation, so no job is silently dropped or stranded.
+
 ## Claim and fencing
 
 The worker claims inside one transaction:
@@ -37,4 +39,4 @@ Assessment/job state changes insert an `outbox_event` in the same transaction. E
 
 ## Queue operation errors
 
-`409 active_target_conflict` is returned for a duplicate active target/account; a capacity limit leaves a job queued; stale lease writes are no-ops; exhausted retries return `failed`; policy denials return `403 policy_denied`. Error payloads never contain credentials, signed job material, raw evidence, or internal topology.
+`409 active_target_conflict` is returned for a duplicate active target/account; a capacity limit leaves a job queued; missing/inconsistent tenant state returns a generic `queue_unavailable` while leaving the job queued for reconciliation; stale lease writes are no-ops; exhausted retries return `failed`; policy denials return `403 policy_denied`. Error payloads never contain credentials, signed job material, raw evidence, or internal topology.
