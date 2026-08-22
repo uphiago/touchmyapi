@@ -20,7 +20,7 @@
 - Create: `.env.example`
 - Test: `scripts/verify-workspace.ts`
 
-- [ ] **Step 1: Write the workspace verification test**
+- [x] **Step 1: Write the workspace verification test**
 
 Create `scripts/verify-workspace.ts`:
 
@@ -44,7 +44,7 @@ if (missing.length > 0) {
 console.log("workspace files present");
 ```
 
-- [ ] **Step 2: Add the root workspace manifests**
+- [x] **Step 2: Add the root workspace manifests**
 
 `package.json` must define Bun workspaces and scripts for `dev:api`, `dev:web`, `typecheck`, `test`, and `verify:workspace`. The root must not contain a Stripe secret or database password.
 
@@ -70,13 +70,13 @@ console.log("workspace files present");
 
 `tsconfig.json` extends `packages/tsconfig/base.json`, includes `apps` and `packages`, enables strict mode and `noUncheckedIndexedAccess`, and excludes `node_modules` and build output.
 
-- [ ] **Step 3: Run the verification command**
+- [x] **Step 3: Run the verification command**
 
 Run: `bun scripts/verify-workspace.ts`
 
 Expected: FAIL because the app/package manifests do not exist yet.
 
-- [ ] **Step 4: Commit the workspace configuration**
+- [x] **Step 4: Commit the workspace configuration**
 
 Run: `git add package.json bunfig.toml tsconfig.json packages/tsconfig/base.json .env.example scripts/verify-workspace.ts && git commit -m "chore: bootstrap bun workspace"`
 
@@ -89,7 +89,7 @@ Run: `git add package.json bunfig.toml tsconfig.json packages/tsconfig/base.json
 - Create: `packages/contracts/src/index.ts`
 - Create: `packages/contracts/test/assessment.test.ts`
 
-- [ ] **Step 1: Write failing state contract tests**
+- [x] **Step 1: Write failing state contract tests**
 
 `packages/contracts/test/assessment.test.ts` must assert that `draft`, `awaiting_verification`, `queued`, `running`, `analyzing`, `completed`, `failed`, and `cancelled` are valid states and that an unknown state is rejected.
 
@@ -110,17 +110,17 @@ describe("assessment state contract", () => {
 });
 ```
 
-- [ ] **Step 2: Implement the minimal Zod contracts**
+- [x] **Step 2: Implement the minimal Zod contracts**
 
 Define `assessmentStateSchema`, `targetCategorySchema`, `healthResponseSchema`, and `errorResponseSchema` in focused files. Export their inferred TypeScript types from `src/index.ts`. Keep secrets, credentials, and raw runner output absent from these public HTTP contracts.
 
-- [ ] **Step 3: Run the contract test**
+- [x] **Step 3: Run the contract test**
 
 Run: `bun test packages/contracts/test/assessment.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit the contracts**
+- [x] **Step 4: Commit the contracts**
 
 Run: `git add packages/contracts && git commit -m "feat: add shared domain contracts"`
 
@@ -132,7 +132,7 @@ Run: `git add packages/contracts && git commit -m "feat: add shared domain contr
 - Create: `apps/api/src/server.ts`
 - Create: `apps/api/test/health.test.ts`
 
-- [ ] **Step 1: Write the failing API test**
+- [x] **Step 1: Write the failing API test**
 
 The test imports the app without opening a real port and asserts `GET /health` returns status 200 and `{ "status": "ok" }`.
 
@@ -149,17 +149,17 @@ describe("GET /health", () => {
 });
 ```
 
-- [ ] **Step 2: Implement the Hono app**
+- [x] **Step 2: Implement the Hono app**
 
 Create `app` with only `GET /health` and a JSON 404 response. `server.ts` reads `PORT` from `process.env` with `3000` as the development default and starts `Bun.serve({ port, fetch: app.fetch })`. Do not add OAuth, Stripe, database credentials, or runner routes in this task.
 
-- [ ] **Step 3: Run the API test**
+- [x] **Step 3: Run the API test**
 
 Run: `bun test apps/api/test/health.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit the API slice**
+- [x] **Step 4: Commit the API slice**
 
 Run: `git add apps/api && git commit -m "feat: add bun api health endpoint"`
 
@@ -173,15 +173,15 @@ Run: `git add apps/api && git commit -m "feat: add bun api health endpoint"`
 - Create: `apps/web/src/app.css`
 - Create: `apps/web/vite.config.ts`
 
-- [ ] **Step 1: Add the web package and entrypoint**
+- [x] **Step 1: Add the web package and entrypoint**
 
 Create a React Vite app that renders a neutral loading shell with the product name and a link target for `/health`. The shell must not display plan rights, secrets, or fake assessment data.
 
-- [ ] **Step 2: Add the API health client**
+- [x] **Step 2: Add the API health client**
 
 Use `VITE_API_BASE_URL` only as a public URL. The client calls `/health` from a user action or initial status check and displays `API online` only when the response validates against `healthResponseSchema`; otherwise display `API indisponível` without exposing response internals.
 
-- [ ] **Step 3: Run the web typecheck/build**
+- [x] **Step 3: Run the web typecheck/build**
 
 Run: `bun --cwd apps/web run build`
 
