@@ -1,15 +1,15 @@
 /** Pure target-scope policy primitives. This module deliberately performs no I/O or name resolution. */
 
 export type ScopeRule = {
-  host: string;
-  port: number | null;
-  pathPrefix: string;
-  wildcard: boolean;
+  readonly host: string;
+  readonly port: number | null;
+  readonly pathPrefix: string;
+  readonly wildcard: boolean;
 };
 
 export type CompiledScope = {
-  inclusions: ScopeRule[];
-  exclusions: ScopeRule[];
+  readonly inclusions: readonly ScopeRule[];
+  readonly exclusions: readonly ScopeRule[];
 };
 
 export type NormalizedTarget = {
@@ -63,6 +63,22 @@ function hasControlCharacter(input: string): boolean {
     if (code < 32 || code === 127) return true;
   }
   return false;
+}
+
+function hasAmbiguousPathEncoding(input: string): boolean {
+  return /%(?:2f|5c|2e|25)/i.test(input);
+}
+
+function rawUrlPath(input: string): string {
+  const authorityStart = input.indexOf("://");
+  if (authorityStart === -1) return "/";
+  const pathStart = input.indexOf("/", authorityStart + 3);
+  if (pathStart === -1) return "/";
+  const queryStart = input.indexOf("?", pathStart);
+  const fragmentStart = input.indexOf("#", pathStart);
+  const endCandidates = [queryStart, fragmentStart].filter((index) => index !== -1);
+  const pathEnd = endCandidates.length > 0 ? Math.min(...endCandidates) : input.length;
+  return input.slice(pathStart, pathEnd);
 }
 
 function parseIPv4(input: string): IPv4 | null {
@@ -204,6 +220,8 @@ function isForbiddenIPv6(value: IPv6): boolean {
     ];
     return isForbiddenIPv4(mappedV4);
   }
+  const globalUnicast = first >= 0x2000 && first <= 0x3fff;
+  if (!globalUnicast) return true;
   const unspecified = value.every((part) => part === 0);
   const loopback = unspecified && value[7] === 1;
   const ula = (first & 0xfe00) === 0xfc00;
@@ -211,6 +229,7 @@ function isForbiddenIPv6(value: IPv6): boolean {
   const multicast = (first & 0xff00) === 0xff00;
   const documentation = first === 0x2001 && second === 0x0db8;
   const benchmark = first === 0x2001 && second === 0x0002;
+  const sixToFour = first === 0x2002;
   const orchid = first === 0x2001 && ((second & 0xfff0) === 0x0010 || (second & 0xfff0) === 0x0020);
   const reserved =
     first === 0x0000 ||
@@ -218,6 +237,7 @@ function isForbiddenIPv6(value: IPv6): boolean {
     (first === 0x3fff && (second & 0xf000) === 0);
   const discardOnly = first === 0x0100 && second === 0 && third === 0 && fourth === 0;
   return (
+    sixToFour ||
     unspecified ||
     loopback ||
     ula ||
@@ -253,6 +273,7 @@ function forbiddenName(input: string): boolean {
 }
 
 export function isForbiddenAddress(input: string): boolean {
+  if (typeof input !== "string") return true;
   const value = input
     .trim()
     .toLowerCase()
@@ -296,6 +317,7 @@ function canonicalizeHost(input: string): string | null {
 }
 
 export function normalizeSurfaceHost(input: string): ScopeResult<{ hostname: string }> {
+  if (typeof input !== "string") return failure("invalid_surface_host");
   const hostname = canonicalizeHost(input);
   if (!hostname) return failure("invalid_surface_host");
   if (isForbiddenAddress(hostname)) return failure("forbidden_surface_host");
@@ -304,6 +326,9 @@ export function normalizeSurfaceHost(input: string): ScopeResult<{ hostname: str
 
 export function normalizeExternalUrl(input: string): ScopeResult<NormalizedTarget> {
   if (typeof input !== "string") return failure("invalid_url");
+  if (hasAmbiguousPathEncoding(rawUrlPath(input))) {
+    return failure("ambiguous_path_encoding");
+  }
   if (
     !input ||
     input.trim() !== input ||
@@ -311,14 +336,17 @@ export function normalizeExternalUrl(input: string): ScopeResult<NormalizedTarge
     hasControlCharacter(input) ||
     /^https?:\/\/\//i.test(input) ||
     input.includes("#") ||
-    input.includes("@")
+    input.includes("@") ||
+    input.includes("\\")
   ) {
     return failure(
-      input.includes("#")
-        ? "fragment_not_allowed"
-        : input.includes("@")
-          ? "credentials_not_allowed"
-          : "invalid_url",
+      input.includes("\\")
+        ? "ambiguous_path_encoding"
+        : input.includes("#")
+          ? "fragment_not_allowed"
+          : input.includes("@")
+            ? "credentials_not_allowed"
+            : "invalid_url",
     );
   }
   let parsed: URL;
@@ -337,6 +365,7 @@ export function normalizeExternalUrl(input: string): ScopeResult<NormalizedTarge
   const port = parsed.port ? Number(parsed.port) : DEFAULT_PORTS[parsed.protocol];
   if (!Number.isInteger(port) || port < 1 || port > 65535) return failure("invalid_url");
   const path = parsed.pathname || "/";
+  if (hasAmbiguousPathEncoding(path)) return failure("ambiguous_path_encoding");
   const authority = hostname.includes(":") ? `[${hostname}]` : hostname;
   const portPart = port === DEFAULT_PORTS[parsed.protocol] ? "" : `:${port}`;
   return {
@@ -353,6 +382,9 @@ export function normalizeExternalUrl(input: string): ScopeResult<NormalizedTarge
 
 function normalizeRulePath(input: string): string | null {
   if (!input) return "/";
+  if (hasAmbiguousPathEncoding(input) || input.includes("\\")) {
+    throw new ScopeValidationError("ambiguous_path_encoding");
+  }
   if (
     !input.startsWith("/") ||
     hasControlCharacter(input) ||
@@ -385,7 +417,7 @@ function compileRule(input: ScopeRuleInput): ScopeRule {
   let wildcard: boolean;
 
   if (typeof input === "string") {
-    if (!input || /[?#@\\\s]/.test(input)) throw new ScopeValidationError("invalid_rule");
+    if (!input || /[?#@\s]/.test(input)) throw new ScopeValidationError("invalid_rule");
     const slash = input.indexOf("/");
     const authority = slash === -1 ? input : input.slice(0, slash);
     pathInput = slash === -1 ? "/" : input.slice(slash);
@@ -412,7 +444,17 @@ function compileRule(input: ScopeRuleInput): ScopeRule {
     portInput = parseRulePort(portText);
     if (portInput === undefined) throw new ScopeValidationError("invalid_rule");
   } else {
-    if (!input || typeof input.host !== "string") throw new ScopeValidationError("invalid_rule");
+    if (
+      typeof input !== "object" ||
+      input === null ||
+      Array.isArray(input) ||
+      typeof input.host !== "string" ||
+      (input.pathPrefix !== undefined && typeof input.pathPrefix !== "string") ||
+      (input.wildcard !== undefined && typeof input.wildcard !== "boolean") ||
+      (input.port !== undefined && input.port !== null && typeof input.port !== "number")
+    ) {
+      throw new ScopeValidationError("invalid_rule");
+    }
     hostInput = input.host;
     pathInput = input.pathPrefix ?? "/";
     portInput = input.port;
@@ -451,10 +493,12 @@ export function compileScope(input: {
   if (!input || !Array.isArray(input.inclusions) || !Array.isArray(input.exclusions)) {
     throw new ScopeValidationError("invalid_scope");
   }
-  return {
-    inclusions: input.inclusions.map(compileRule),
-    exclusions: input.exclusions.map(compileRule),
-  };
+  const inclusions = input.inclusions.map(compileRule).map((rule) => Object.freeze(rule));
+  const exclusions = input.exclusions.map(compileRule).map((rule) => Object.freeze(rule));
+  return Object.freeze({
+    inclusions: Object.freeze(inclusions),
+    exclusions: Object.freeze(exclusions),
+  });
 }
 
 function pathMatches(prefix: string, path: string): boolean {
@@ -476,17 +520,12 @@ function ruleMatches(rule: ScopeRule, candidate: NormalizedTarget): boolean {
   );
 }
 
-export function matchesScope(scope: CompiledScope, candidate: NormalizedTarget): boolean;
 export function matchesScope(scope: CompiledScope, candidate: string): boolean;
-export function matchesScope(scope: CompiledScope, candidate: NormalizedTarget | string): boolean {
-  const target =
-    typeof candidate === "string"
-      ? (() => {
-          const normalized = normalizeExternalUrl(candidate);
-          return normalized.ok ? normalized.value : null;
-        })()
-      : candidate;
-  if (!target) return false;
+export function matchesScope(scope: CompiledScope, candidate: string): boolean {
+  if (typeof candidate !== "string") return false;
+  const normalized = normalizeExternalUrl(candidate);
+  if (!normalized.ok) return false;
+  const target = normalized.value;
   if (scope.exclusions.some((rule) => ruleMatches(rule, target))) return false;
   return scope.inclusions.some((rule) => ruleMatches(rule, target));
 }
@@ -495,6 +534,9 @@ export function validateResolvedAddresses(
   hostname: string,
   addresses: readonly string[],
 ): ScopeResult<readonly string[]> {
+  if (typeof hostname !== "string" || !Array.isArray(addresses)) {
+    return failure("invalid_resolved_input");
+  }
   const normalizedHostname = canonicalizeHost(hostname);
   if (!normalizedHostname) return failure("invalid_hostname");
   const hostIp = canonicalIp(normalizedHostname);
@@ -507,6 +549,7 @@ export function validateResolvedAddresses(
   const normalized: string[] = [];
   const seen = new Set<string>();
   for (const address of addresses) {
+    if (typeof address !== "string") return failure("invalid_resolved_address");
     const parsed = canonicalIp(address.trim());
     if (!parsed) return failure("invalid_resolved_address");
     if (parsed.forbidden) return failure("forbidden_resolved_address");

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { compileScope, matchesScope, normalizeExternalUrl } from "../../packages/policy/src/index";
+import { compileScope, matchesScope } from "../../packages/policy/src/index";
 
 const policyRoot = resolve(import.meta.dirname, "../../packages/policy/src");
 
@@ -20,14 +20,9 @@ describe("policy isolation", () => {
       inclusions: ["public.example.com"],
       exclusions: ["public.example.com/private"],
     });
-    const outside = normalizeExternalUrl("https://other.example.com/");
-    const included = normalizeExternalUrl("https://public.example.com/");
-    const excluded = normalizeExternalUrl("https://public.example.com/private/data");
-    if (!outside.ok || !included.ok || !excluded.ok)
-      throw new Error("test target normalization failed");
-
-    expect(matchesScope(scope, outside.value)).toBe(false);
-    expect(matchesScope(scope, included.value)).toBe(true);
-    expect(matchesScope(scope, excluded.value)).toBe(false);
+    expect(matchesScope(scope, "https://other.example.com/")).toBe(false);
+    expect(matchesScope(scope, "https://public.example.com/")).toBe(true);
+    expect(matchesScope(scope, "https://public.example.com/private/data")).toBe(false);
+    expect(matchesScope(scope, 42 as never)).toBe(false);
   });
 });

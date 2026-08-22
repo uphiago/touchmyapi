@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ScopeValidationError,
+  type ScopeRule,
   compileScope,
   isForbiddenAddress,
   matchesScope,
@@ -10,9 +11,7 @@ import {
 } from "../src/index";
 
 const target = (input: string) => {
-  const result = normalizeExternalUrl(input);
-  if (!result.ok) throw new Error(result.code);
-  return result.value;
+  return input;
 };
 
 describe("normalizeExternalUrl", () => {
@@ -35,11 +34,23 @@ describe("normalizeExternalUrl", () => {
     ["https://example.com/#fragment", "fragment_not_allowed"],
     ["https:///missing-host", "invalid_url"],
     ["https://example.com:65536", "invalid_url"],
+    ["https://example.com/admin/%2f..%2fsecret", "ambiguous_path_encoding"],
+    ["https://example.com/admin/%5c..%5csecret", "ambiguous_path_encoding"],
+    ["https://example.com/admin/%252fsecret", "ambiguous_path_encoding"],
+    ["https://example.com/admin/%2e%2e/secret", "ambiguous_path_encoding"],
+    ["https://example.com/admin\\..\\secret", "ambiguous_path_encoding"],
     ["http://127.0.0.1", "forbidden_target"],
     ["http://metadata.google.internal", "forbidden_target"],
   ])("rejects unsafe or unsupported input %s", (input, code) => {
     const result = normalizeExternalUrl(input);
     expect(result).toEqual({ ok: false, code });
+  });
+
+  it("preserves safe percent-encoded UTF-8 and spaces in the path", () => {
+    expect(normalizeExternalUrl("https://example.com/admin/%C3%A9%20report")).toMatchObject({
+      ok: true,
+      value: { path: "/admin/%C3%A9%20report" },
+    });
   });
 });
 
@@ -66,6 +77,14 @@ describe("normalizeSurfaceHost", () => {
     (input) =>
       expect(normalizeSurfaceHost(input)).toEqual({ ok: false, code: "forbidden_surface_host" }),
   );
+
+  it.each([null, 42, {}, []])("fails closed for malformed runtime host %j", (input) => {
+    expect(() => normalizeSurfaceHost(input as never)).not.toThrow();
+    expect(normalizeSurfaceHost(input as never)).toEqual({
+      ok: false,
+      code: "invalid_surface_host",
+    });
+  });
 });
 
 describe("forbidden addresses", () => {
@@ -89,6 +108,10 @@ describe("forbidden addresses", () => {
     "ff02::1",
     "2001:db8::1",
     "3fff::1",
+    "2002:7f00:1::",
+    "64:ff9b::7f00:1",
+    "fec0::1",
+    "4000::1",
     "::ffff:192.168.1.1",
     "metadata.google.internal",
     "instance-data.ec2.internal",
@@ -99,6 +122,11 @@ describe("forbidden addresses", () => {
     "allows a public address or hostname %s",
     (input) => expect(isForbiddenAddress(input)).toBe(false),
   );
+
+  it.each([null, 42, {}, []])("fails closed for runtime non-string input %j", (input) => {
+    expect(() => isForbiddenAddress(input as never)).not.toThrow();
+    expect(isForbiddenAddress(input as never)).toBe(true);
+  });
 });
 
 describe("validateResolvedAddresses", () => {
@@ -132,6 +160,15 @@ describe("validateResolvedAddresses", () => {
     [["not-an-address"], "invalid_resolved_address"],
   ])("fails closed for resolved addresses %j", (addresses, code) => {
     expect(validateResolvedAddresses("api.example.com", addresses)).toEqual({ ok: false, code });
+  });
+
+  it.each([
+    [null, ["8.8.8.8"]],
+    ["api.example.com", null],
+    ["api.example.com", ["8.8.8.8", 42]],
+  ])("fails closed for malformed runtime input %j", (hostname, addresses) => {
+    expect(() => validateResolvedAddresses(hostname as never, addresses as never)).not.toThrow();
+    expect(validateResolvedAddresses(hostname as never, addresses as never).ok).toBe(false);
   });
 });
 
@@ -189,6 +226,50 @@ describe("compiled scopes", () => {
     expect(() => compileScope({ inclusions: [rule], exclusions: [] })).toThrow(
       ScopeValidationError,
     );
+  });
+
+  it.each([
+    "example.com/admin/%2f..%2fsecret",
+    "example.com/admin/%5csecret",
+    "example.com/admin/%252fsecret",
+    "example.com/admin/%2e%2e/secret",
+    "example.com/admin\\secret",
+  ])("rejects ambiguous encoded scope path %s", (rule) => {
+    expect(() => compileScope({ inclusions: [rule], exclusions: [] })).toThrowError(
+      expect.objectContaining({ code: "ambiguous_path_encoding" }),
+    );
+  });
+
+  it.each([
+    null,
+    { host: 42 },
+    { host: "example.com", pathPrefix: 42 },
+    { host: "example.com", wildcard: "yes" },
+    { host: "example.com", port: "443" },
+  ])("rejects malformed runtime scope rule %j without TypeError", (rule) => {
+    expect(() => compileScope({ inclusions: [rule as never], exclusions: [] })).not.toThrow(
+      TypeError,
+    );
+    expect(() => compileScope({ inclusions: [rule as never], exclusions: [] })).toThrow(
+      ScopeValidationError,
+    );
+  });
+
+  it("deep-freezes compiled scope data", () => {
+    const scope = compileScope({ inclusions: ["example.com/admin"], exclusions: [] });
+    expect(Object.isFrozen(scope)).toBe(true);
+    expect(Object.isFrozen(scope.inclusions)).toBe(true);
+    expect(Object.isFrozen(scope.inclusions[0])).toBe(true);
+    expect(Object.isFrozen(scope.exclusions)).toBe(true);
+    expect(() => {
+      (scope.inclusions as ScopeRule[])[0] = {
+        host: "other.example.com",
+        port: null,
+        pathPrefix: "/",
+        wildcard: false,
+      };
+    }).toThrow();
+    expect(matchesScope(scope, "https://example.com/admin")).toBe(true);
   });
 
   it("reports an invalid wildcard code for an empty label", () => {
