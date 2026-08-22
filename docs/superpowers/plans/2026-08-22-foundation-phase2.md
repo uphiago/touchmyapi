@@ -41,6 +41,7 @@
 - Modify: `.husky/pre-commit`
 - Create: `.github/workflows/ci.yml`
 - Create: `tests/e2e/pending.test.ts`
+- Create: `tests/isolation/no-execution-surface.test.ts`
 - Test: `scripts/verify-workspace.ts`
 
 - [ ] **Step 1: Escrever o teste de topologia que falha**
@@ -125,6 +126,21 @@ describe.skip("future product e2e", () => {
 });
 ```
 
+Crie uma prova de isolamento real para o scaffold em `tests/isolation/no-execution-surface.test.ts`; ela permanece válida até a fase que implementar assessment routes:
+
+```ts
+import { describe, expect, it } from "vitest";
+import { app } from "../../apps/api/src/app";
+
+describe("foundation execution boundary", () => {
+  it("does not expose assessment or execution routes", async () => {
+    for (const path of ["/api/v1/assessments", "/api/v1/jobs", "/api/v1/run"]) {
+      expect((await app.request(path)).status).toBe(404);
+    }
+  });
+});
+```
+
 O hook pode ser conveniente localmente, mas só ignora Bun ausente; com Bun presente, propaga erro:
 
 ```sh
@@ -191,7 +207,7 @@ Execute `bun run test:contract`, `bun run test:integration`, `bun run test:isola
 - [ ] **Step 5: Commitar**
 
 ```bash
-git add package.json tsconfig.json vitest.config.ts .gitignore .husky/pre-commit .github/workflows/ci.yml tests/unit/test-topology.test.ts tests/e2e/pending.test.ts apps/api/test packages/contracts/test packages/db/test
+git add package.json tsconfig.json vitest.config.ts .gitignore .husky/pre-commit .github/workflows/ci.yml tests/unit/test-topology.test.ts tests/e2e/pending.test.ts tests/isolation/no-execution-surface.test.ts apps/api/test packages/contracts/test packages/db/test
 git commit -m "ci: make foundation test gates reproducible"
 ```
 
