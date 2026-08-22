@@ -3,6 +3,20 @@ import { createDbConnection, type DbConnection } from "../src/index";
 
 const RUN_DB_TESTS = process.env.RUN_DB_TESTS === "1";
 const normalizeRelationName = (value: string) => value.replaceAll('"', "");
+const normalizeDefault = (value: unknown): string | null => {
+  if (value === null || value === undefined || value === "") return null;
+  return String(value)
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/::"?public"?\./g, "::");
+};
+const normalizeCheck = (value: unknown): string =>
+  String(value)
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[()"]+/g, "")
+    .replace(/\bpublic\./g, "")
+    .trim();
 if (!RUN_DB_TESTS) {
   console.info(
     "[schema.integration] PostgreSQL checks skipped; set RUN_DB_TESTS=1 and DATABASE_URL=postgres://.../<name>_test to run them.",
@@ -271,31 +285,43 @@ schemaDescribe("PostgreSQL foundation schema", () => {
           or (table_name = 'agent' and column_name = 'status'))
     `;
     const byColumn = new Map(columns.map((row) => [`${row.table_name}.${row.column_name}`, row]));
-    for (const name of ["account.id", "session.id"]) {
-      expect(byColumn.get(name)?.udt_name, name).toBe("uuid");
-      expect(byColumn.get(name)?.is_nullable, name).toBe("NO");
-      expect(byColumn.get(name)?.column_default, name).toMatch(/gen_random_uuid/);
-    }
-    for (const name of [
-      "account.status",
-      "account.settings_ia_enabled",
-      "assessment.status",
-      "job.status",
-      "job.attempts",
-      "job.max_attempts",
-      "runner_execution.cleaned_up",
-      "finding.published",
-      "billing_event.signature_valid",
-      "billing_event.processing_status",
-      "entitlement.status",
-      "agent.status",
-    ]) {
-      expect(byColumn.get(name)?.column_default, name).toBeTruthy();
-      expect(byColumn.get(name)?.is_nullable, name).toBe("NO");
+    const expectedColumns: Record<string, { defaultValue: string | null; nullable: "YES" | "NO" }> =
+      {
+        "account.id": { defaultValue: "gen_random_uuid()", nullable: "NO" },
+        "account.status": { defaultValue: "'active'::account_status", nullable: "NO" },
+        "account.settings_ia_enabled": { defaultValue: "true", nullable: "NO" },
+        "account.created_at": { defaultValue: "now()", nullable: "NO" },
+        "account.deleted_at": { defaultValue: null, nullable: "YES" },
+        "session.id": { defaultValue: "gen_random_uuid()", nullable: "NO" },
+        "session.token_hash": { defaultValue: null, nullable: "NO" },
+        "session.expires_at": { defaultValue: null, nullable: "NO" },
+        "assessment.target_json": { defaultValue: null, nullable: "NO" },
+        "assessment.limits_json": { defaultValue: null, nullable: "NO" },
+        "assessment.status": { defaultValue: "'draft'::assessment_status", nullable: "NO" },
+        "assessment.credits_estimate": { defaultValue: "0", nullable: "NO" },
+        "assessment.credits_consumed": { defaultValue: "0", nullable: "NO" },
+        "assessment.updated_at": { defaultValue: "now()", nullable: "NO" },
+        "job.status": { defaultValue: "'queued'::job_status", nullable: "NO" },
+        "job.attempts": { defaultValue: "0", nullable: "NO" },
+        "job.max_attempts": { defaultValue: "3", nullable: "NO" },
+        "runner_execution.cleaned_up": { defaultValue: "false", nullable: "NO" },
+        "finding.published": { defaultValue: "false", nullable: "NO" },
+        "billing_event.signature_valid": { defaultValue: "false", nullable: "NO" },
+        "billing_event.processing_status": {
+          defaultValue: "'received'::billing_processing_status",
+          nullable: "NO",
+        },
+        "entitlement.status": { defaultValue: "'active'::entitlement_status", nullable: "NO" },
+        "agent.status": { defaultValue: "'active'::agent_status", nullable: "NO" },
+      };
+    for (const [name, expected] of Object.entries(expectedColumns)) {
+      const column = byColumn.get(name);
+      expect(column, name).toBeDefined();
+      expect(column?.is_nullable, name).toBe(expected.nullable);
+      expect(normalizeDefault(column?.column_default), name).toBe(expected.defaultValue);
     }
     expect(byColumn.get("session.token_hash")?.data_type).toBe("text");
-    expect(byColumn.get("session.token_hash")?.is_nullable).toBe("NO");
-    expect(byColumn.get("account.deleted_at")?.is_nullable).toBe("YES");
+    expect(byColumn.get("session.expires_at")?.data_type).toBe("timestamp with time zone");
     expect(byColumn.get("assessment.target_json")?.udt_name).toBe("jsonb");
     expect(byColumn.get("assessment.limits_json")?.udt_name).toBe("jsonb");
 
@@ -320,14 +346,22 @@ schemaDescribe("PostgreSQL foundation schema", () => {
     expect(primaryByTable.get("playbook")).toEqual(["key", "playbook_version"]);
 
     const checks = await db`
-      select conname from pg_constraint where contype = 'c' and connamespace = 'public'::regnamespace order by conname
+      select conname, pg_get_constraintdef(oid) as definition
+      from pg_constraint
+      where contype = 'c' and connamespace = 'public'::regnamespace
+      order by conname
     `;
-    expect(checks.map((row) => row.conname)).toEqual([
-      "assessment_credits_consumed_nonnegative",
-      "assessment_credits_estimate_nonnegative",
-      "job_attempts_nonnegative",
-      "job_max_attempts_positive",
-    ]);
+    const actualChecks = new Map(
+      checks.map((row) => [row.conname, normalizeCheck(row.definition)]),
+    );
+    expect(actualChecks).toEqual(
+      new Map([
+        ["assessment_credits_consumed_nonnegative", "check credits_consumed >= 0"],
+        ["assessment_credits_estimate_nonnegative", "check credits_estimate >= 0"],
+        ["job_attempts_nonnegative", "check attempts >= 0"],
+        ["job_max_attempts_positive", "check max_attempts > 0"],
+      ]),
+    );
   });
 
   it("requires and uniquely stores opaque session token hashes", async () => {
