@@ -276,7 +276,8 @@ function parseScope(root: RecordValue): {
 
 function targetOrigin(target: NormalizedTarget): string {
   const defaultPort = target.protocol === "https:" ? 443 : 80;
-  return `${target.protocol}//${target.hostname}${target.port === defaultPort ? "" : `:${target.port}`}`;
+  const hostname = target.hostname.includes(":") ? `[${target.hostname}]` : target.hostname;
+  return `${target.protocol}//${hostname}${target.port === defaultPort ? "" : `:${target.port}`}`;
 }
 
 type FactState =

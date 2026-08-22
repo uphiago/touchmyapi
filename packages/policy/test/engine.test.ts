@@ -3,6 +3,10 @@ import { authorize, type ActionRequest } from "../src/engine";
 import { compileScope } from "../src/scope";
 
 const scope = compileScope({ inclusions: ["example.com"], exclusions: [] });
+const ipv6Scope = compileScope({
+  inclusions: ["[2001:4860:4860::8888]"],
+  exclusions: [],
+});
 const CONTEXT = {
   accountId: "11111111-1111-4111-8111-111111111111",
   assessmentId: "22222222-2222-4222-8222-222222222222",
@@ -420,6 +424,58 @@ describe("authorize", () => {
         }),
       ).blocked.map((block) => block.code),
     ).toContain("verification_method_not_allowed");
+  });
+
+  it("canonicalizes public IPv6 target origins with brackets for passive and active facts", () => {
+    const target = "https://[2001:4860:4860::8888]/";
+    const attestation = {
+      ...(valid().attestation as Record<string, unknown>),
+      target,
+    };
+    const passive = authorize(
+      valid({
+        scope: ipv6Scope,
+        target: { candidate: target, resolvedAddresses: ["2001:4860:4860::8888"] },
+        attestation,
+      }),
+    );
+    expect(passive.allowed).toBe(true);
+    expect(passive.target?.url).toBe(target);
+
+    const verification = {
+      method: "http_file",
+      status: "verified",
+      accountId: CONTEXT.accountId,
+      assessmentId: CONTEXT.assessmentId,
+      targetOrigin: "https://[2001:4860:4860::8888]",
+      scopeFingerprint: CONTEXT.scopeFingerprint,
+      challengeId: "44444444-4444-4444-8444-444444444444",
+      verifiedAt: "2026-08-22T11:58:00.000Z",
+      expiresAt: "2026-08-22T13:00:00.000Z",
+    };
+    const active = authorize(
+      valid({
+        action: "active_external",
+        entitlement: "pro",
+        scope: ipv6Scope,
+        target: { candidate: target, resolvedAddresses: ["2001:4860:4860::8888"] },
+        attestation,
+        verification,
+      }),
+    );
+    expect(active.allowed).toBe(true);
+    const mismatch = authorize(
+      valid({
+        action: "active_external",
+        entitlement: "pro",
+        scope: ipv6Scope,
+        target: { candidate: target, resolvedAddresses: ["2001:4860:4860::8888"] },
+        attestation,
+        verification: { ...verification, targetOrigin: "https://2001:4860:4860::8888" },
+      }),
+    );
+    expect(mismatch.allowed).toBe(false);
+    expect(mismatch.blocked.map((block) => block.code)).toContain("verification_context_mismatch");
   });
 
   it("requires exact playbook stop/precondition sets and conservative action facts", () => {
