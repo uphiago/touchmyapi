@@ -2,8 +2,11 @@ import postgres from "postgres";
 
 export * from "../schema";
 
-export type DbConnection = ReturnType<typeof postgres>;
+export type DbConnection = ReturnType<typeof createDbConnection>;
 export type DbTransaction = postgres.TransactionSql;
+
+export { withTenant } from "./tenant-session";
+export type { RuntimeRole, TenantConnection } from "./tenant-session";
 
 /**
  * Connection factory for the TouchMyAPI data layer.
@@ -13,7 +16,7 @@ export type DbTransaction = postgres.TransactionSql;
  * configuration error when the URL is absent rather than failing lazily.
  *
  */
-export function createDbConnection(databaseUrl: string | undefined): DbConnection {
+export function createDbConnection(databaseUrl: string | undefined): ReturnType<typeof postgres> {
   if (!databaseUrl) {
     throw new Error(
       "DATABASE_URL is required to create a database connection. Set it before calling createDbConnection.",
