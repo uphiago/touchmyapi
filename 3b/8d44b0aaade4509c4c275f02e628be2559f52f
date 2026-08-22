@@ -1,0 +1,37 @@
+infra/docker/postgres/init/002_test_database.sql
+  s_bc54431df54bf2::t_9b360cb4f5a66c 1
+drizzle.config.ts
+  s_bc54431df54bf2::t_9b360cb4f5a66c 3-8,14
+tests/contract/foundation-config.test.ts
+  s_bc54431df54bf2::t_3c44acc75e1dc5 1-51
+.env.example
+  s_bc54431df54bf2::t_9b360cb4f5a66c 9-12
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_1ead3d4a2a1706 20,45,48-55,93-95,98
+  s_bc54431df54bf2::t_b624b6208562d4 99
+infra/docker/compose.yml
+  s_bc54431df54bf2::t_9b360cb4f5a66c 4-5,27-30
+README.md
+  s_bc54431df54bf2::t_1ead3d4a2a1706 11,26,29,41-47,52-54,57
+  s_bc54431df54bf2::t_f668bbe47964a8 58
+specs/001-touchmyapi-platform/atlas.html
+  s_bc54431df54bf2::t_9b360cb4f5a66c 260,822
+packages/db/scripts/migrate.ts
+  s_bc54431df54bf2::t_9b360cb4f5a66c 4-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "3b8d44b0aaade4509c4c275f02e628be2559f52f",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
