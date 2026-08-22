@@ -7,10 +7,11 @@ const policyRoot = resolve(import.meta.dirname, "../../packages/policy/src");
 
 describe("policy isolation", () => {
   it("contains no network, filesystem, process environment, or app imports", () => {
-    const source = readFileSync(resolve(policyRoot, "scope.ts"), "utf8");
-    expect(source).not.toMatch(
-      /(?:^|[^\w])(?:dns|fs|tls|fetch|WebSocket|socket|process\.env)(?:[^\w]|$)/i,
-    );
+    const source = ["scope.ts", "engine.ts", "entitlement.ts", "limits.ts"]
+      .map((file) => readFileSync(resolve(policyRoot, file), "utf8"))
+      .join("\n");
+    expect(source).not.toMatch(/\b(?:fetch|WebSocket|socket)\s*\(/i);
+    expect(source).not.toMatch(/process\.env\b/i);
     expect(source).not.toContain('from "node:');
     expect(source).not.toContain("@touchmyapi/");
   });

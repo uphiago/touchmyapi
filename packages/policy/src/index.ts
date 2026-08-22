@@ -24,3 +24,12 @@ export type {
   LimitResult,
   PlaybookLimits,
 } from "./limits";
+export { authorize } from "./engine";
+export type {
+  ActionRequest,
+  BlockCode,
+  PolicyBlock,
+  PolicyDecision,
+  RuntimeAction,
+  TargetCategory,
+} from "./engine";
