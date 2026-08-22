@@ -27,7 +27,7 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 - [x] T003 [P] Configure Vitest at repo root (`vitest.config.ts`) with workspaces for unit/contract/integration/isolation/e2e
 - [x] T004 [P] Configure drizzle-kit + Drizzle ORM in `packages/db` (`drizzle.config.ts`, schema dir)
 - [x] T005 [P] Configure ESLint + Prettier at repo root (`.eslintrc`, `.prettierrc`); commit hooks via `husky`
-- [ ] T006 [P] Create `.env.example` with documented vars (DATABASE_URL, GOOGLE_CLIENT_ID/SECRET, STRIPE_*, SANDBOX_IMPL, OBJECT_STORAGE_*); `.env` stays gitignored
+- [x] T006 [P] Create `.env.example` with documented vars (DATABASE_URL, GOOGLE_CLIENT_ID/SECRET, STRIPE_*, SANDBOX_IMPL, OBJECT_STORAGE_*); `.env` stays gitignored
 - [ ] T007 [P] Add `infra/docker/compose.yml` for local PostgreSQL 16 + MinIO; seed scripts under `packages/db/scripts`
 - [ ] T008 Verify `bun install`, `bun run test`, and `bun run db:migrate` are no-ops that run clean
 
