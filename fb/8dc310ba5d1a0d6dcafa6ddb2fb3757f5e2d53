@@ -1,0 +1,26 @@
+vitest.config.ts
+  s_bc54431df54bf2::t_a72296120f39c5 26-28
+  s_bc54431df54bf2::t_76750cafb3646b 3-8,12-13
+  s_bc54431df54bf2::t_f795e6ce2afb21 20-25,29-32,47
+tests/unit/test-topology.test.ts
+  s_bc54431df54bf2::t_0c533669831e43 4,14-20
+  s_bc54431df54bf2::t_d48f38e3b331ab 21
+.github/workflows/ci.yml
+  s_bc54431df54bf2::t_76750cafb3646b 72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "fb8dc310ba5d1a0d6dcafa6ddb2fb3757f5e2d53",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
