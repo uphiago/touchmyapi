@@ -187,7 +187,7 @@ Run: `bun --cwd apps/web run build`
 
 Expected: Vite produces `apps/web/dist` without warnings about missing entrypoints.
 
-- [ ] **Step 4: Commit the web shell**
+- [x] **Step 4: Commit the web shell**
 
 Run: `git add apps/web && git commit -m "feat: add vite web shell"`
 
@@ -200,19 +200,19 @@ Run: `git add apps/web && git commit -m "feat: add vite web shell"`
 - Create: `infra/docker/postgres/init/001_extensions.sql`
 - Create: `packages/db/test/connection.test.ts`
 
-- [ ] **Step 1: Add local PostgreSQL compose service**
+- [x] **Step 1: Add local PostgreSQL compose service**
 
 The compose file runs PostgreSQL 16 on a non-public local port, uses `POSTGRES_DB=touchmyapi`, `POSTGRES_USER=touchmyapi_dev`, and reads the development password from a compose-local variable with a documented default only for local development. It must not use the Stripe `.env` values or expose PostgreSQL to all network interfaces.
 
-- [ ] **Step 2: Add the DB package boundary**
+- [x] **Step 2: Add the DB package boundary**
 
 `packages/db/src/index.ts` exports a connection factory that receives `DATABASE_URL` explicitly. It must throw a clear configuration error when the URL is absent and must not connect during module import. The first migration is intentionally not added until the RLS schema task is implemented.
 
-- [ ] **Step 3: Add the connection smoke test**
+- [x] **Step 3: Add the connection smoke test**
 
 The test is skipped unless `RUN_DB_TESTS=1`; when enabled it connects, runs `select 1 as ok`, and closes the pool in `afterAll`. This keeps unit tests deterministic while documenting the local integration check.
 
-- [ ] **Step 4: Run the local infrastructure checks**
+- [x] **Step 4: Run the local infrastructure checks**
 
 Run: `docker compose -f infra/docker/compose.yml config`
 
@@ -222,7 +222,7 @@ Run: `bun test packages/db/test/connection.test.ts`
 
 Expected: PASS with the integration test skipped when `RUN_DB_TESTS` is unset.
 
-- [ ] **Step 5: Commit the database boundary**
+- [x] **Step 5: Commit the database boundary**
 
 Run: `git add packages/db infra/docker && git commit -m "chore: add local postgres infrastructure"`
 
