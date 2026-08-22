@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { authorize, type ActionRequest } from "../src/engine";
+import {
+  authorize,
+  createPolicyContext,
+  fingerprintScope,
+  type ActionRequest,
+} from "../src/engine";
 import { compileScope } from "../src/scope";
 
 const scope = compileScope({ inclusions: ["example.com"], exclusions: [] });
@@ -7,13 +12,25 @@ const ipv6Scope = compileScope({
   inclusions: ["[2001:4860:4860::8888]"],
   exclusions: [],
 });
-const CONTEXT = {
-  accountId: "11111111-1111-4111-8111-111111111111",
-  assessmentId: "22222222-2222-4222-8222-222222222222",
-  userId: "33333333-3333-4333-8333-333333333333",
-  evaluatedAt: "2026-08-22T12:00:00.000Z",
-  scopeFingerprint: `sha256:${"a".repeat(64)}`,
-} as const;
+const CONTEXT = createPolicyContext(
+  {
+    accountId: "11111111-1111-4111-8111-111111111111",
+    assessmentId: "22222222-2222-4222-8222-222222222222",
+    userId: "33333333-3333-4333-8333-333333333333",
+    evaluatedAt: "2026-08-22T12:00:00.000Z",
+  },
+  scope,
+);
+const FACTORY_CONTEXT = CONTEXT;
+const IPV6_CONTEXT = createPolicyContext(
+  {
+    accountId: CONTEXT.accountId,
+    assessmentId: CONTEXT.assessmentId,
+    userId: CONTEXT.userId,
+    evaluatedAt: CONTEXT.evaluatedAt,
+  },
+  ipv6Scope,
+);
 
 const limits = () => ({
   playbook: {
@@ -61,7 +78,7 @@ const playbook = (
     maxConcurrency: 1,
     maxRatePerMin: 10,
     egress: { allow: ["scope_target" as const], blockDefaults: true },
-    impactLevels: ["info", "low"],
+    impactLevels: ["low"],
   },
   stopSignals: ["scope_escape", "rate_exceeded", "unauthorized_endpoint", "duration_exceeded"],
   evidence: { expected: ["public_posture"], format: "manifest" as const },
@@ -102,16 +119,60 @@ const valid = (overrides: Record<string, unknown> = {}): ActionRequest => ({
 });
 
 describe("authorize", () => {
+  it("creates opaque server context fingerprints from the authentic scope", () => {
+    expect(FACTORY_CONTEXT.scopeFingerprint).toBe(fingerprintScope(scope));
+    expect(Object.isFrozen(FACTORY_CONTEXT)).toBe(true);
+    expect(authorize(valid({ context: { ...FACTORY_CONTEXT } })).allowed).toBe(false);
+  });
+
+  it("rejects a same-target assessment with a different authentic scope", () => {
+    const otherScope = compileScope({ inclusions: ["example.com/private"], exclusions: [] });
+    const otherContext = createPolicyContext(
+      {
+        accountId: FACTORY_CONTEXT.accountId,
+        assessmentId: FACTORY_CONTEXT.assessmentId,
+        userId: FACTORY_CONTEXT.userId,
+        evaluatedAt: FACTORY_CONTEXT.evaluatedAt,
+      },
+      otherScope,
+    );
+    expect(authorize(valid({ context: otherContext, scope: scope })).allowed).toBe(false);
+  });
+
   it("allows a passive free-unverified assessment and derives actions", () => {
     const result = authorize(valid());
     expect(result).toMatchObject({ allowed: true, blocked: [], reason: "allowed" });
     expect(result.actions).toEqual([
-      "dns.records",
-      "tls.cert",
-      "http.headers",
-      "robots.txt",
-      "sitemap.xml",
-      "endpoint.minimal",
+      expect.objectContaining({
+        id: "dns.records",
+        type: "dns_lookup",
+        capability: "dns_resolver",
+      }),
+      expect.objectContaining({ id: "tls.cert", type: "tls_probe", capability: "tls_probe" }),
+      expect.objectContaining({
+        id: "http.headers",
+        type: "http_probe",
+        capability: "http_client",
+        method: "GET",
+      }),
+      expect.objectContaining({
+        id: "robots.txt",
+        type: "robots_fetch",
+        capability: "http_client",
+        method: "GET",
+      }),
+      expect.objectContaining({
+        id: "sitemap.xml",
+        type: "sitemap_fetch",
+        capability: "http_client",
+        method: "GET",
+      }),
+      expect.objectContaining({
+        id: "endpoint.minimal",
+        type: "endpoint_probe",
+        capability: "http_client",
+        method: "GET",
+      }),
     ]);
     expect(result.capabilities).toEqual(["dns_resolver", "tls_probe", "http_client"]);
     expect(result.limits).toEqual({
@@ -301,6 +362,31 @@ describe("authorize", () => {
     expect(result.limits).toMatchObject({ durationS: 300, ratePerMin: 10 });
   });
 
+  it("rejects a server-owned playbook with altered authoritative limits", () => {
+    const altered = structuredClone(playbook());
+    altered.limits.maxDurationS = 999999;
+    const result = authorize(valid({ playbook: altered }));
+    expect(result.allowed).toBe(false);
+    expect(result.blocked.map((block) => block.code)).toContain("invalid_playbook");
+  });
+
+  it("reduces every authorized action to effective requested limits", () => {
+    const requested = {
+      ...limits(),
+      requested: { ratePerMin: 1, durationS: 7 },
+    };
+    const result = authorize(valid({ limits: requested }));
+    expect(result.allowed).toBe(true);
+    expect(
+      result.actions.every((action) => action.limit.requests === 1 && action.limit.durationS === 7),
+    ).toBe(true);
+    expect(
+      result.actions.every((action) => !Object.prototype.hasOwnProperty.call(action, "commands")),
+    ).toBe(true);
+    expect(Object.isFrozen(result.actions[0])).toBe(true);
+    expect(Object.isFrozen(result.actions[0]?.limit)).toBe(true);
+  });
+
   it.each([
     ["missing context", { context: undefined }],
     ["bad account id", { context: { ...CONTEXT, accountId: "not-an-id" } }],
@@ -430,10 +516,15 @@ describe("authorize", () => {
     const target = "https://[2001:4860:4860::8888]/";
     const attestation = {
       ...(valid().attestation as Record<string, unknown>),
+      accountId: IPV6_CONTEXT.accountId,
+      assessmentId: IPV6_CONTEXT.assessmentId,
+      userId: IPV6_CONTEXT.userId,
+      scopeFingerprint: IPV6_CONTEXT.scopeFingerprint,
       target,
     };
     const passive = authorize(
       valid({
+        context: IPV6_CONTEXT,
         scope: ipv6Scope,
         target: { candidate: target, resolvedAddresses: ["2001:4860:4860::8888"] },
         attestation,
@@ -445,16 +536,17 @@ describe("authorize", () => {
     const verification = {
       method: "http_file",
       status: "verified",
-      accountId: CONTEXT.accountId,
-      assessmentId: CONTEXT.assessmentId,
+      accountId: IPV6_CONTEXT.accountId,
+      assessmentId: IPV6_CONTEXT.assessmentId,
       targetOrigin: "https://[2001:4860:4860::8888]",
-      scopeFingerprint: CONTEXT.scopeFingerprint,
+      scopeFingerprint: IPV6_CONTEXT.scopeFingerprint,
       challengeId: "44444444-4444-4444-8444-444444444444",
       verifiedAt: "2026-08-22T11:58:00.000Z",
       expiresAt: "2026-08-22T13:00:00.000Z",
     };
     const active = authorize(
       valid({
+        context: IPV6_CONTEXT,
         action: "active_external",
         entitlement: "pro",
         scope: ipv6Scope,

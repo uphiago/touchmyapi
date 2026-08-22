@@ -62,6 +62,8 @@ function isCompiledScope(input: unknown): input is CompiledScope {
   return typeof input === "object" && input !== null && compiledScopeSet.has(input);
 }
 
+export { isCompiledScope };
+
 function hasControlCharacter(input: string): boolean {
   for (const character of input) {
     const code = character.codePointAt(0) ?? 0;

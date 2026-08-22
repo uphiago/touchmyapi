@@ -12,7 +12,7 @@ describe("policy isolation", () => {
       .join("\n");
     expect(source).not.toMatch(/\b(?:fetch|WebSocket|socket)\s*\(/i);
     expect(source).not.toMatch(/process\.env\b/i);
-    expect(source).not.toContain('from "node:');
+    expect(source).not.toMatch(/from "node:(?!crypto)/);
     expect(source).not.toContain("@touchmyapi/");
   });
 

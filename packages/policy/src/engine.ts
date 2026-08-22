@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import {
+  isCompiledScope,
   matchesScope,
   normalizeExternalUrl,
   validateResolvedAddresses,
@@ -44,6 +46,15 @@ export type BlockCode =
 
 export type PolicyBlock = Readonly<{ code: BlockCode }>;
 
+export type AuthorizedAction = Readonly<{
+  id: string;
+  type: string;
+  capability: string;
+  allowedTargets: "scope";
+  method?: "GET";
+  limit: Readonly<{ requests: number; durationS: number }>;
+}>;
+
 export type ActionRequest = Readonly<{
   context: PolicyContext;
   action: string;
@@ -63,7 +74,7 @@ export type PolicyDecision = Readonly<{
   allowed: boolean;
   blocked: readonly PolicyBlock[];
   reason: string;
-  actions: readonly string[];
+  actions: readonly AuthorizedAction[];
   capabilities: readonly string[];
   limits: EffectiveLimits | null;
   target: NormalizedTarget | null;
@@ -80,6 +91,7 @@ const SAFE_VERSION = /^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,127}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UTC_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 const FINGERPRINT = /^sha256:[0-9a-f]{64}$/i;
+const policyContextSet = new WeakSet<object>();
 
 const ACTION_MAP = Object.freeze({
   "dns.records": Object.freeze({ type: "dns_lookup", capability: "dns_resolver" }),
@@ -90,6 +102,64 @@ const ACTION_MAP = Object.freeze({
   "endpoint.minimal": Object.freeze({ type: "endpoint_probe", capability: "http_client" }),
 } as const);
 type ActionId = keyof typeof ACTION_MAP;
+
+const CANONICAL_ACTIONS = Object.freeze([
+  Object.freeze({
+    id: "dns.records",
+    type: "dns_lookup",
+    allowedTargets: "scope",
+    limit: Object.freeze({ requests: 1, durationS: 30 }),
+  }),
+  Object.freeze({
+    id: "tls.cert",
+    type: "tls_probe",
+    allowedTargets: "scope",
+    limit: Object.freeze({ requests: 1, durationS: 30 }),
+  }),
+  Object.freeze({
+    id: "http.headers",
+    type: "http_probe",
+    allowedTargets: "scope",
+    method: "GET",
+    limit: Object.freeze({ requests: 1, durationS: 30 }),
+  }),
+  Object.freeze({
+    id: "robots.txt",
+    type: "robots_fetch",
+    allowedTargets: "scope",
+    method: "GET",
+    limit: Object.freeze({ requests: 1, durationS: 30 }),
+  }),
+  Object.freeze({
+    id: "sitemap.xml",
+    type: "sitemap_fetch",
+    allowedTargets: "scope",
+    method: "GET",
+    limit: Object.freeze({ requests: 1, durationS: 30 }),
+  }),
+  Object.freeze({
+    id: "endpoint.minimal",
+    type: "endpoint_probe",
+    allowedTargets: "scope",
+    method: "GET",
+    limit: Object.freeze({ requests: 1, durationS: 30 }),
+  }),
+] as const);
+const CANONICAL_STOP_SIGNALS = Object.freeze([
+  "scope_escape",
+  "rate_exceeded",
+  "unauthorized_endpoint",
+  "duration_exceeded",
+] as const);
+const CANONICAL_PRECONDITIONS = Object.freeze([
+  { kind: "http_verification_required", when: "active_external" },
+] as const);
+const CANONICAL_IMPACT_LEVELS = Object.freeze(["low"] as const);
+const CANONICAL_EVIDENCE = Object.freeze({
+  expected: Object.freeze(["public_posture"] as const),
+  format: "manifest" as const,
+});
+const CANONICAL_SEVERITY = Object.freeze(["info", "low"] as const);
 
 function snapshotObject(input: unknown, allowedKeys?: readonly string[]): Snapshot {
   try {
@@ -104,6 +174,7 @@ function snapshotObject(input: unknown, allowedKeys?: readonly string[]): Snapsh
       if (allowedKeys && !allowedKeys.includes(key)) return { ok: false };
       const descriptor = Object.getOwnPropertyDescriptor(input, key);
       if (!descriptor || !("value" in descriptor)) return { ok: false };
+      if (Reflect.get(input, key) !== descriptor.value) return { ok: false };
       values[key] = descriptor.value;
     }
     return { ok: true, value: values, keys };
@@ -133,6 +204,7 @@ function snapshotArray(input: unknown): readonly unknown[] | null {
       if (!keys.includes(key)) return null;
       const descriptor = Object.getOwnPropertyDescriptor(input, key);
       if (!descriptor || !("value" in descriptor)) return null;
+      if (Reflect.get(input, key) !== descriptor.value) return null;
       values.push(descriptor.value);
     }
     if (keys.some((key) => key !== "length" && (typeof key !== "string" || !/^\d+$/.test(key))))
@@ -175,7 +247,7 @@ function denied(blocked: readonly BlockCode[]): PolicyDecision {
 }
 
 function allowed(
-  actions: readonly string[],
+  actions: readonly AuthorizedAction[],
   capabilities: readonly string[],
   limits: EffectiveLimits,
   target: NormalizedTarget,
@@ -186,7 +258,12 @@ function allowed(
     allowed: true,
     blocked: [],
     reason: "allowed",
-    actions: [...actions],
+    actions: actions.map((action) =>
+      Object.freeze({
+        ...action,
+        limit: Object.freeze({ ...action.limit }),
+      }),
+    ),
     capabilities: [...capabilities],
     limits,
     target,
@@ -203,11 +280,64 @@ export type PolicyContext = Readonly<{
   scopeFingerprint: string;
 }>;
 
+/** Compute the server-owned SHA-256 fingerprint of an authentic compiled scope. */
+export function fingerprintScope(scope: CompiledScope): string {
+  if (!isCompiledScope(scope)) throw new TypeError("invalid compiled scope");
+  const canonical = JSON.stringify({
+    inclusions: scope.inclusions.map((rule) => ({
+      host: rule.host,
+      port: rule.port,
+      pathPrefix: rule.pathPrefix,
+      wildcard: rule.wildcard,
+    })),
+    exclusions: scope.exclusions.map((rule) => ({
+      host: rule.host,
+      port: rule.port,
+      pathPrefix: rule.pathPrefix,
+      wildcard: rule.wildcard,
+    })),
+  });
+  return `sha256:${createHash("sha256").update(canonical).digest("hex")}`;
+}
+
+/**
+ * Build an opaque policy context from server-supplied identity/time facts.
+ * The API must supply an authoritative server/DB timestamp; this factory never reads a clock.
+ */
+export function createPolicyContext(input: unknown, scope: CompiledScope): PolicyContext {
+  if (!isCompiledScope(scope)) throw new TypeError("invalid compiled scope");
+  const snapshot = snapshotObject(input, ["accountId", "assessmentId", "userId", "evaluatedAt"]);
+  if (
+    !snapshot.ok ||
+    !exactKeys(snapshot, ["accountId", "assessmentId", "userId", "evaluatedAt"]) ||
+    typeof snapshot.value.accountId !== "string" ||
+    !UUID.test(snapshot.value.accountId) ||
+    typeof snapshot.value.assessmentId !== "string" ||
+    !UUID.test(snapshot.value.assessmentId) ||
+    typeof snapshot.value.userId !== "string" ||
+    !UUID.test(snapshot.value.userId) ||
+    !validUtc(snapshot.value.evaluatedAt)
+  )
+    throw new TypeError("invalid policy context");
+  const context = Object.freeze({
+    accountId: snapshot.value.accountId,
+    assessmentId: snapshot.value.assessmentId,
+    userId: snapshot.value.userId,
+    evaluatedAt: snapshot.value.evaluatedAt,
+    scopeFingerprint: fingerprintScope(scope),
+  });
+  policyContextSet.add(context);
+  return context;
+}
+
 function validUtc(value: unknown): value is string {
   return typeof value === "string" && UTC_ISO.test(value) && Number.isFinite(Date.parse(value));
 }
 
 function parseContext(input: unknown): { value?: PolicyContext; code?: BlockCode } {
+  if (typeof input !== "object" || input === null || !policyContextSet.has(input)) {
+    return { code: "invalid_context" };
+  }
   const snapshot = snapshotObject(input, [
     "accountId",
     "assessmentId",
@@ -402,7 +532,8 @@ function parseAttestation(
 }
 
 type ParsedPlaybook = {
-  actions: readonly string[];
+  actions: readonly AuthorizedAction[];
+  actionIds: readonly string[];
   capabilities: readonly string[];
   limits: Readonly<{
     durationS: number;
@@ -513,17 +644,24 @@ function parsePlaybook(
       condition.value.when === "active_external"
     )
       hasActiveHttpVerification = true;
+    if (
+      condition.value.kind !== CANONICAL_PRECONDITIONS[0].kind ||
+      condition.value.when !== CANONICAL_PRECONDITIONS[0].when
+    )
+      return { code: "invalid_playbook" };
   }
   if (!hasActiveHttpVerification || preconditionKeys.size !== 1)
     return { code: "invalid_playbook" };
 
   const actionValues = snapshotArray(value.actions);
   if (actionValues === null || actionValues.length === 0) return { code: "invalid_playbook" };
-  const actions: string[] = [];
+  const actions: AuthorizedAction[] = [];
+  const actionIds: string[] = [];
   const capabilities: string[] = [];
   const actionDurations: number[] = [];
   const actionRequests: number[] = [];
-  for (const action of actionValues) {
+  if (actionValues.length !== CANONICAL_ACTIONS.length) return { code: "invalid_playbook" };
+  for (const [index, action] of actionValues.entries()) {
     const actionSnapshot = snapshotObject(action, PLAYBOOK_ACTION_KEYS);
     if (
       !actionSnapshot.ok ||
@@ -537,6 +675,8 @@ function parsePlaybook(
     if (!Object.prototype.hasOwnProperty.call(ACTION_MAP, id))
       return { code: "unknown_playbook_action" };
     const descriptor = ACTION_MAP[id as ActionId];
+    const canonical = CANONICAL_ACTIONS[index];
+    if (!canonical || id !== canonical.id) return { code: "invalid_playbook" };
     if (actionSnapshot.value.type !== descriptor.type) return { code: "unknown_playbook_action" };
     if (actionSnapshot.value.allowedTargets !== "scope")
       return { code: "target_category_not_allowed" };
@@ -567,11 +707,17 @@ function parsePlaybook(
       !Number.isSafeInteger(actionLimit.value.durationS)
     )
       return { code: "invalid_playbook" };
-    if (actions.includes(id)) return { code: "unknown_playbook_action" };
-    actions.push(id);
+    if (
+      actionLimit.value.requests !== canonical.limit.requests ||
+      actionLimit.value.durationS !== canonical.limit.durationS
+    )
+      return { code: "invalid_playbook" };
+    if (actionIds.includes(id)) return { code: "unknown_playbook_action" };
+    actionIds.push(id);
     actionDurations.push(actionLimit.value.durationS);
     actionRequests.push(actionLimit.value.requests);
     if (!capabilities.includes(descriptor.capability)) capabilities.push(descriptor.capability);
+    actions.push(Object.freeze({ ...canonical, capability: descriptor.capability }));
   }
 
   const playbookLimits = snapshotObject(value.limits, PLAYBOOK_LIMIT_KEYS);
@@ -592,6 +738,9 @@ function parsePlaybook(
     !Number.isSafeInteger(maxRatePerMin)
   )
     return { code: "invalid_playbook" };
+  if (maxDurationS !== 300 || maxConcurrency !== 1 || maxRatePerMin !== 10) {
+    return { code: "invalid_playbook" };
+  }
   if (actionDurations.some((durationS) => durationS > maxDurationS)) {
     return { code: "invalid_playbook" };
   }
@@ -609,25 +758,43 @@ function parsePlaybook(
     allow[0] !== "scope_target"
   )
     return { code: "invalid_playbook" };
-  if (uniqueSafeStrings(playbookLimits.value.impactLevels, SEVERITY_LEVELS) === null)
+  const impactLevels = uniqueSafeStrings(playbookLimits.value.impactLevels, SEVERITY_LEVELS);
+  if (
+    impactLevels === null ||
+    impactLevels.length !== 1 ||
+    impactLevels[0] !== CANONICAL_IMPACT_LEVELS[0]
+  )
     return { code: "invalid_playbook" };
 
   const stopSignals = uniqueSafeStrings(value.stopSignals, STOP_SIGNALS);
-  if (stopSignals === null || stopSignals.length !== STOP_SIGNALS.size)
+  if (
+    stopSignals === null ||
+    stopSignals.length !== CANONICAL_STOP_SIGNALS.length ||
+    stopSignals.some((signal, index) => signal !== CANONICAL_STOP_SIGNALS[index])
+  )
     return { code: "invalid_playbook" };
   const evidence = snapshotObject(value.evidence, ["expected", "format"]);
+  const expectedEvidence = evidence.ok ? uniqueSafeStrings(evidence.value.expected) : null;
   if (
     !evidence.ok ||
     !exactKeys(evidence, ["expected", "format"]) ||
     evidence.value.format !== "manifest" ||
-    uniqueSafeStrings(evidence.value.expected) === null
+    expectedEvidence === null ||
+    expectedEvidence.length !== CANONICAL_EVIDENCE.expected.length ||
+    expectedEvidence[0] !== CANONICAL_EVIDENCE.expected[0]
   )
     return { code: "invalid_playbook" };
-  if (uniqueSafeStrings(value.severityPossible, SEVERITY_LEVELS) === null)
+  const severity = uniqueSafeStrings(value.severityPossible, SEVERITY_LEVELS);
+  if (
+    severity === null ||
+    severity.length !== CANONICAL_SEVERITY.length ||
+    severity.some((level, index) => level !== CANONICAL_SEVERITY[index])
+  )
     return { code: "invalid_playbook" };
   return {
     value: {
       actions,
+      actionIds,
       capabilities,
       limits: Object.freeze({
         durationS: maxDurationS,
@@ -734,12 +901,15 @@ function authorizeUnsafe(input: ActionRequest): PolicyDecision {
     typeof scope !== "object" ||
     !scopeShape.ok ||
     !isOwn(scopeShape.value, "inclusions") ||
-    !isOwn(scopeShape.value, "exclusions")
+    !isOwn(scopeShape.value, "exclusions") ||
+    !isCompiledScope(scope)
   ) {
     add("scope_required");
     add("target_invalid");
-  } else if (normalized?.ok && !matchesScope(scope as CompiledScope, target.candidate ?? "")) {
+  } else if (normalized?.ok && !matchesScope(scope, target.candidate ?? "")) {
     add("target_out_of_scope");
+  } else if (context && fingerprintScope(scope) !== context.scopeFingerprint) {
+    add("invalid_context");
   }
   let resolvedAddresses: readonly string[] | undefined;
   if (normalized?.ok) {
@@ -803,8 +973,17 @@ function authorizeUnsafe(input: ActionRequest): PolicyDecision {
             credits: rights.maxCredits,
             egress: Object.freeze(["scope_target"] as const),
           });
+    const effectiveActions = parsedPlaybook.value.actions.map((action) =>
+      Object.freeze({
+        ...action,
+        limit: Object.freeze({
+          requests: Math.min(action.limit.requests, effectiveLimits.ratePerMin),
+          durationS: Math.min(action.limit.durationS, effectiveLimits.durationS),
+        }),
+      }),
+    );
     return allowed(
-      parsedPlaybook.value.actions,
+      effectiveActions,
       parsedPlaybook.value.capabilities,
       effectiveLimits,
       normalizedTarget,
