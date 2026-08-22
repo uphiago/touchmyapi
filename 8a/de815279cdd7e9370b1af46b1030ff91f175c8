@@ -1,0 +1,40 @@
+packages/db/test/tenant-session.integration.test.ts
+  s_bc54431df54bf2::t_c2821cd30dbbdb 27-30,93-96,183-188,190-209,215-217,219-221,223-225
+  s_bc54431df54bf2::t_274bca25a6b4eb 249
+  s_bc54431df54bf2::t_22ff39bda6e841 157-178,231-232,242,248
+  s_bc54431df54bf2::t_75e00a241332c7 8,110-119,122-127,214,218
+  s_bc54431df54bf2::t_60de1d1864d825 120-121
+  s_bc54431df54bf2::t_be48c4b4d06dac 39,48,52,105
+  s_bc54431df54bf2::t_a5212699fa8026 189,210-213,222,233,256-270,272-273,275-368
+  s_bc54431df54bf2::t_1fa18baa2de8e0 241
+  s_bc54431df54bf2::t_8a540e55ba8391 128-146
+  s_bc54431df54bf2::t_0b019c868a588d 271,274
+  s_bc54431df54bf2::t_f9de32f2a64958 1-7,9-26,31-38,40-47,49-51,53-92,97-104,106-109,147-156,179-182,226-230,234-240,243-247,250-255,369-387
+  s_bc54431df54bf2::t_2c2baece0f536e 388-433
+packages/db/src/index.ts
+  s_bc54431df54bf2::t_48ac993da7fe80 5,19
+  s_bc54431df54bf2::t_e1f2014bd0294e 8-10
+packages/db/src/tenant-session.ts
+  s_bc54431df54bf2::t_e1f2014bd0294e 1-17,19-48,52,54-57,59-64,69-73,75-82
+  s_bc54431df54bf2::t_bdfb15518af6dd 53,83
+  s_bc54431df54bf2::t_64e06ff549917c 49-51
+  s_bc54431df54bf2::t_c4ba04100dea63 58,65,74
+  s_bc54431df54bf2::t_0090a79b7f03b8 66-68
+  s_bc54431df54bf2::t_ddbc3daa660cad 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "8ade815279cdd7e9370b1af46b1030ff91f175c8",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
