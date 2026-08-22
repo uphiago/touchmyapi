@@ -14,3 +14,13 @@ export type {
   ScopeRule,
   ScopeRuleInput,
 } from "./scope";
+export { isPlan, rightsForPlan } from "./entitlement";
+export type { PlaybookSlice, Plan, Rights, Visibility } from "./entitlement";
+export { reduceLimits } from "./limits";
+export type {
+  EffectiveLimits,
+  LimitCeiling,
+  LimitInput,
+  LimitResult,
+  PlaybookLimits,
+} from "./limits";
