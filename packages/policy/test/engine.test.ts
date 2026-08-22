@@ -18,7 +18,7 @@ const limits = () => ({
 });
 
 const playbook = (
-  actions: readonly string[] = [
+  actionIds: readonly string[] = [
     "dns.records",
     "tls.cert",
     "http.headers",
@@ -32,8 +32,39 @@ const playbook = (
   version: "1.0.0" as const,
   targetCategory: "surface" as const,
   active: true,
-  actions,
+  preconditions: [{ kind: "http_verification_required", when: "active_external" }],
+  actions: actionIds.map((id) => ({
+    id,
+    type: ACTION_TYPES[id as keyof typeof ACTION_TYPES] ?? "unknown",
+    allowedTargets: "scope" as const,
+    ...(id === "http.headers" ||
+    id === "robots.txt" ||
+    id === "sitemap.xml" ||
+    id === "endpoint.minimal"
+      ? { method: "GET" }
+      : {}),
+    limit: { requests: 1, durationS: 30 },
+  })),
+  limits: {
+    maxDurationS: 300,
+    maxConcurrency: 1,
+    maxRatePerMin: 10,
+    egress: { allow: ["scope_target" as const], blockDefaults: true },
+    impactLevels: ["info", "low"],
+  },
+  stopSignals: ["scope_escape", "rate_exceeded", "unauthorized_endpoint", "duration_exceeded"],
+  evidence: { expected: ["public_posture"], format: "manifest" as const },
+  severityPossible: ["info", "low"],
 });
+
+const ACTION_TYPES = {
+  "dns.records": "dns_lookup",
+  "tls.cert": "tls_probe",
+  "http.headers": "http_probe",
+  "robots.txt": "robots_fetch",
+  "sitemap.xml": "sitemap_fetch",
+  "endpoint.minimal": "endpoint_probe",
+} as const;
 
 const valid = (overrides: Record<string, unknown> = {}): ActionRequest => ({
   action: "passive_external",
@@ -160,5 +191,66 @@ describe("authorize", () => {
     expect(Object.isFrozen(result.limits)).toBe(true);
     expect(Object.isFrozen(result.limits?.egress)).toBe(true);
     expect(input.action).toBe("passive_external");
+  });
+
+  it.each([
+    ["missing preconditions", { ...playbook(), preconditions: undefined }],
+    ["missing limits", { ...playbook(), limits: undefined }],
+    ["missing evidence", { ...playbook(), evidence: undefined }],
+    ["string action compatibility", { ...playbook(), actions: ["dns.records"] }],
+  ])("rejects incomplete playbook facts (%s)", (_name, incomplete) => {
+    const result = authorize(valid({ playbook: incomplete }));
+    expect(result.allowed).toBe(false);
+    expect(result.blocked.map((block) => block.code)).toContain("invalid_playbook");
+  });
+
+  it("rejects resolved address accessors and proxies without throwing", () => {
+    const addressProxy = new Proxy(["8.8.8.8"], {
+      get() {
+        throw new Error("get trap");
+      },
+      getOwnPropertyDescriptor() {
+        throw new Error("descriptor trap");
+      },
+    });
+    const result = authorize(
+      valid({ target: { candidate: "https://example.com/", resolvedAddresses: addressProxy } }),
+    );
+    expect(result.allowed).toBe(false);
+    expect(result.blocked.map((block) => block.code)).toContain("target_invalid");
+
+    const getProxy = new Proxy(["8.8.8.8"], {
+      get: () => {
+        throw new Error("get trap");
+      },
+    });
+    const getResult = authorize(
+      valid({ target: { candidate: "https://example.com/", resolvedAddresses: getProxy } }),
+    );
+    expect(getResult.allowed).toBe(false);
+    expect(getResult.blocked.map((block) => block.code)).toContain("target_invalid");
+
+    const accessorAddresses: unknown[] = ["8.8.8.8"];
+    Object.defineProperty(accessorAddresses, "0", { get: () => "8.8.8.8" });
+    const accessorResult = authorize(
+      valid({
+        target: { candidate: "https://example.com/", resolvedAddresses: accessorAddresses },
+      }),
+    );
+    expect(accessorResult.allowed).toBe(false);
+    expect(accessorResult.blocked.map((block) => block.code)).toContain("target_invalid");
+  });
+
+  it("caps caller limit facts to the validated playbook contract", () => {
+    const result = authorize(
+      valid({
+        limits: {
+          ...limits(),
+          playbook: { ...limits().playbook, durationS: 999, ratePerMin: 999 },
+        },
+      }),
+    );
+    expect(result.allowed).toBe(true);
+    expect(result.limits).toMatchObject({ durationS: 300, ratePerMin: 10 });
   });
 });

@@ -114,6 +114,7 @@ function snapshotArray(input: unknown): readonly unknown[] | null {
     }
     const length = lengthDescriptor.value as number;
     if (length < 0 || keys.length !== length + 1) return null;
+    if (Reflect.get(input, "length") !== length) return null;
     const values: unknown[] = [];
     for (let index = 0; index < length; index += 1) {
       const key = String(index);
@@ -207,7 +208,18 @@ function parseTarget(root: RecordValue): {
   if (isOwn(root, "candidateUrl")) candidate = root.candidateUrl;
   if (isOwn(root, "resolvedAddresses")) addresses = root.resolvedAddresses;
   if (candidate !== undefined && typeof candidate !== "string") malformed = true;
-  if (addresses !== undefined && !Array.isArray(addresses)) malformed = true;
+  if (addresses !== undefined) {
+    const addressSnapshot = snapshotArray(addresses);
+    if (
+      addressSnapshot === null ||
+      addressSnapshot.some((address) => typeof address !== "string")
+    ) {
+      malformed = true;
+      addresses = undefined;
+    } else {
+      addresses = addressSnapshot as readonly string[];
+    }
+  }
   return {
     candidate: typeof candidate === "string" ? candidate : undefined,
     addresses: Array.isArray(addresses) ? (addresses as readonly string[]) : undefined,
@@ -240,13 +252,26 @@ function parseScope(root: RecordValue): {
       ? wrapper.value.candidate
       : wrapper.value.candidateUrl;
     const addresses = wrapper.value.resolvedAddresses;
+    let normalizedAddresses: readonly string[] | undefined;
+    let malformed =
+      (candidate !== undefined && typeof candidate !== "string") ||
+      (addresses !== undefined && !Array.isArray(addresses));
+    if (!malformed && addresses !== undefined) {
+      const addressSnapshot = snapshotArray(addresses);
+      if (
+        addressSnapshot === null ||
+        addressSnapshot.some((address) => typeof address !== "string")
+      ) {
+        malformed = true;
+      } else {
+        normalizedAddresses = addressSnapshot as readonly string[];
+      }
+    }
     return {
       scope: compiled,
       candidate: typeof candidate === "string" ? candidate : undefined,
-      addresses: Array.isArray(addresses) ? (addresses as readonly string[]) : undefined,
-      malformed:
-        (candidate !== undefined && typeof candidate !== "string") ||
-        (addresses !== undefined && !Array.isArray(addresses)),
+      addresses: normalizedAddresses,
+      malformed,
     };
   }
   return { scope: raw, candidate: undefined, addresses: undefined, malformed: false };
@@ -279,102 +304,235 @@ function parseVerification(input: unknown): VerificationState {
   return snapshot.value.status === "verified" ? "other_verified" : "other_unverified";
 }
 
-type ParsedPlaybook = { actions: readonly string[]; capabilities: readonly string[] };
+type ParsedPlaybook = {
+  actions: readonly string[];
+  capabilities: readonly string[];
+  limits: Readonly<{
+    durationS: number;
+    concurrency: number;
+    ratePerMin: number;
+    egress: readonly ["scope_target"];
+  }>;
+};
+
+const PLAYBOOK_KEYS = [
+  "schemaVersion",
+  "key",
+  "version",
+  "targetCategory",
+  "active",
+  "preconditions",
+  "actions",
+  "limits",
+  "stopSignals",
+  "evidence",
+  "severityPossible",
+] as const;
+const PLAYBOOK_ACTION_KEYS = ["id", "type", "allowedTargets", "method", "limit"] as const;
+const PLAYBOOK_LIMIT_KEYS = [
+  "maxDurationS",
+  "maxConcurrency",
+  "maxRatePerMin",
+  "egress",
+  "impactLevels",
+] as const;
+const STOP_SIGNALS = new Set([
+  "scope_escape",
+  "rate_exceeded",
+  "unauthorized_endpoint",
+  "duration_exceeded",
+]);
+const SEVERITY_LEVELS = new Set(["info", "low", "medium", "high", "critical"]);
+const HTTP_ACTION_TYPES = new Set([
+  "http_probe",
+  "robots_fetch",
+  "sitemap_fetch",
+  "endpoint_probe",
+]);
+
+function exactKeys(snapshot: Snapshot, required: readonly string[]): boolean {
+  return (
+    snapshot.ok &&
+    snapshot.keys.length === required.length &&
+    required.every((key) => snapshot.keys.includes(key))
+  );
+}
+
+function uniqueSafeStrings(
+  input: unknown,
+  allowed?: ReadonlySet<string>,
+): readonly string[] | null {
+  const values = snapshotArray(input);
+  if (values === null || values.length === 0) return null;
+  const result: string[] = [];
+  for (const value of values) {
+    if (typeof value !== "string" || !SAFE_VERSION.test(value) || (allowed && !allowed.has(value)))
+      return null;
+    if (result.includes(value)) return null;
+    result.push(value);
+  }
+  return result;
+}
+
 function parsePlaybook(
   input: unknown,
   category: string,
 ): { value?: ParsedPlaybook; code?: BlockCode } {
   if (input === null || input === undefined) return { code: "playbook_required" };
-  const snapshot = snapshotObject(input, [
-    "schemaVersion",
-    "key",
-    "version",
-    "targetCategory",
-    "active",
-    "preconditions",
-    "actions",
-    "limits",
-    "stopSignals",
-    "evidence",
-    "severityPossible",
-  ]);
-  if (!snapshot.ok) return { code: "invalid_playbook" };
+  const snapshot = snapshotObject(input, PLAYBOOK_KEYS);
+  if (!snapshot.ok || !exactKeys(snapshot, PLAYBOOK_KEYS)) return { code: "invalid_playbook" };
   const value = snapshot.value;
-  const actionValues = snapshot.ok ? snapshotArray(snapshot.value.actions) : null;
+  if (value.targetCategory !== category) return { code: "target_category_mismatch" };
   if (
     value.schemaVersion !== "playbook.schema@1" ||
     value.key !== "surface-public-posture" ||
     value.version !== "1.0.0" ||
-    value.targetCategory !== category ||
-    value.active !== true ||
-    actionValues === null ||
-    actionValues.length === 0
+    value.active !== true
   ) {
-    return {
-      code: value.targetCategory !== category ? "target_category_mismatch" : "invalid_playbook",
-    };
+    return { code: "invalid_playbook" };
   }
+
+  const preconditions = snapshotArray(value.preconditions);
+  if (preconditions === null || preconditions.length === 0) return { code: "invalid_playbook" };
+  const preconditionKeys = new Set<string>();
+  let hasActiveHttpVerification = false;
+  for (const precondition of preconditions) {
+    const condition = snapshotObject(precondition, ["kind", "when"]);
+    if (
+      !condition.ok ||
+      !exactKeys(condition, ["kind", "when"]) ||
+      typeof condition.value.kind !== "string" ||
+      !SAFE_VERSION.test(condition.value.kind) ||
+      typeof condition.value.when !== "string" ||
+      !SAFE_VERSION.test(condition.value.when)
+    ) {
+      return { code: "invalid_playbook" };
+    }
+    const key = `${condition.value.kind}\u0000${condition.value.when}`;
+    if (preconditionKeys.has(key)) return { code: "invalid_playbook" };
+    preconditionKeys.add(key);
+    if (
+      condition.value.kind === "http_verification_required" &&
+      condition.value.when === "active_external"
+    )
+      hasActiveHttpVerification = true;
+  }
+  if (!hasActiveHttpVerification) return { code: "invalid_playbook" };
+
+  const actionValues = snapshotArray(value.actions);
+  if (actionValues === null || actionValues.length === 0) return { code: "invalid_playbook" };
   const actions: string[] = [];
   const capabilities: string[] = [];
+  const actionDurations: number[] = [];
   for (const action of actionValues) {
-    let id: unknown = action;
-    let expectedType: string | undefined;
-    let expectedCapability: string | undefined;
-    if (typeof action === "object" && action !== null && !Array.isArray(action)) {
-      const actionSnapshot = snapshotObject(action, [
-        "id",
-        "type",
-        "allowedTargets",
-        "method",
-        "limit",
-        "capability",
-      ]);
-      if (!actionSnapshot.ok || typeof actionSnapshot.value.id !== "string")
-        return { code: "invalid_playbook" };
-      id = actionSnapshot.value.id;
-      expectedType =
-        typeof actionSnapshot.value.type === "string" ? actionSnapshot.value.type : undefined;
-      expectedCapability =
-        typeof actionSnapshot.value.capability === "string"
-          ? actionSnapshot.value.capability
-          : undefined;
-      if (expectedType === undefined || actionSnapshot.value.allowedTargets !== "scope") {
-        return { code: "target_category_not_allowed" };
-      }
+    const actionSnapshot = snapshotObject(action, PLAYBOOK_ACTION_KEYS);
+    if (
+      !actionSnapshot.ok ||
+      (!exactKeys(actionSnapshot, ["id", "type", "allowedTargets", "limit"]) &&
+        !exactKeys(actionSnapshot, PLAYBOOK_ACTION_KEYS))
+    )
+      return { code: "invalid_playbook" };
+    if (!actionSnapshot.ok || typeof actionSnapshot.value.id !== "string")
+      return { code: "invalid_playbook" };
+    const id = actionSnapshot.value.id;
+    if (!Object.prototype.hasOwnProperty.call(ACTION_MAP, id))
+      return { code: "unknown_playbook_action" };
+    const descriptor = ACTION_MAP[id as ActionId];
+    if (actionSnapshot.value.type !== descriptor.type) return { code: "unknown_playbook_action" };
+    if (actionSnapshot.value.allowedTargets !== "scope")
+      return { code: "target_category_not_allowed" };
+    if (isOwn(actionSnapshot.value, "method")) {
       if (
-        isOwn(actionSnapshot.value, "method") &&
-        typeof actionSnapshot.value.method !== "string"
-      ) {
+        typeof actionSnapshot.value.method !== "string" ||
+        !SAFE_VERSION.test(actionSnapshot.value.method)
+      )
         return { code: "invalid_playbook" };
-      }
-      if (isOwn(actionSnapshot.value, "limit")) {
-        const limit = snapshotObject(actionSnapshot.value.limit, ["requests", "durationS"]);
-        if (
-          !limit.ok ||
-          typeof limit.value.requests !== "number" ||
-          typeof limit.value.durationS !== "number"
-        ) {
-          return { code: "invalid_playbook" };
-        }
-      }
+      if (HTTP_ACTION_TYPES.has(descriptor.type) && actionSnapshot.value.method !== "GET")
+        return { code: "invalid_playbook" };
     }
-    if (typeof id !== "string" || !Object.prototype.hasOwnProperty.call(ACTION_MAP, id)) {
-      return { code: "unknown_playbook_action" };
-    }
-    const actionId = id as ActionId;
-    const descriptor = ACTION_MAP[actionId];
-    if (expectedType !== undefined && expectedType !== descriptor.type)
-      return { code: "unknown_playbook_action" };
-    if (expectedCapability !== undefined && expectedCapability !== descriptor.capability)
-      return { code: "capability_not_allowed" };
-    if (actions.includes(actionId)) return { code: "unknown_playbook_action" };
-    actions.push(actionId);
+    const actionLimit = snapshotObject(actionSnapshot.value.limit, ["requests", "durationS"]);
+    if (
+      !actionLimit.ok ||
+      !exactKeys(actionLimit, ["requests", "durationS"]) ||
+      typeof actionLimit.value.requests !== "number" ||
+      actionLimit.value.requests <= 0 ||
+      !Number.isSafeInteger(actionLimit.value.requests) ||
+      typeof actionLimit.value.durationS !== "number" ||
+      actionLimit.value.durationS <= 0 ||
+      !Number.isSafeInteger(actionLimit.value.durationS)
+    )
+      return { code: "invalid_playbook" };
+    if (actions.includes(id)) return { code: "unknown_playbook_action" };
+    actions.push(id);
+    actionDurations.push(actionLimit.value.durationS);
     if (!capabilities.includes(descriptor.capability)) capabilities.push(descriptor.capability);
   }
-  return { value: { actions, capabilities } };
+
+  const playbookLimits = snapshotObject(value.limits, PLAYBOOK_LIMIT_KEYS);
+  if (!playbookLimits.ok || !exactKeys(playbookLimits, PLAYBOOK_LIMIT_KEYS))
+    return { code: "invalid_playbook" };
+  const maxDurationS = playbookLimits.value.maxDurationS;
+  const maxConcurrency = playbookLimits.value.maxConcurrency;
+  const maxRatePerMin = playbookLimits.value.maxRatePerMin;
+  if (
+    typeof maxDurationS !== "number" ||
+    maxDurationS <= 0 ||
+    !Number.isSafeInteger(maxDurationS) ||
+    typeof maxConcurrency !== "number" ||
+    maxConcurrency <= 0 ||
+    !Number.isSafeInteger(maxConcurrency) ||
+    typeof maxRatePerMin !== "number" ||
+    maxRatePerMin <= 0 ||
+    !Number.isSafeInteger(maxRatePerMin)
+  )
+    return { code: "invalid_playbook" };
+  if (actionDurations.some((durationS) => durationS > maxDurationS)) {
+    return { code: "invalid_playbook" };
+  }
+  const egress = snapshotObject(playbookLimits.value.egress, ["allow", "blockDefaults"]);
+  const allow = egress.ok ? snapshotArray(egress.value.allow) : null;
+  if (
+    !egress.ok ||
+    !exactKeys(egress, ["allow", "blockDefaults"]) ||
+    egress.value.blockDefaults !== true ||
+    allow === null ||
+    allow.length !== 1 ||
+    allow[0] !== "scope_target"
+  )
+    return { code: "invalid_playbook" };
+  if (uniqueSafeStrings(playbookLimits.value.impactLevels, SEVERITY_LEVELS) === null)
+    return { code: "invalid_playbook" };
+
+  if (uniqueSafeStrings(value.stopSignals, STOP_SIGNALS) === null)
+    return { code: "invalid_playbook" };
+  const evidence = snapshotObject(value.evidence, ["expected", "format"]);
+  if (
+    !evidence.ok ||
+    !exactKeys(evidence, ["expected", "format"]) ||
+    evidence.value.format !== "manifest" ||
+    uniqueSafeStrings(evidence.value.expected) === null
+  )
+    return { code: "invalid_playbook" };
+  if (uniqueSafeStrings(value.severityPossible, SEVERITY_LEVELS) === null)
+    return { code: "invalid_playbook" };
+  return {
+    value: {
+      actions,
+      capabilities,
+      limits: Object.freeze({
+        durationS: maxDurationS,
+        concurrency: maxConcurrency,
+        ratePerMin: maxRatePerMin,
+        egress: Object.freeze(["scope_target"] as const),
+      }),
+    },
+  };
 }
 
-function limitsResult(input: unknown): { value?: EffectiveLimits; code?: BlockCode } {
+function limitsResult(
+  input: unknown,
+  playbookLimits?: ParsedPlaybook["limits"],
+): { value?: EffectiveLimits; code?: BlockCode } {
   if (input === null || input === undefined) return { code: "invalid_limits" };
   try {
     const result = reduceLimits(input as LimitInput);
@@ -382,14 +540,23 @@ function limitsResult(input: unknown): { value?: EffectiveLimits; code?: BlockCo
     if (result.ok !== true)
       return { code: result.code === "invalid_egress" ? "invalid_egress" : "invalid_limits" };
     if (!result.value || typeof result.value !== "object") return { code: "invalid_limits" };
-    return { value: result.value };
+    if (!playbookLimits) return { value: result.value };
+    return {
+      value: Object.freeze({
+        durationS: Math.min(result.value.durationS, playbookLimits.durationS),
+        concurrency: Math.min(result.value.concurrency, playbookLimits.concurrency),
+        ratePerMin: Math.min(result.value.ratePerMin, playbookLimits.ratePerMin),
+        credits: result.value.credits,
+        egress: Object.freeze(["scope_target"] as const),
+      }),
+    };
   } catch {
     return { code: "invalid_limits" };
   }
 }
 
 /** Pure final-authority policy reduction. It performs all checks and never executes caller actions. */
-export function authorize(input: ActionRequest): PolicyDecision {
+function authorizeUnsafe(input: ActionRequest): PolicyDecision {
   const blocked: BlockCode[] = [];
   const add = (code: BlockCode) => {
     if (!blocked.includes(code)) blocked.push(code);
@@ -488,7 +655,7 @@ export function authorize(input: ActionRequest): PolicyDecision {
     add("caller_execution_fields_not_allowed");
   }
 
-  const reduced = limitsResult(rootValid ? root.limits : undefined);
+  const reduced = limitsResult(rootValid ? root.limits : undefined, parsedPlaybook.value?.limits);
   if (reduced.code) add(reduced.code);
 
   if (action === "active_external" && plan === "free_unverified") add("plan_action_not_allowed");
@@ -514,5 +681,14 @@ export function authorize(input: ActionRequest): PolicyDecision {
     );
   } catch {
     return denied(["unknown_plan"]);
+  }
+}
+
+/** Defensive public boundary: malformed runtime objects can never escape as exceptions. */
+export function authorize(input: ActionRequest): PolicyDecision {
+  try {
+    return authorizeUnsafe(input);
+  } catch {
+    return denied(["target_invalid"]);
   }
 }
