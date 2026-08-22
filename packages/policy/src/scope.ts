@@ -429,6 +429,9 @@ function compileRule(input: ScopeRuleInput): ScopeRule {
   if (wildcard) {
     if (!hostInput.startsWith("*.")) throw new ScopeValidationError("invalid_wildcard");
     hostInput = hostInput.slice(2);
+    if (!hostInput || hostInput.startsWith(".") || hostInput.includes("..")) {
+      throw new ScopeValidationError("invalid_wildcard");
+    }
   } else if (hostInput.startsWith("*")) {
     throw new ScopeValidationError("invalid_wildcard");
   }
@@ -462,7 +465,9 @@ function pathMatches(prefix: string, path: string): boolean {
 function ruleMatches(rule: ScopeRule, candidate: NormalizedTarget): boolean {
   const hostname = candidate.hostname.toLowerCase().replace(/\.+$/, "");
   const hostMatches = rule.wildcard
-    ? hostname.endsWith(`.${rule.host}`) && hostname !== rule.host
+    ? hostname.endsWith(`.${rule.host}`) &&
+      hostname !== rule.host &&
+      !hostname.slice(0, -rule.host.length - 1).includes(".")
     : hostname === rule.host;
   return (
     hostMatches &&
@@ -471,9 +476,19 @@ function ruleMatches(rule: ScopeRule, candidate: NormalizedTarget): boolean {
   );
 }
 
-export function matchesScope(scope: CompiledScope, candidate: NormalizedTarget): boolean {
-  if (scope.exclusions.some((rule) => ruleMatches(rule, candidate))) return false;
-  return scope.inclusions.some((rule) => ruleMatches(rule, candidate));
+export function matchesScope(scope: CompiledScope, candidate: NormalizedTarget): boolean;
+export function matchesScope(scope: CompiledScope, candidate: string): boolean;
+export function matchesScope(scope: CompiledScope, candidate: NormalizedTarget | string): boolean {
+  const target =
+    typeof candidate === "string"
+      ? (() => {
+          const normalized = normalizeExternalUrl(candidate);
+          return normalized.ok ? normalized.value : null;
+        })()
+      : candidate;
+  if (!target) return false;
+  if (scope.exclusions.some((rule) => ruleMatches(rule, target))) return false;
+  return scope.inclusions.some((rule) => ruleMatches(rule, target));
 }
 
 export function validateResolvedAddresses(

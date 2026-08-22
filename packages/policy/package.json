@@ -7,5 +7,9 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@touchmyapi/contracts": "workspace:*",
+    "zod": "^3.24.1"
   }
 }

@@ -151,7 +151,16 @@ describe("compiled scopes", () => {
     expect(matchesScope(scope, target("https://example.com/administrator"))).toBe(false);
     expect(matchesScope(scope, target("https://foo.api.example.com/v1/check"))).toBe(true);
     expect(matchesScope(scope, target("https://api.example.com/v1/check"))).toBe(false);
+    expect(matchesScope(scope, target("https://a.foo.api.example.com/v1/check"))).toBe(false);
     expect(matchesScope(scope, target("https://private.api.example.com/v1/private/x"))).toBe(false);
+  });
+
+  it("accepts a URL string candidate and fails closed on malformed candidates", () => {
+    const scope = compileScope({ inclusions: ["example.com"], exclusions: [] });
+    expect(matchesScope(scope, "https://example.com/")).toBe(true);
+    expect(matchesScope(scope, "https://127.0.0.1/")).toBe(false);
+    expect(() => matchesScope(scope, "not a URL")).not.toThrow();
+    expect(matchesScope(scope, "not a URL")).toBe(false);
   });
 
   it("matches explicit ports and treats an omitted port as unconstrained", () => {
@@ -170,6 +179,7 @@ describe("compiled scopes", () => {
     "*",
     "*.com",
     "foo.*.example.com",
+    "*..example.com",
     "*example.com",
     "127.0.0.1",
     "example.com:",
@@ -178,6 +188,12 @@ describe("compiled scopes", () => {
   ])("rejects broad, malformed, or forbidden scope rule %s", (rule) => {
     expect(() => compileScope({ inclusions: [rule], exclusions: [] })).toThrow(
       ScopeValidationError,
+    );
+  });
+
+  it("reports an invalid wildcard code for an empty label", () => {
+    expect(() => compileScope({ inclusions: ["*..example.com"], exclusions: [] })).toThrowError(
+      expect.objectContaining({ code: "invalid_wildcard" }),
     );
   });
 
