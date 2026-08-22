@@ -5,13 +5,13 @@
   "scripts": {
     "dev:api": "bun --cwd apps/api dev",
     "dev:web": "bun --cwd apps/web dev",
-    "typecheck": "bunx tsc --noEmit",
+    "typecheck": "bun x tsc --noEmit",
     "test": "bun test",
     "verify:workspace": "bun scripts/verify-workspace.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "typescript": "latest",
+    "typescript": "^5.6.3",
     "vitest": "latest"
   }
 }
