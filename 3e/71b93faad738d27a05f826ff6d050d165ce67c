@@ -1,0 +1,21 @@
+packages/policy/test/scope.test.ts
+  s_bc54431df54bf2::t_d450c33cf8663f 275-301
+packages/policy/src/scope.ts
+  s_bc54431df54bf2::t_1613e93411187c 48,61-64,503,507-508,532
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "3e71b93faad738d27a05f826ff6d050d165ce67c",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
