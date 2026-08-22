@@ -275,7 +275,7 @@ schemaDescribe("PostgreSQL foundation schema", () => {
       from information_schema.columns
       where table_schema = 'public'
         and ((table_name = 'account' and column_name in ('id', 'status', 'settings_ia_enabled', 'created_at', 'deleted_at'))
-          or (table_name = 'session' and column_name in ('id', 'token_hash', 'expires_at'))
+          or (table_name = 'session' and column_name in ('id', 'token_hash', 'expires_at', 'family_id'))
           or (table_name = 'assessment' and column_name in ('target_json', 'limits_json', 'status', 'credits_estimate', 'credits_consumed', 'updated_at'))
           or (table_name = 'job' and column_name in ('status', 'attempts', 'max_attempts'))
           or (table_name = 'runner_execution' and column_name = 'cleaned_up')
@@ -295,6 +295,7 @@ schemaDescribe("PostgreSQL foundation schema", () => {
         "session.id": { defaultValue: "gen_random_uuid()", nullable: "NO" },
         "session.token_hash": { defaultValue: null, nullable: "NO" },
         "session.expires_at": { defaultValue: null, nullable: "NO" },
+        "session.family_id": { defaultValue: "gen_random_uuid()", nullable: "NO" },
         "assessment.target_json": { defaultValue: null, nullable: "NO" },
         "assessment.limits_json": { defaultValue: null, nullable: "NO" },
         "assessment.status": { defaultValue: "'draft'::assessment_status", nullable: "NO" },
@@ -322,6 +323,7 @@ schemaDescribe("PostgreSQL foundation schema", () => {
     }
     expect(byColumn.get("session.token_hash")?.data_type).toBe("text");
     expect(byColumn.get("session.expires_at")?.data_type).toBe("timestamp with time zone");
+    expect(byColumn.get("session.family_id")?.udt_name).toBe("uuid");
     expect(byColumn.get("assessment.target_json")?.udt_name).toBe("jsonb");
     expect(byColumn.get("assessment.limits_json")?.udt_name).toBe("jsonb");
 
@@ -344,6 +346,13 @@ schemaDescribe("PostgreSQL foundation schema", () => {
       expect(primaryByTable.get(table), table).toEqual(["id"]);
     }
     expect(primaryByTable.get("playbook")).toEqual(["key", "playbook_version"]);
+
+    const [familyIndex] = await db`
+      select indexdef
+      from pg_indexes
+      where schemaname = 'public' and tablename = 'session' and indexname = 'session_family_id_idx'
+    `;
+    expect(familyIndex?.indexdef).toContain("(family_id)");
 
     const checks = await db`
       select conname, pg_get_constraintdef(oid) as definition

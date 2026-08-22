@@ -36,6 +36,20 @@
       "when": 1787433372945,
       "tag": "0004_auth_hash_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787435727006,
+      "tag": "0005_session_family",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787436032694,
+      "tag": "0006_security_hardening",
+      "breakpoints": true
     }
   ]
 }

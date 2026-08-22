@@ -1,4 +1,4 @@
-import { foreignKey, pgTable, timestamp, unique } from "drizzle-orm/pg-core";
+import { foreignKey, index, pgTable, timestamp, unique } from "drizzle-orm/pg-core";
 import { boolean, text, uuid } from "drizzle-orm/pg-core";
 import { accountStatus, citext, createdAt, id, identityProvider } from "./common";
 
@@ -38,6 +38,7 @@ export const session = pgTable(
     id: id(),
     accountId: uuid("account_id").notNull(),
     userId: uuid("user_id").notNull(),
+    familyId: uuid("family_id").defaultRandom().notNull(),
     tokenHash: text("token_hash").notNull(),
     rotatedAt: timestamp("rotated_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -47,6 +48,7 @@ export const session = pgTable(
   },
   (table) => [
     unique("session_token_hash_unique").on(table.tokenHash),
+    index("session_family_id_idx").on(table.familyId),
     unique("session_account_id_id_unique").on(table.accountId, table.id),
     foreignKey({
       name: "session_account_user_fk",

@@ -7,10 +7,10 @@ const describeDb = RUN_DB_TESTS ? describe : describe.skip;
 const TENANT_TABLES = [
   "account",
   "user",
-  "session",
   "assessment",
   "authorization_attestation",
   "verification",
+  "session",
   "job",
   "runner_execution",
   "credential",
@@ -29,7 +29,105 @@ const AUTH_FUNCTIONS = [
   ["auth_rotate_session", "text,text,timestamp with time zone"],
   ["auth_revoke_session", "text"],
 ] as const;
+const RUNTIME_ROLES = ["api_rls", "worker_rls", "reporting_rls"] as const;
+const PRIVILEGES = ["select", "insert", "update", "delete"] as const;
+const EXPECTED_TABLE_PRIVILEGES = {
+  api_rls: {
+    select: [
+      "account",
+      "user",
+      "assessment",
+      "authorization_attestation",
+      "verification",
+      "playbook",
+      "credential",
+      "finding",
+      "report",
+      "credit_entry",
+      "entitlement",
+      "agent",
+      "audit_event",
+      "notification",
+    ],
+    insert: [
+      "assessment",
+      "authorization_attestation",
+      "verification",
+      "credential",
+      "audit_event",
+      "agent",
+    ],
+    update: ["account", "assessment", "verification", "credential", "agent", "notification"],
+    delete: ["credential", "agent"],
+  },
+  worker_rls: {
+    select: [
+      "account",
+      "user",
+      "assessment",
+      "authorization_attestation",
+      "verification",
+      "playbook",
+      "job",
+      "runner_execution",
+      "credential",
+      "finding",
+      "report",
+      "credit_entry",
+      "billing_event",
+      "entitlement",
+      "agent",
+      "audit_event",
+      "notification",
+    ],
+    insert: ["job", "runner_execution", "finding", "report", "audit_event", "notification"],
+    update: [
+      "assessment",
+      "verification",
+      "job",
+      "runner_execution",
+      "finding",
+      "report",
+      "agent",
+      "notification",
+    ],
+    delete: ["job", "runner_execution", "credential"],
+  },
+  reporting_rls: {
+    select: [
+      "account",
+      "user",
+      "assessment",
+      "authorization_attestation",
+      "verification",
+      "playbook",
+      "job",
+      "runner_execution",
+      "finding",
+      "report",
+      "credit_entry",
+      "billing_event",
+      "entitlement",
+      "agent",
+      "audit_event",
+      "notification",
+    ],
+    insert: [],
+    update: [],
+    delete: [],
+  },
+} as const;
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+const normalizePolicyExpression = (value: unknown) =>
+  (value == null ? "" : String(value))
+    .replaceAll("public.", "")
+    .replaceAll("::text", "")
+    .replaceAll("::uuid", "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replaceAll("(NULLIF", "NULLIF")
+    .replaceAll(" IS NOT NULL)", " IS NOT NULL")
+    .replace(/^\((.*)\)$/, "$1");
 
 function databaseUrlForTest(): string {
   const value = process.env.DATABASE_URL;
@@ -49,7 +147,8 @@ describeDb("PostgreSQL least-privilege roles", () => {
 
   it("creates non-login, non-owner, non-inheriting, non-bypass runtime roles", async () => {
     const rows = await db`
-      select rolname, rolsuper, rolbypassrls, rolinherit, rolcanlogin
+      select rolname, rolsuper, rolbypassrls, rolinherit, rolcanlogin,
+             rolcreatedb, rolcreaterole, rolreplication
       from pg_roles
       where rolname in ('api_rls', 'worker_rls', 'reporting_rls', 'auth_bootstrap')
       order by rolname
@@ -60,6 +159,9 @@ describeDb("PostgreSQL least-privilege roles", () => {
       expect(row.rolbypassrls).toBe(false);
       expect(row.rolinherit).toBe(false);
       expect(row.rolcanlogin).toBe(false);
+      expect(row.rolcreatedb).toBe(false);
+      expect(row.rolcreaterole).toBe(false);
+      expect(row.rolreplication).toBe(false);
     }
 
     const owners = await db`
@@ -70,6 +172,73 @@ describeDb("PostgreSQL least-privilege roles", () => {
         and r.rolname in ('api_rls', 'worker_rls', 'reporting_rls', 'auth_bootstrap')
     `;
     expect(owners).toEqual([]);
+
+    const memberships = await db`
+      with recursive runtime_memberships(member, roleid) as (
+        select m.member, m.roleid
+        from pg_auth_members m
+        join pg_roles member_role on member_role.oid = m.member
+        where member_role.rolname in ('api_rls', 'worker_rls', 'reporting_rls', 'auth_bootstrap')
+        union all
+        select m.member, m.roleid
+        from pg_auth_members m
+        join runtime_memberships rm on rm.roleid = m.member
+      )
+      select member, roleid from runtime_memberships
+    `;
+    expect(memberships).toEqual([]);
+  });
+
+  it("owns every project table and helper only under the migration owner", async () => {
+    const tables = await db`
+      select c.relname, r.rolname as owner
+      from pg_class c
+      join pg_roles r on r.oid = c.relowner
+      where c.relnamespace = 'public'::regnamespace
+        and c.relkind in ('r', 'p')
+      order by c.relname
+    `;
+    expect(tables.map((row) => row.relname)).toEqual([...TENANT_TABLES, "playbook"].sort());
+    expect(new Set(tables.map((row) => row.owner))).toEqual(new Set([String(tables[0]?.owner)]));
+    const functions = await db`
+      select p.proname, pg_get_function_identity_arguments(p.oid) as args, r.rolname as owner
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      join pg_roles r on r.oid = p.proowner
+      where n.nspname = 'public'
+        and p.proname in ('rls_tenant_matches', 'rls_bootstrap_context', 'auth_complete_google_login',
+                          'auth_resolve_session', 'auth_rotate_session', 'auth_revoke_session')
+      order by p.proname, args
+    `;
+    expect(functions).toHaveLength(6);
+    expect(new Set(functions.map((row) => row.owner))).toEqual(new Set([String(tables[0]?.owner)]));
+  });
+
+  it("has exact table privileges and no PUBLIC object access", async () => {
+    for (const role of RUNTIME_ROLES) {
+      for (const table of [...TENANT_TABLES, "playbook"]) {
+        for (const privilege of PRIVILEGES) {
+          const [row] = await db`
+            select has_table_privilege(${role}, ${`public.${table}`}, ${privilege}) as allowed
+          `;
+          expect(row?.allowed, `${role}/${table}/${privilege}`).toBe(
+            (EXPECTED_TABLE_PRIVILEGES[role][privilege] as readonly string[]).includes(table),
+          );
+        }
+      }
+    }
+    for (const table of [...TENANT_TABLES, "playbook"]) {
+      for (const privilege of PRIVILEGES) {
+        const [row] = await db`
+          select has_table_privilege('public', ${`public.${table}`}, ${privilege}) as allowed
+        `;
+        expect(row?.allowed, `PUBLIC/${table}/${privilege}`).toBe(false);
+      }
+    }
+    const [schema] = await db`
+      select has_schema_privilege('public', 'public', 'create') as allowed
+    `;
+    expect(schema?.allowed).toBe(false);
   });
 
   it("keeps auth bootstrap without direct table DML and grants explicit runtime access", async () => {
@@ -121,16 +290,20 @@ describeDb("PostgreSQL least-privilege roles", () => {
     for (const row of rows) {
       expect(row.relrowsecurity).toBe(true);
       expect(row.relforcerowsecurity).toBe(true);
-      expect(Number(row.policy_count)).toBeGreaterThanOrEqual(3);
-      if (["account", "user", "session", "audit_event"].includes(String(row.relname))) {
-        expect(Number(row.policy_count)).toBeGreaterThanOrEqual(4);
-      }
+      const expectedCount =
+        row.relname === "audit_event"
+          ? 6
+          : ["account", "user", "session"].includes(String(row.relname))
+            ? 4
+            : 3;
+      expect(Number(row.policy_count)).toBe(expectedCount);
     }
   });
 
   it("catalogues policy commands and tenant predicates without command widening", async () => {
     const policies = await db`
       select c.relname, p.polname, p.polcmd,
+             array(select r.rolname from pg_roles r where r.oid = any(p.polroles) order by r.rolname) as roles,
              pg_get_expr(p.polqual, p.polrelid) as using_expr,
              pg_get_expr(p.polwithcheck, p.polrelid) as check_expr
       from pg_policy p
@@ -139,23 +312,59 @@ describeDb("PostgreSQL least-privilege roles", () => {
         and c.relname = any(${TENANT_TABLES}::text[])
     `;
     const byName = new Map(policies.map((policy) => [policy.polname, policy]));
+    const expectedNames = new Set<string>();
     for (const table of TENANT_TABLES) {
       for (const role of ["api_rls", "worker_rls"]) {
         const policy = byName.get(`${table}_${role}_tenant`);
-        expect(policy?.polcmd, `${table}/${role}`).toBe(table === "audit_event" ? "r" : "*");
-        expect(policy?.using_expr).toContain("rls_tenant_matches");
-        if (table !== "audit_event") expect(policy?.check_expr).toContain("rls_tenant_matches");
+        expectedNames.add(`${table}_${role}_tenant`);
+        const selectOnly = ["audit_event", "billing_event", "credit_entry", "entitlement"].includes(
+          table,
+        );
+        expect(policy?.polcmd, `${table}/${role}`).toBe(selectOnly ? "r" : "*");
+        expect(policy?.roles, `${table}/${role}/roles`).toEqual([role]);
+        const tenantColumn = table === "account" ? "id" : "account_id";
+        const expectedUsing = ["billing_event", "credit_entry", "entitlement"].includes(table)
+          ? `rls_tenant_matches(${tenantColumn})`
+          : `rls_tenant_matches(${tenantColumn}) AND NULLIF(current_setting('app.tenant', true), '') IS NOT NULL`;
+        expect(normalizePolicyExpression(policy?.using_expr), `${table}/${role}/using`).toBe(
+          expectedUsing,
+        );
+        expect(normalizePolicyExpression(policy?.check_expr), `${table}/${role}/check`).toBe(
+          selectOnly ? "" : expectedUsing,
+        );
       }
       const reporting = byName.get(`${table}_reporting_rls_tenant`);
+      expectedNames.add(`${table}_reporting_rls_tenant`);
       expect(reporting?.polcmd, `${table}/reporting`).toBe("r");
-      expect(reporting?.using_expr).toContain("rls_tenant_matches");
+      expect(reporting?.roles, `${table}/reporting/roles`).toEqual(["reporting_rls"]);
+      const tenantColumn = table === "account" ? "id" : "account_id";
+      expect(normalizePolicyExpression(reporting?.using_expr)).toBe(
+        ["billing_event", "credit_entry", "entitlement"].includes(table)
+          ? `rls_tenant_matches(${tenantColumn})`
+          : `rls_tenant_matches(${tenantColumn}) AND NULLIF(current_setting('app.tenant', true), '') IS NOT NULL`,
+      );
+      expect(normalizePolicyExpression(reporting?.check_expr)).toBe("");
     }
-    expect(byName.get("audit_event_api_rls_insert")?.polcmd).toBe("a");
-    expect(byName.get("audit_event_worker_rls_insert")?.polcmd).toBe("a");
+    for (const name of ["audit_event_api_rls_insert", "audit_event_worker_rls_insert"]) {
+      expectedNames.add(name);
+      expect(byName.get(name)?.polcmd).toBe("a");
+      expect(byName.get(name)?.roles).toEqual([name.includes("api") ? "api_rls" : "worker_rls"]);
+      expect(normalizePolicyExpression(byName.get(name)?.using_expr)).toBe("");
+      expect(normalizePolicyExpression(byName.get(name)?.check_expr)).toBe(
+        "rls_tenant_matches(account_id) AND NULLIF(current_setting('app.tenant', true), '') IS NOT NULL",
+      );
+    }
     for (const table of ["account", "user", "session", "audit_event"]) {
+      expectedNames.add(`${table}_bootstrap`);
       expect(byName.get(`${table}_bootstrap`)?.polcmd).toBe("*");
+      expect(normalizePolicyExpression(byName.get(`${table}_bootstrap`)?.using_expr)).toBe(
+        "rls_bootstrap_context()",
+      );
+      expect(normalizePolicyExpression(byName.get(`${table}_bootstrap`)?.check_expr)).toBe(
+        "rls_bootstrap_context()",
+      );
     }
-    expect([...byName.keys()].filter((name) => name.endsWith("_bootstrap"))).toHaveLength(4);
+    expect([...byName.keys()].sort()).toEqual([...expectedNames].sort());
   });
 
   it("exposes only the exact auth function signatures to auth_bootstrap", async () => {
@@ -165,6 +374,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
              has_function_privilege('public', p.oid, 'execute') as public_execute,
              has_function_privilege('api_rls', p.oid, 'execute') as api_execute,
              has_function_privilege('worker_rls', p.oid, 'execute') as worker_execute,
+             has_function_privilege('reporting_rls', p.oid, 'execute') as reporting_execute,
              has_function_privilege('auth_bootstrap', p.oid, 'execute') as bootstrap_execute
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
@@ -180,7 +390,31 @@ describeDb("PostgreSQL least-privilege roles", () => {
       expect(row?.public_execute).toBe(false);
       expect(row?.api_execute).toBe(false);
       expect(row?.worker_execute).toBe(false);
+      expect(row?.reporting_execute).toBe(false);
       expect(row?.bootstrap_execute).toBe(true);
+    }
+  });
+
+  it("grants tenant helper execution only to runtime policy roles", async () => {
+    const rows = await db`
+      select p.proname, oidvectortypes(p.proargtypes) as args,
+             has_function_privilege('public', p.oid, 'execute') as public_execute,
+             has_function_privilege('api_rls', p.oid, 'execute') as api_execute,
+             has_function_privilege('worker_rls', p.oid, 'execute') as worker_execute,
+             has_function_privilege('reporting_rls', p.oid, 'execute') as reporting_execute,
+             has_function_privilege('auth_bootstrap', p.oid, 'execute') as bootstrap_execute
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname in ('rls_tenant_matches', 'rls_bootstrap_context')
+      order by p.proname
+    `;
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.public_execute).toBe(false);
+      expect(row.api_execute).toBe(true);
+      expect(row.worker_execute).toBe(true);
+      expect(row.reporting_execute).toBe(true);
+      expect(row.bootstrap_execute).toBe(false);
     }
   });
 
@@ -223,7 +457,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
         const [rotated] = await tx`
         select * from public.auth_rotate_session(${hashB}, ${hashRotated}, ${expiry})
       `;
-        expect(rotated?.session_id).toBe(sameSubject?.session_id);
+        expect(rotated?.session_id).not.toBe(sameSubject?.session_id);
         expect(await tx`select * from public.auth_resolve_session(${hashB})`).toEqual([]);
         expect(await tx`select * from public.auth_resolve_session(${hashRotated})`).toHaveLength(1);
 
@@ -249,6 +483,62 @@ describeDb("PostgreSQL least-privilege roles", () => {
       .catch((error) => {
         expect(error.message).toBe("rollback auth fixture");
       });
+  });
+
+  it("serializes family rotation and logout so old-hash logout revokes replacement", async () => {
+    const rotateDb = createDbConnection(databaseUrlForTest());
+    const revokeDb = createDbConnection(databaseUrlForTest());
+    const run = randomUUID();
+    const firstHash = sha256(`concurrent-first-${run}`);
+    const replacementHash = sha256(`concurrent-replacement-${run}`);
+    let accountId: string | undefined;
+    try {
+      const [created] = await db.begin(async (tx) => {
+        await tx.unsafe("set local role auth_bootstrap");
+        return tx`select * from public.auth_complete_google_login(
+          ${`concurrent-${run}`}, ${`concurrent-${run}@example.test`}::citext, ${firstHash}, now() + interval '1 hour', null, null
+        )`;
+      });
+      if (!created) throw new Error("concurrency fixture missing");
+      accountId = created.account_id;
+
+      await Promise.all([
+        rotateDb.begin(async (tx) => {
+          await tx.unsafe("set local role auth_bootstrap");
+          return tx`select * from public.auth_rotate_session(
+            ${firstHash}, ${replacementHash}, now() + interval '1 hour'
+          )`;
+        }),
+        revokeDb.begin(async (tx) => {
+          await tx.unsafe("set local role auth_bootstrap");
+          return tx`select public.auth_revoke_session(${firstHash})`;
+        }),
+      ]);
+
+      const resolved = await db.begin(async (tx) => {
+        await tx.unsafe("set local role auth_bootstrap");
+        return tx`select * from public.auth_resolve_session(${replacementHash})`;
+      });
+      expect(resolved).toEqual([]);
+      const oldResolved = await db.begin(async (tx) => {
+        await tx.unsafe("set local role auth_bootstrap");
+        return tx`select * from public.auth_resolve_session(${firstHash})`;
+      });
+      expect(oldResolved).toEqual([]);
+    } finally {
+      const cleanupAccountId = accountId;
+      if (cleanupAccountId) {
+        await db.begin(async (tx) => {
+          await tx.unsafe("reset role");
+          await tx`delete from public.session where account_id = ${cleanupAccountId}`;
+          await tx`delete from public.audit_event where account_id = ${cleanupAccountId}`;
+          await tx`delete from public."user" where account_id = ${cleanupAccountId}`;
+          await tx`delete from public.account where id = ${cleanupAccountId}`;
+        });
+      }
+      await rotateDb.end();
+      await revokeDb.end();
+    }
   });
 
   it("rejects raw, blank, non-hex, and non-canonical session hashes without side effects", async () => {

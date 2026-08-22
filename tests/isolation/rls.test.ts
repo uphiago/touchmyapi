@@ -27,6 +27,43 @@ const TENANT_TABLES = [
   "audit_event",
   "notification",
 ] as const;
+const SELECT_GRANTED: Record<string, ReadonlySet<string>> = {
+  api_rls: new Set([
+    "account",
+    "user",
+    "assessment",
+    "authorization_attestation",
+    "verification",
+    "playbook",
+    "credential",
+    "finding",
+    "report",
+    "credit_entry",
+    "entitlement",
+    "agent",
+    "audit_event",
+    "notification",
+  ]),
+  worker_rls: new Set(TENANT_TABLES.filter((table) => table !== "session")),
+  reporting_rls: new Set([
+    "account",
+    "user",
+    "assessment",
+    "authorization_attestation",
+    "verification",
+    "playbook",
+    "job",
+    "runner_execution",
+    "finding",
+    "report",
+    "credit_entry",
+    "billing_event",
+    "entitlement",
+    "agent",
+    "audit_event",
+    "notification",
+  ]),
+};
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 type Tx = DbTransaction;
 type TenantRows = {
@@ -140,6 +177,7 @@ async function createTenantRows(
     (account_id, assessment_id, kind, object_key, contract_version, sanitized)
     values (${accountId}, ${assessment.id}, 'json', ${`fixture-${suffix}`}, '1', false) returning id`;
   if (!report) throw new Error("report fixture missing");
+  await tx.unsafe("reset role");
   const [creditEntry] = await tx`insert into public.credit_entry
     (account_id, assessment_id, credits, reason)
     values (${accountId}, ${assessment.id}, 1, 'fixture') returning id`;
@@ -313,10 +351,6 @@ describeDb("PostgreSQL default-deny tenant isolation", () => {
             tx`update public.runner_execution set cleaned_up = true where id = ${rowsA.runnerExecutionId}`,
           () => tx`update public.finding set title = 'probe' where id = ${rowsA.findingId}`,
           () => tx`update public.report set sanitized = true where id = ${rowsA.reportId}`,
-          () =>
-            tx`update public.billing_event set processing_status = 'processed' where id = ${rowsA.billingEventId}`,
-          () =>
-            tx`update public.entitlement set status = 'revoked' where id = ${rowsA.entitlementId}`,
           () => tx`update public.agent set name = 'probe' where id = ${rowsA.agentId}`,
           () =>
             tx`update public.notification set read_at = now() where id = ${rowsA.notificationId}`,
@@ -362,6 +396,33 @@ describeDb("PostgreSQL default-deny tenant isolation", () => {
           `${run}-b`,
           playbookKey,
         );
+
+        for (const role of ["api_rls", "worker_rls", "reporting_rls"]) {
+          await tx.unsafe(`set local role ${role}`);
+          await tx`select set_config('app.tenant', ${rowsA.accountId}, true)`;
+          for (const table of TENANT_TABLES) {
+            if (!SELECT_GRANTED[role]?.has(table)) {
+              await expectDenied(
+                tx,
+                () => tx.unsafe(`select id from public."${table}"`),
+                /permission denied/,
+              );
+              continue;
+            }
+            const rows = await tx.unsafe(
+              `select id, ${table === "account" ? "id" : "account_id"} as tenant_id from public."${table}"`,
+            );
+            expect(rows.length, `${role}/${table} has tenant A row`).toBeGreaterThan(0);
+            expect(
+              rows.every((row) => row.tenant_id === rowsA.accountId),
+              `${role}/${table} tenant`,
+            ).toBe(true);
+            expect(
+              rows.some((row) => row.id === tenantIds(rowsB)[table]),
+              `${role}/${table} hides B`,
+            ).toBe(false);
+          }
+        }
 
         await tx.unsafe("set local role api_rls");
         await tx`select set_config('app.tenant', ${rowsA.accountId}, true)`;
@@ -447,19 +508,33 @@ describeDb("PostgreSQL default-deny tenant isolation", () => {
           (await tx`update public.report set sanitized = true where id = ${rowsA.reportId}`).count,
         ).toBe(1);
         expect(
-          (
-            await tx`update public.billing_event set processing_status = 'processed' where id = ${rowsA.billingEventId}`
-          ).count,
-        ).toBe(1);
-        expect(
-          (
-            await tx`update public.entitlement set status = 'revoked' where id = ${rowsA.entitlementId}`
-          ).count,
-        ).toBe(1);
-        expect(
           (await tx`delete from public.runner_execution where id = ${rowsA.runnerExecutionId}`)
             .count,
         ).toBe(1);
+
+        // Billing mutations are webhook-only. Even with a valid tenant context,
+        // worker_rls must not be able to manufacture billing state.
+        await expectDenied(
+          tx,
+          () => tx`insert into public.billing_event
+            (account_id, stripe_event_id, type, payload_minimal_json, signature_valid, event_version)
+            values (${rowsA.accountId}, ${`fraud-${run}`}, 'fixture', '{}'::jsonb, false, '1')`,
+          /permission denied/,
+        );
+        await expectDenied(
+          tx,
+          () => tx`insert into public.credit_entry
+            (account_id, assessment_id, credits, reason)
+            values (${rowsA.accountId}, ${rowsA.assessmentId}, 99, 'forged-webhook')`,
+          /permission denied/,
+        );
+        await expectDenied(
+          tx,
+          () => tx`insert into public.entitlement
+            (account_id, plan, source_event_id)
+            values (${rowsA.accountId}, 'pro', ${rowsA.billingEventId})`,
+          /permission denied/,
+        );
 
         await tx.unsafe("reset app.tenant");
         for (const operation of [
@@ -475,15 +550,6 @@ describeDb("PostgreSQL default-deny tenant isolation", () => {
           () => tx`insert into public.report
             (account_id, assessment_id, kind, object_key, contract_version, sanitized)
             values (${rowsA.accountId}, ${rowsA.assessmentId}, 'json', ${`insert-${run}`}, '1', false)`,
-          () => tx`insert into public.credit_entry
-            (account_id, assessment_id, credits, reason)
-            values (${rowsA.accountId}, ${rowsA.assessmentId}, 1, ${`insert-${run}`})`,
-          () => tx`insert into public.billing_event
-            (account_id, stripe_event_id, type, payload_minimal_json, signature_valid, event_version)
-            values (${rowsA.accountId}, ${`insert-${run}`}, 'fixture', '{}'::jsonb, true, '1')`,
-          () => tx`insert into public.entitlement
-            (account_id, plan, source_event_id)
-            values (${rowsA.accountId}, 'free_unverified', ${rowsA.billingEventId})`,
           () => tx`insert into public.audit_event
             (account_id, actor, action, payload_json)
             values (${rowsA.accountId}, ${`worker-insert-${run}`}, 'runner', '{}'::jsonb)`,
@@ -502,10 +568,6 @@ describeDb("PostgreSQL default-deny tenant isolation", () => {
             tx`update public.runner_execution set cleaned_up = true where id = ${rowsB.runnerExecutionId}`,
           () => tx`update public.finding set title = 'cross' where id = ${rowsB.findingId}`,
           () => tx`update public.report set sanitized = true where id = ${rowsB.reportId}`,
-          () =>
-            tx`update public.billing_event set processing_status = 'processed' where id = ${rowsB.billingEventId}`,
-          () =>
-            tx`update public.entitlement set status = 'revoked' where id = ${rowsB.entitlementId}`,
           () => tx`update public.agent set name = 'cross' where id = ${rowsB.agentId}`,
           () =>
             tx`update public.notification set read_at = now() where id = ${rowsB.notificationId}`,
