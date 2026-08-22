@@ -1,0 +1,46 @@
+packages/db/schema/verification.ts
+  s_bc54431df54bf2::t_881232b7624560 2,8
+packages/db/schema/identity.ts
+  s_bc54431df54bf2::t_e5834f7ea78c3e 3,5-11,16,38,41,49
+packages/db/schema/assessment.ts
+  s_bc54431df54bf2::t_d2ab5cace03e4c 12,21,68
+  s_bc54431df54bf2::t_b4af700dd30e06 74
+packages/db/schema/execution.ts
+  s_bc54431df54bf2::t_881232b7624560 16,21,57,83,90
+packages/db/schema/common.ts
+  s_bc54431df54bf2::t_e5834f7ea78c3e 1-3
+  s_bc54431df54bf2::t_b4af700dd30e06 4-11
+packages/db/schema/audit.ts
+  s_bc54431df54bf2::t_881232b7624560 5,10,18,48,53
+packages/db/schema/billing.ts
+  s_bc54431df54bf2::t_b4af700dd30e06 58,80
+  s_bc54431df54bf2::t_881232b7624560 14-21,26,48,75,101,106
+packages/db/test/schema.integration.test.ts
+  s_bc54431df54bf2::t_f8f4e9e5ec9f06 85,169-206
+  s_bc54431df54bf2::t_aa1ebf6840f47d 207-208
+packages/db/migrations/0001_session_hash.sql
+  s_bc54431df54bf2::t_984f59340fca74 1,3-14
+  s_bc54431df54bf2::t_3bbc777d2cdaab 2
+packages/db/migrations/meta/0001_snapshot.json
+  s_bc54431df54bf2::t_0f5318af6c93b1 1-2059
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_3ebe2948ff8b45 11-17,20
+packages/db/schema/reporting.ts
+  s_bc54431df54bf2::t_7fbeeeaffe0cbd 1,3,8,20,35,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "457e618163352cf303e2135229767657b8223c77",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
