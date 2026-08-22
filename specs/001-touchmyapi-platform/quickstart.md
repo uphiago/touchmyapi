@@ -119,8 +119,8 @@ The end-to-end scenarios formerly listed here are not runnable yet. Implement th
 
 The multi-user extension is validated after T021 with these additional milestones:
 
-7. Global Google identity separated from explicit account membership, token-hash invitations, role matrix, active-account session rotation, and membership RLS isolation (T071–T086).
-8. PostgreSQL `SKIP LOCKED` claim, lease/fencing token, heartbeat, retry/backoff, reaper, fair scheduling, tenant/global limits, and transactional outbox; `LISTEN/NOTIFY` is only a hint (T087–T092).
-9. Separate admin app/API/origin, staff identity, mandatory MFA, JIT reason/ticket/TTL/approval, dual break-glass, policy-aware queue operations, and read-only billing with no secrets/raw evidence/arbitrary SQL/impersonation (T093–T094).
+7. The existing global Google `user` identity, explicit `account_membership(account_id,user_id)`, token-hash invitations, role matrix, active-account session rotation, and membership RLS isolation (T071–T080).
+8. PostgreSQL `SKIP LOCKED` claim, lease/fencing token, heartbeat, retry/backoff, reaper, exact fair scheduling, tenant/global limits, and transactional outbox; `LISTEN/NOTIFY` is only a hint (T081–T087).
+9. Separate admin app/API/origin, `staff_identity` and related staff tables, mandatory MFA, JIT reason/ticket/TTL/approval, dual break-glass, policy-aware queue operations, and read-only billing with no secrets/raw evidence/arbitrary SQL/impersonation (T088–T094).
 
 The authoritative design references are the [constitution](../../.specify/memory/constitution.md), [data model](./data-model.md), [research](./research.md), and [contracts](./contracts/index.md). Drift from those documents is a bug; when they conflict, the constitution wins.

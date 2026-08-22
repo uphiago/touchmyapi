@@ -1,6 +1,6 @@
 # API Contract v1
 
-Base path: `/api/v1`. Auth: HttpOnly customer session cookie (Google OAuth PKCE) bound to one active `account_id`. JSON everywhere. Errors: `{ "error": { "code", "message", "field?" } }`. All mutations validate schema, active membership, state, entitlement, and policy engine before applying (spec FR-014/FR-022). IDs never grant access.
+Base path: `/api/v1`. Auth: HttpOnly customer session cookie (Google OAuth PKCE) bound to one active `session.account_id`. JSON everywhere. Errors: `{ "error": { "code", "message", "field?" } }`. All mutations validate schema, active `account_membership(account_id,user_id)`, state, entitlement, and policy engine before applying (spec FR-014/FR-022). IDs never grant access.
 
 ## Session
 
@@ -9,19 +9,21 @@ Base path: `/api/v1`. Auth: HttpOnly customer session cookie (Google OAuth PKCE)
 | GET | `/auth/login` | start Google OAuth PKCE (redirect) |
 | GET | `/auth/callback` | exchange code; set session cookie |
 | POST | `/auth/logout` | revoke session |
-| GET | `/auth/me` | current global identity + active account/membership (id, email, role, plan, iaEnabled) |
+| GET | `/auth/me` | current global `user` + active account/membership (id, email, role, plan, iaEnabled) |
 
 ## Accounts and membership
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/accounts` | list accounts for the authenticated identity and active membership role |
+| GET | `/accounts` | list safe account/member fields for the authenticated user via narrow bootstrap function |
 | GET | `/accounts/:accountId/memberships` | list policy-permitted members |
 | POST | `/accounts/:accountId/memberships/invitations` | owner/admin creates a token-hash invitation |
-| POST | `/invitations/:token/accept` | explicit authenticated acceptance; rotates active-account session |
-| PATCH | `/accounts/:accountId/memberships/:identityId` | owner/admin role/status change with last-owner guard |
-| DELETE | `/accounts/:accountId/memberships/:identityId` | owner/admin removal with session revocation |
+| POST | `/invitations/accept` | explicit authenticated acceptance with redacted bearer token body; rotates `session.account_id` |
+| PATCH | `/accounts/:accountId/memberships/:userId` | owner/admin role/status change with last-owner guard |
+| DELETE | `/accounts/:accountId/memberships/:userId` | owner/admin removal with session revocation |
 | POST | `/account/switch` | validate membership and rotate session to the selected account |
+
+`POST /account/switch` accepts `{ "accountId": "uuid" }`; the server validates the current session hash and membership through the narrow `auth_switch_account` function, rotates the session token, and never accepts a browser-only tenant selector.
 
 ## Assessment
 

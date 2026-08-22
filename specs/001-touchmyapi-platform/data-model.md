@@ -2,7 +2,7 @@
 
 **Phase 1 output** | **Date**: 2026-08-17
 
-All business tables carry `account_id` (or an explicitly documented global/system ownership boundary) and are covered by Row-Level Security policies (default deny) per constitution III. `account` is the workspace/tenant; `identity` is global and can only be reached through narrow bootstrap functions. Runtime roles are RLS-limited; app sets tenant via `set_config('app.tenant', ...)` in a transaction with `set local role`. Timestamps are UTC `timestamptz`. IDs are either UUIDv7 (ordered, DB-friendly) or crypto-random; choose UUIDv7 for insert-heavy tables.
+All business tables carry `account_id` (or an explicitly documented global/system ownership boundary) and are covered by Row-Level Security policies (default deny) per constitution III. `account` is the workspace/tenant; the existing `user` table is the single global Google identity authority and can only be reached for bootstrap/session operations through narrow functions. Runtime roles are RLS-limited; app sets tenant via `set_config('app.tenant', ...)` in a transaction with `set local role`. Timestamps are UTC `timestamptz`. IDs are either UUIDv7 (ordered, DB-friendly) or crypto-random; choose UUIDv7 for insert-heavy tables.
 
 ---
 
@@ -10,7 +10,7 @@ All business tables carry `account_id` (or an explicitly documented global/syste
 
 ### account
 
-Workspace/tenant that owns all customer business data. The historical foundation starts with one account per first identity; Phase 2A permits multiple identities and memberships without changing the tenant key.
+Workspace/tenant that owns all customer business data. The historical foundation starts with one account per first user; Phase 2A permits multiple users and memberships without changing the tenant key.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -19,9 +19,9 @@ Workspace/tenant that owns all customer business data. The historical foundation
 | settings_ia_enabled | boolean | per-account external AI disable flag (V1 default true, no UI yet) |
 | created_at / deleted_at | timestamptz | |
 
-### identity (global login identity)
+### user (global Google login identity)
 
-Immutable provider identity. It is not a business tenant row and is never linked by email.
+The existing `user` table is the single immutable global identity authority. It is not tenant authorization and is never linked to an account by email.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -34,19 +34,19 @@ Immutable provider identity. It is not a business tenant row and is never linked
 
 ### account_membership
 
-Explicit identity-to-account authorization boundary.
+Explicit user-to-account authorization boundary.
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | id | uuid pk | |
-| account_id / identity_id | fk | composite tenant reference; identity is global |
+| account_id / user_id | fk | composite tenant reference; user is global |
 | role | enum | `owner` / `admin` / `operator` / `viewer` / `billing` |
 | status | enum | `active` / `suspended` / `removed` |
-| invited_by_identity_id | uuid fk | nullable for initial owner |
+| invited_by_user_id | uuid fk | nullable for initial owner |
 | created_at / updated_at / removed_at | timestamptz | |
-| **unique** | `(account_id, identity_id)` | one membership per identity/account |
+| **unique** | `(account_id, user_id)` | one membership per user/account |
 
-Only one active owner is allowed by policy. Last-owner removal/demotion requires an explicit owner transfer transaction.
+Multiple active owners are allowed. Removing or demoting the last active owner is prohibited transactionally.
 
 ### account_invitation
 
@@ -59,25 +59,10 @@ Single-use explicit invitation; raw token never persists.
 | token_hash | text unique | SHA-256 of random token |
 | email | citext | contact/display only; never used to link identity |
 | proposed_role | enum | membership role |
-| invited_by_identity_id | uuid fk | |
+| invited_by_user_id | uuid fk | |
 | status | enum | `pending` / `accepted` / `expired` / `revoked` |
 | expires_at / accepted_at / created_at | timestamptz | |
-| accepted_by_identity_id | uuid fk | nullable |
-
-### user (compatibility projection)
-
-Compatibility projection for code paths that still call the authenticated principal `user`; source of truth is global `identity` plus explicit memberships.
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| id | uuid pk | |
-| identity_id | uuid fk → identity | unique |
-| account_id | uuid fk → account | legacy projection; not authorization by itself |
-| provider | enum | compatibility copy; immutable with identity |
-| provider_subject | text | compatibility copy; immutable with identity |
-| email | citext | display/contact only; never used for auto-linking |
-| created_at | timestamptz | |
-| **unique** | (provider, provider_subject) | |
+| accepted_by_user_id | uuid fk | nullable |
 
 ### session
 
@@ -86,8 +71,7 @@ Server-side session (HttpOnly Secure cookie id → row), bound to one active acc
 | Field | Type | Notes |
 | --- | --- | --- |
 | id | uuid pk | cookie value (hashed at rest) |
-| user_id / identity_id | uuid fk | |
-| active_account_id | uuid fk → account | exactly one active tenant per session |
+| account_id / user_id | composite fk → account_membership | exactly one active tenant/user membership per session |
 | account_session_version | bigint | changes on switch/revocation-sensitive membership change |
 | rotated_at / expires_at / revoked_at | timestamptz | |
 | ip / user_agent | text | audit |
@@ -120,7 +104,7 @@ Versioned declaration.
 | --- | --- | --- |
 | id | uuid pk | |
 | assessment_id | uuid fk | |
-| user_id / account_id | fk | |
+| user_id / account_id | composite fk → account_membership | attestation actor must be an active member of the assessment account |
 | target_json | jsonb | snapshot of submitted scope |
 | terms_version | text | version of accepted ToS/AUP |
 | accepted_at | timestamptz | |
@@ -175,7 +159,20 @@ Signed dispatch unit for the runner.
 | started_at / finished_at | timestamptz | |
 | stop_requested_at | timestamptz | cancellation signal |
 
-At most one non-terminal job exists for `(account_id, normalized_target_key)` through a partial unique index. Worker claims use `FOR UPDATE SKIP LOCKED`; stale workers cannot write after a fencing-token change. Tenant/global limits and fair scheduling are policy inputs, not browser-controlled fields.
+At most one active job exists for `(account_id, normalized_target_key)` through a partial unique index covering `queued`, `stale_recovered`, and `running`. Claims may select `queued` or `stale_recovered`; a claim sets `running` and increments `fencing_token`. Reaping changes expired `running` to `stale_recovered`, sets `available_at` with bounded backoff, and never resets the fencing token. Tenant fairness is represented by `queue_tenant_state`.
+
+### queue_tenant_state
+
+One row per account used by the fair scheduler.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| account_id | uuid pk/fk | tenant |
+| last_dispatched_at | timestamptz | nullable; `NULLS FIRST` ordering |
+| running_count / concurrency_limit | int | atomically maintained and policy-capped |
+| updated_at | timestamptz | reconciler/audit timestamp |
+
+Claim locks an eligible tenant with `FOR UPDATE SKIP LOCKED`, orders by `last_dispatched_at NULLS FIRST, account_id`, checks `running_count < concurrency_limit` and global capacity, then locks the tenant's highest-priority eligible job ordered by `priority DESC, available_at, created_at, id`. It increments `running_count` and updates `last_dispatched_at` atomically. Terminal completion and reaper recovery decrement the counter; a reconciler repairs drift.
 
 ### outbox_event
 
@@ -190,10 +187,13 @@ Transactional account-scoped delivery intent.
 | schema_version | text | versioned payload contract |
 | payload_json | jsonb | redacted, no secrets/raw evidence |
 | status | enum | `pending` / `processing` / `processed` / `failed` |
+| lease_owner / lease_expires_at | text / timestamptz | short delivery lease |
+| fencing_token | bigint | monotonic outbox claim token |
+| heartbeat_at | timestamptz | processing liveness |
 | attempts / available_at | int / timestamptz | at-least-once delivery |
 | processed_at / created_at | timestamptz | |
 
-Rows commit with their state mutation. `LISTEN/NOTIFY` is only a wake-up hint; polling is mandatory.
+Rows commit with their state mutation. Outbox claim uses `FOR UPDATE SKIP LOCKED`, increments `fencing_token`, and requires the current token for acknowledgement. Expired `processing` leases return to `pending` with bounded backoff; `LISTEN/NOTIFY` is only a wake-up hint and polling/reaping is mandatory.
 
 ### runner_execution
 
@@ -311,7 +311,7 @@ Plan rights derived exclusively from billing events.
 | last_seen_at | timestamptz | |
 | created_at / revoked_at | timestamptz | |
 
-### admin_staff_identity
+### staff_identity
 
 Staff-only identity; never a customer membership and never authenticated by a customer session.
 
@@ -323,7 +323,20 @@ Staff-only identity; never a customer membership and never authenticated by a cu
 | mfa_required | boolean | always true for active staff |
 | created_at / revoked_at | timestamptz | |
 
-### admin_session
+### staff_mfa_factor
+
+WebAuthn MFA factor bound to a staff identity. Recovery codes are stored only as hashes.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | uuid pk | |
+| staff_identity_id | uuid fk | |
+| credential_id / public_key | text / bytea | WebAuthn credential material |
+| recovery_hash | text | one-time recovery hash only |
+| status | enum | `active` / `revoked` |
+| created_at / revoked_at | timestamptz | |
+
+### staff_session
 
 Separate admin-origin session with its own cookie and MFA freshness.
 
@@ -334,7 +347,19 @@ Separate admin-origin session with its own cookie and MFA freshness.
 | mfa_verified_at | timestamptz | required for sensitive operations |
 | expires_at / revoked_at | timestamptz | |
 
-### capability_grant
+### staff_role_assignment
+
+Out-of-band staff role assignment provisioned by migration-owner CLI, keyed by immutable Google Workspace subject; domain alone is insufficient.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | uuid pk | |
+| staff_identity_id | uuid fk | |
+| role | enum | closed staff role |
+| workspace_subject | text | immutable subject, not domain-only |
+| created_at / revoked_at | timestamptz | |
+
+### support_access_grant
 
 Just-in-time, tenant-scoped staff capability.
 
@@ -346,10 +371,21 @@ Just-in-time, tenant-scoped staff capability.
 | capability | enum | closed policy-aware operation set |
 | reason / ticket_reference | text | mandatory |
 | requested_at / approved_at / expires_at | timestamptz | bounded TTL |
-| approver_identity_id / second_approver_identity_id | uuid fk | dual approval for break-glass |
+| approver_staff_identity_id | uuid fk | approval actor |
 | status | enum | `requested` / `approved` / `expired` / `revoked` / `denied` |
 
-No capability grants owner/BYPASSRLS, arbitrary SQL, impersonation, secret/raw-evidence access, or billing mutation.
+No support grant permits owner/BYPASSRLS, arbitrary SQL, impersonation, secret/raw-evidence access, or billing mutation.
+
+### support_access_approval
+
+Approval record for a support grant. `break_glass` requires two distinct staff identities and a bounded TTL.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | uuid pk | |
+| grant_id | uuid fk → support_access_grant | |
+| approver_staff_identity_id | uuid fk | unique per grant/approver |
+| approved_at | timestamptz | |
 
 ### admin_audit_event
 
@@ -405,6 +441,6 @@ Transitions validated and idempotent in backend; cancellation sets stop signal o
 
 - Runtime roles: `api_rls` (web/API mutations), `worker_rls` (control worker + scheduler), `reporting_rls` (read for report generation), and a separate least-privilege admin runtime role. None is owner, none has `BYPASSRLS`.
 - Tables carry policy: `FOR ALL TO <role> USING (account_id = current_setting('app.tenant', true)::uuid)` with explicit deny when tenant is absent or malformed; default deny applies to membership, invitation, queue, outbox, and capability grants as well as assessment data.
-- Global identity is reachable only through fixed-purpose bootstrap functions. Playbook catalog is read-only; audit/admin audit are append-only; no runtime role gets arbitrary SQL or history deletion.
+- Global `user` is reachable only through fixed-purpose bootstrap functions. Playbook catalog is read-only; audit/admin audit are append-only; no runtime role gets arbitrary SQL or history deletion.
 - Queue claims use `FOR UPDATE SKIP LOCKED` and compare `account_id` plus `fencing_token` on all lease/result writes. App sets `set_config('app.tenant', $1)` and `set local role` per transaction. `LISTEN/NOTIFY` never replaces polling/outbox persistence.
 - Isolation is proven by `tests/isolation/` RLS tests (spec FR-003, SC-002).

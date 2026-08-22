@@ -1,10 +1,10 @@
 # Admin Control Plane Contract v1
 
-The admin app/API has a separate origin, API base path, staff identity, MFA challenge, session cookie, CSRF policy, and audit stream. Customer Google sessions cannot authenticate to it.
+The admin app/API has a separate origin, API base path, cookies, CSRF policy, and audit stream backed by `staff_identity`, `staff_mfa_factor`, `staff_session`, `staff_role_assignment`, `support_access_grant`, `support_access_approval`, and `admin_audit_event`. Customer Google sessions cannot authenticate to it. Staff bootstrap is an out-of-band CLI/migration-owner operation keyed by immutable Google Workspace subject; a domain alone is insufficient. Staff login uses separate Google OIDC and local WebAuthn MFA. One-time recovery material is hashed; MFA reset requires dual approval.
 
 ## Staff and capability grant
 
-Staff sessions require MFA. A tenant capability grant contains `staffIdentityId`, `accountId`, a closed capability, `reason`, `ticketReference`, `requestedAt`, `approvedAt`, `expiresAt`, `approverIdentityId`, and status. A normal grant requires one distinct approver; `break_glass` requires two distinct approvals and a short TTL. Grants are deny-by-default and expire automatically.
+Staff sessions require MFA. A `support_access_grant` contains `staffIdentityId`, `accountId`, a closed capability, `reason`, `ticketReference`, `requestedAt`, `approvedAt`, `expiresAt`, and status; approvals are separate `support_access_approval` rows. A normal grant requires one distinct approver; `break_glass` requires two distinct approvals and a short TTL. Grants are deny-by-default and expire automatically.
 
 Allowed queue capabilities are policy-aware metadata/status actions: inspect queue metadata, cancel a job, requeue a failed/stale job, and trigger reaper processing. Admin cannot change target/scope, dispatch arbitrary actions, execute a runner, or bypass the policy engine.
 
@@ -12,12 +12,20 @@ Allowed queue capabilities are policy-aware metadata/status actions: inspect que
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| GET | `/admin/auth/login` | start separate staff Google OIDC |
+| GET | `/admin/auth/callback` | complete staff OIDC; do not accept customer session |
 | POST | `/admin/auth/mfa/verify` | establish or refresh staff MFA session |
+| POST | `/admin/auth/webauthn/register/options` | issue WebAuthn registration challenge |
+| POST | `/admin/auth/webauthn/register` | register staff MFA factor |
+| POST | `/admin/auth/webauthn/assert/options` | issue WebAuthn assertion challenge |
+| POST | `/admin/auth/webauthn/assert` | verify assertion and refresh MFA |
+| POST | `/admin/auth/mfa/reset/request` | request dual-approved MFA reset |
+| POST | `/admin/auth/mfa/reset/approve` | second staff approval for reset |
 | POST | `/admin/capability-grants` | request a reasoned, ticketed, TTL-bound tenant grant |
 | POST | `/admin/capability-grants/:id/approve` | approve normal grant; second approval required for break-glass |
 | GET | `/admin/accounts/:accountId/queue` | policy-permitted queue metadata/status only |
 | POST | `/admin/accounts/:accountId/jobs/:jobId/cancel` | policy-permitted cancellation with active grant |
-| POST | `/admin/accounts/:accountId/jobs/:jobId/requeue` | policy-permitted requeue with reason and fencing reset |
+| POST | `/admin/accounts/:accountId/jobs/:jobId/requeue` | policy-permitted requeue with reason; clears lease but never resets fencing |
 | POST | `/admin/reaper/run` | trigger bounded stale-lease recovery |
 | GET | `/admin/billing/:accountId` | read-only entitlement/billing event status |
 

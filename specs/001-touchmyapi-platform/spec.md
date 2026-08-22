@@ -78,9 +78,9 @@ A paying customer installs the private agent inside their environment. The agent
 
 ### User Story 5 - Shared Accounts and Membership (Priority: P1 for multi-user extension)
 
-An account owner invites collaborators to a workspace with an explicit role (`owner`, `admin`, `operator`, `viewer`, or `billing`). A global Google identity can belong to multiple accounts, but an invitation is accepted only by an authenticated identity through an explicit action; matching email never auto-links an account. The active account is bound to the server-side session, and switching accounts rotates the session. Every assessment, credential, job, finding, report, credit, membership, and invitation remains isolated by `account_id`.
+An account owner invites collaborators to a workspace with an explicit role (`owner`, `admin`, `operator`, `viewer`, or `billing`). The existing global Google `user` can belong to multiple accounts through explicit memberships, but an invitation is accepted only by an authenticated user through an explicit action; email is delivery data and never auto-links an account. The active account is stored in `session.account_id`, and switching accounts rotates the session. Every assessment, credential, job, finding, report, credit, membership, and invitation remains isolated by `account_id`.
 
-**Independent Test**: Two identities share one account and have separate accounts; invitation acceptance, role restrictions, account switching, session rotation, and cross-account RLS tests prove that neither identity can read or mutate the other account.
+**Independent Test**: Two authenticated users share one account and have separate accounts; invitation acceptance, role restrictions, account switching, session rotation, and cross-account RLS tests prove that neither user can read or mutate the other account.
 
 ### User Story 6 - Durable Queue and Admin Control Plane (Priority: P1 for multi-user extension)
 
@@ -99,8 +99,8 @@ The control worker claims jobs from PostgreSQL using `FOR UPDATE SKIP LOCKED`, a
 - What happens when the AI provider is unavailable or disabled per account? (analyzing state must not hard-block; deterministic fallback triage completes the run)
 - What happens when a target is external but exposes no HTTP server (e.g., API host at bare TCP)? (active execution is unavailable at launch; accepting TXT or another proof later requires a constitution amendment and migration plan)
 - What happens on account deletion with active agents/schedules/webhooks? (cancel schedules, revoke agents/tokens, request session revocation, start data elimination per retention)
-- What happens when an invitation is expired, reused, or presented by an identity with the same email but no explicit acceptance? (return one generic invalid-invitation response; make no membership change and reveal no existence information)
-- What happens when a Google identity belongs to multiple accounts? (require an active server-side account selection; switching rotates and revokes the prior session)
+- What happens when an invitation is expired, reused, revoked, or presented by another authenticated user? (POST body is redacted before access/app logs; return one generic invalid-invitation response; same `accepted_by_user_id` replay is idempotent)
+- What happens when a Google user belongs to multiple accounts? (require an active server-side account selection; switching validates membership and rotates/revokes the prior session)
 - What happens when a worker loses a lease or a `LISTEN/NOTIFY` wake-up is missed? (fencing rejects stale writes; lease reaper and polling recover from PostgreSQL)
 - What happens when a tenant reaches its queue limit or a noisy tenant fills global capacity? (leave jobs queued with fair scheduling and no busy-spin; never exceed tenant/global policy limits)
 - What happens when an admin grant expires or lacks MFA/approval? (deny the operation; break-glass requires two distinct approvals and a bounded TTL)
@@ -130,20 +130,19 @@ The control worker claims jobs from PostgreSQL using `FOR UPDATE SKIP LOCKED`, a
 - **FR-019**: System MUST apply retention policies: raw evidence 30d post-completion (scheduled deletion), findings/reports 365d paid plans, execution logs 30d (redacted/limited), audit 365d, external credentials until job end unless explicitly retained, internal credentials never stored.
 - **FR-020**: System MUST expose a plan-permitted dashboard (status, scope, summary, findings, timeline, credits) and in-product notifications; integrations (Slack/Teams/webhooks/email/push) remain non-functional placeholders at launch.
 - **FR-021**: System MUST run playbooks from versioned contracts (version, preconditions, target category, allowed actions, request limits, max duration, stop signals, expected evidence, possible severity) following scope → discovery → hypothesis → focused validation → negative control → evidence → report.
-- **FR-022**: System MUST treat `account` as the tenant/workspace and authorize business data through an `account_membership` with exactly `owner`, `admin`, `operator`, `viewer`, or `billing` roles; invitations MUST be explicit, single-use, expiry-bound, token-hash based, and email MUST never auto-link a global identity.
-- **FR-023**: System MUST keep global Google identities separate from tenant membership, support one identity in multiple accounts, bind every session to one active `account_id`, and rotate/revoke the session on account switch, membership removal, or security-sensitive role change.
-- **FR-024**: System MUST use PostgreSQL as queue source of truth with `FOR UPDATE SKIP LOCKED`, lease plus monotonic fencing token, heartbeat, bounded retry/backoff, timeout, cancellation, reaper recovery, fair scheduling, partial unique active target/account protection, and tenant/global limits; Redis and Kafka are not required.
-- **FR-025**: System MUST commit transactional outbox events with state changes and process them idempotently; `LISTEN/NOTIFY` MAY wake a poller but MUST NOT be the delivery guarantee.
-- **FR-026**: System MUST isolate admin in a separate app/API/origin with separate staff identity and cookies, mandatory MFA, policy-aware queue operations, and just-in-time per-tenant capability grants recording reason, ticket, TTL, and approval; break-glass requires dual approval.
+- **FR-022**: System MUST treat `account` as the tenant/workspace and authorize business data through an `account_membership` with exactly `owner`, `admin`, `operator`, `viewer`, or `billing` roles; multiple active owners are allowed, but the last active owner MUST NOT be removed or demoted transactionally; invitations MUST be explicit, single-use, expiry-bound, token-hash based, and email MUST never auto-link a global user.
+- **FR-023**: System MUST use the existing `user` table as the single global Google identity authority, keep `account_membership(account_id,user_id)` as tenant authorization, support one user in multiple accounts, bind the active account to `session.account_id`, and rotate/revoke the session on account switch, membership removal, or security-sensitive role change.
+- **FR-024**: System MUST use PostgreSQL as queue source of truth with `FOR UPDATE SKIP LOCKED`; claims accept `queued` or `stale_recovered`, set `running`, increment a monotonic fencing token, and enforce heartbeat, bounded retry/backoff, timeout, cancellation, reaper recovery, exact tenant fairness, partial unique active target/account protection across `queued`/`stale_recovered`/`running`, and tenant/global limits; Redis and Kafka are not required.
+- **FR-025**: System MUST commit transactional outbox events with state changes, claim outbox rows with short leases/fencing/heartbeat, recover expired processing rows, and process at-least-once idempotently; `LISTEN/NOTIFY` MAY wake a poller but MUST NOT be the delivery guarantee.
+- **FR-026**: System MUST isolate admin in a separate app/API/origin with separate `staff_identity`, `staff_mfa_factor`, `staff_session`, `staff_role_assignment`, `support_access_grant`, `support_access_approval`, and cookies, mandatory separate Google OIDC plus WebAuthn MFA, out-of-band staff bootstrap, policy-aware queue operations, and just-in-time support grants recording reason, ticket, TTL, and approval; break-glass requires dual approval.
 - **FR-027**: Admin MUST NOT impersonate customers, use owner or `BYPASSRLS` runtime access, run arbitrary SQL, read secrets/raw evidence, or mutate billing/entitlements; billing views are read-only and every admin action is append-only audited.
 
 ### Key Entities
 
 - **Account**: tenant/workspace that governs ownership, isolation, billing, and all account-scoped business data via `account_id`.
-- **Identity**: global OAuth identity (`provider + provider_subject`) that may have memberships in multiple accounts; email is display/contact data only.
-- **AccountMembership**: explicit identity-to-account link with role `owner`/`admin`/`operator`/`viewer`/`billing`, status, and audit timestamps.
-- **AccountInvitation**: single-use expiry-bound invitation with token hash, account, email contact, proposed role, inviter, and acceptance audit; raw token is never persisted.
-- **User**: compatibility view of the authenticated identity; business authorization comes from `AccountMembership`, not an implicit one-account column.
+- **User**: the existing immutable global Google identity (`provider + provider_subject`) that may have memberships in multiple accounts; email is display/delivery data only.
+- **AccountMembership**: explicit `account_id` + `user_id` link with role `owner`/`admin`/`operator`/`viewer`/`billing`, status, and audit timestamps.
+- **AccountInvitation**: single-use expiry-bound bearer token hash, account, delivery email, proposed role, inviter user, accepted user, and acceptance audit; raw token never persists or appears in URL/logs.
 - **Assessment**: a unit of work with target category, normalized target, scope, exclusions, window, contacts, playbook version, limits, authorization attestation, and state machine.
 - **AuthorizationAttestation**: versioned declaration storing user, account, target, date, terms version, and submitted scope.
 - **Target**: normalized external target (web, API/HTTP/GraphQL/gRPC, external surface, GenAI) or internal environment via private agent.
@@ -160,8 +159,8 @@ The control worker claims jobs from PostgreSQL using `FOR UPDATE SKIP LOCKED`, a
 - **AuditEvent**: append-only chained record across the execution lifecycle.
 - **Notification**: in-product notification for assessment completion.
 - **OutboxEvent**: transactional account-scoped event committed with a state change; unique key, retry metadata, and idempotent delivery status.
-- **AdminStaffIdentity**: staff-only identity with separate MFA-backed session and admin origin; never a customer membership.
-- **CapabilityGrant**: short-lived, reasoned and ticketed per-account admin capability with approval(s), expiry, and append-only audit; break-glass needs two approvers.
+- **StaffIdentity**: staff-only immutable Google Workspace subject with separate staff OIDC, WebAuthn MFA, recovery, and session; never a customer membership.
+- **SupportAccessGrant**: short-lived, reasoned and ticketed per-account admin capability with `support_access_approval` records and expiry; break-glass needs two approvers.
 
 ## Success Criteria *(mandatory)*
 
@@ -177,10 +176,10 @@ The control worker claims jobs from PostgreSQL using `FOR UPDATE SKIP LOCKED`, a
 - **SC-008**: AI has no direct access to tools, credentials, arbitrary network, or raw private data; external AI use is logged per assessment and disable-able per account.
 - **SC-009**: Reports and JSON respect plan permissions; free accounts never obtain blocked details, evidence, or reproduction steps.
 - **SC-010**: Account deletion cancels schedules, revokes agents/tokens/sessions, and initiates data elimination per retention and legal obligations.
-- **SC-011**: A global identity can access an account only through an active membership; two-account RLS tests prove no cross-account read, write, reference, or inference for membership, invitation, assessment, job, billing, evidence, or report data.
+- **SC-011**: The existing global `user` can access an account only through an active `account_membership(account_id,user_id)`; two-account RLS tests prove no cross-account read, write, reference, or inference for membership, invitation, assessment, job, billing, evidence, or report data.
 - **SC-012**: Invitation acceptance is explicit, token-hash based, single-use, expiry-bound, and never links by email; role capability tests pass for all five roles.
 - **SC-013**: Account switching always rotates/revokes sessions and every account-scoped request uses one server-selected active account.
-- **SC-014**: Concurrent workers, stale leases, worker crashes, retry exhaustion, cancellation, fairness, tenant/global limits, and missed notifications leave no lost or doubly completed job; fencing and reaper tests pass.
+- **SC-014**: Concurrent workers, `queued`/`stale_recovered` claims, stale leases, worker crashes, retry exhaustion, cancellation, exact tenant fairness, tenant/global limits, and missed notifications leave no lost or doubly completed job; fencing and reaper tests pass.
 - **SC-015**: State changes and outbox rows are atomic and outbox re-delivery is idempotent; `NOTIFY` loss does not lose work.
 - **SC-016**: Admin requires separate staff MFA and a valid TTL-bound capability grant; dual break-glass, no impersonation/RLS bypass/arbitrary SQL, no secret/raw-evidence access, policy-aware queue operations, and read-only billing tests pass.
 

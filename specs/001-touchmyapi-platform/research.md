@@ -16,13 +16,13 @@ Consolidates findings that resolve the technical unknowns in the implementation 
 
 - **Decision**: Drizzle ORM + `drizzle-kit` with native `pgPolicy`/`pgRole` support, app connects as an RLS-limited runtime role; each query wrapped in a `set_config` (app.tenant) + `set local role` transaction.
 - **Rationale**: Drizzle gives typed schema/migrations and now models RLS policies and roles as part of the migration, so isolation is versioned with the schema, not bolted on in ad-hoc SQL. The app never connects as owner or an RLS-bypass role (constitution III).
-- **Alternatives considered**: Kysely (valid, less ORM ergonomics), raw node-postgres everywhere (schema drift risk; migrations would be hand-managed), an ORM without RLS awareness (breaks the default-deny guarantee).
+- **Alternatives considered**: Kysely (valid, less ORM ergonomics), a hand-managed PostgreSQL driver boundary (schema drift risk), an ORM without RLS awareness (breaks the default-deny guarantee).
 
 ## R3. Durable queue on plain PostgreSQL
 
-- **Decision**: Implement a small leased-job layer over `node-postgres` using `FOR UPDATE SKIP LOCKED` (lease), retry/backoff columns, unique dedupe keys, timeout and abandoned-job recovery; ~200-300 lines, owned by `worker-control`. Evaluate `pg-boss` only if the hand-rolled layer grows beyond one queue.
+- **Decision**: Implement a small leased-job layer over `postgres` (postgres.js) using `FOR UPDATE SKIP LOCKED` (lease), retry/backoff columns, unique dedupe keys, timeout and abandoned-job recovery; ~200-300 lines, owned by `worker-control`. Evaluate `pg-boss` only if the hand-rolled layer grows beyond one queue.
 - **Rationale**: PostgreSQL is already the source of truth and the constitution/spec explicitly says Redis/Kafka are not prerequisites. `SKIP LOCKED` is the established correct pattern for Postgres-backed queues and avoids polling storms.
-- **Alternatives considered**: `pg-boss` (mature but pulls in its own scheduling semantics and admin surface), graphile-worker (Node, not tuned for Bun), going straight to Redis (out of scope for V1 per spec §10).
+- **Alternatives considered**: `pg-boss` (mature but pulls in its own scheduling semantics and admin surface), graphile-worker (Node, not tuned for Bun), and going straight to Redis (out of scope for V1 per spec §10).
 
 ## R4. Stripe webhook handling
 
@@ -81,27 +81,27 @@ Consolidates findings that resolve the technical unknowns in the implementation 
 
 ## R12. Multi-user account and identity boundary
 
-- **Decision**: Keep Google identity global and immutable (`provider + provider_subject`), use `account` as the tenant/workspace, and authorize business data through explicit `account_membership` rows with `owner`, `admin`, `operator`, `viewer`, and `billing` roles. Invitations store a hash of a random single-use token; email is contact data only and never auto-links an identity.
-- **Rationale**: Membership is a first-class RLS and audit boundary, supports one identity in multiple accounts, and prevents an email collision from granting access. The active account is stored in the server-side session and account switching rotates the session.
-- **Alternatives considered**: implicit `user.account_id` ownership (cannot safely model multiple memberships), email-based linking (account takeover risk), and a separate organization service (duplicate source of truth and policy boundary).
+- **Decision**: Keep the existing `user` table as the sole immutable global Google identity (`provider + provider_subject`), use `account` as the tenant/workspace, and authorize business data through `account_membership(account_id,user_id)` with `owner`, `admin`, `operator`, `viewer`, and `billing` roles. Multiple owners are allowed; a locked transaction rejects removing/demoting the last active owner. Invitations store a SHA-256 hash of a 256-bit bearer token; email is delivery only and never auto-links a user. Acceptance is an explicit redacted POST body and same-user replay is idempotent.
+- **Rationale**: Membership is a first-class RLS and audit boundary, supports one user in multiple accounts, prevents email collisions, and avoids a second identity authority. The active account is `session.account_id`; narrow `auth_list_accounts` and `auth_switch_account` functions enumerate/switch safely and rotate sessions.
+- **Alternatives considered**: a new `identity` table (dual authority and migration ambiguity), implicit `user.account_id` ownership (cannot safely model multiple memberships), email-based linking (account takeover risk), and a separate organization service (duplicate source of truth and policy boundary).
 
-## R13. PostgreSQL queue fencing and fair scheduling
+## R13. PostgreSQL queue fencing and exact fair scheduling
 
-- **Decision**: Extend the existing PostgreSQL queue with `FOR UPDATE SKIP LOCKED`, lease owner/expiry, monotonic fencing token, heartbeat, bounded retry/backoff, timeout, cancellation, expired-lease reaper, partial unique active target/account index, fair per-account scheduling, and tenant/global limits. PostgreSQL remains source of truth; `LISTEN/NOTIFY` is only a wake-up hint.
-- **Rationale**: Lease plus fencing prevents stale workers from committing after a lost lease; polling and reaper recovery survive process and notification failure. A transactional outbox makes state transitions and delivery intent atomic without Redis or Kafka.
-- **Alternatives considered**: Redis/Kafka (new source of truth and delivery semantics), broker-only notifications (lost wake-ups), and an unfenced lease (stale completion race).
+- **Decision**: Extend the existing PostgreSQL queue with `queue_tenant_state(account_id,last_dispatched_at,running_count,concurrency_limit)`. Claim locks an eligible tenant with `FOR UPDATE SKIP LOCKED` ordered by `last_dispatched_at NULLS FIRST,account_id`, then its eligible `queued`/`stale_recovered` job ordered by `priority DESC,available_at,created_at,id`; it atomically increments running count/timestamp and monotonic fencing token. `running` reaps to `stale_recovered` with backoff; next claim returns to `running`; exhausted attempts fail. Partial active uniqueness covers `queued`/`stale_recovered`/`running`. PostgreSQL remains source of truth; `LISTEN/NOTIFY` is only a wake-up hint.
+- **Rationale**: Lease plus fencing prevents stale workers from committing after a lost lease; exact tenant row locking prevents noisy tenants monopolizing global capacity; polling/reaper survive notification/process failure. A transactional outbox makes state transitions and delivery intent atomic without Redis or Kafka.
+- **Alternatives considered**: Redis/Kafka (new source of truth and delivery semantics), deficit/fair-score scheduling (unnecessarily vague), broker-only notifications (lost wake-ups), and an unfenced lease (stale completion race).
 
 ## R14. Transactional outbox delivery
 
-- **Decision**: Insert account-scoped outbox rows in the same transaction as assessment/job state changes, unique by event key, and deliver at least once with idempotent consumers. A poller is mandatory; `NOTIFY` may reduce latency but cannot acknowledge delivery.
+- **Decision**: Insert account-scoped outbox rows in the same transaction as assessment/job state changes, unique by event key. Claim with `FOR UPDATE SKIP LOCKED`, short lease owner/expiry, monotonic fencing token, and heartbeat; recover expired processing rows to pending with bounded backoff. Deliver at least once with idempotent consumers. A poller is mandatory; `NOTIFY` may reduce latency but cannot acknowledge delivery.
 - **Rationale**: The database commit is the only durable fact, so a crash cannot leave a state change without its event or an event without the state change. Idempotent keys make redelivery safe.
 - **Alternatives considered**: synchronous external publish in the request transaction (availability coupling), notification-only delivery (loss on restart), and dual writes without a unique event key (duplicates).
 
 ## R15. Separate admin control plane
 
-- **Decision**: Create a separate admin origin/API with staff identity, separate cookies, mandatory MFA, policy-aware queue metadata operations, and short-lived per-account capability grants requiring reason, ticket, TTL, and approval. Break-glass requires dual approval. Admin has no impersonation, owner/BYPASSRLS, arbitrary SQL, secret/raw-evidence, or billing-write path.
+- **Decision**: Create a separate admin origin/API with `staff_identity`, `staff_mfa_factor`, `staff_session`, `staff_role_assignment`, `support_access_grant`, `support_access_approval`, and `admin_audit_event`; staff bootstrap is an out-of-band CLI/migration-owner operation by immutable Google Workspace subject, followed by separate Google OIDC and local WebAuthn MFA. Recovery is hash-only and MFA reset requires dual approval. Short-lived per-account grants require reason, ticket, TTL, and approval; break-glass requires two approvals. Admin has no impersonation, owner/BYPASSRLS, arbitrary SQL, secret/raw-evidence, or billing-write path.
 - **Rationale**: A separate trust boundary limits blast radius and makes staff authentication and audit distinguishable from customer membership. JIT grants minimize standing access while preserving operational recovery.
-- **Alternatives considered**: customer admin role (mixes trust domains), impersonation (ambiguous actor/audit and secret exposure), and a privileged owner connection (violates Constitution III).
+- **Alternatives considered**: customer admin role (mixes trust domains), domain-only staff bootstrap (does not identify a person), impersonation (ambiguous actor/audit and secret exposure), and a privileged owner connection (violates Constitution III).
 
 ---
 
@@ -118,5 +118,5 @@ All technical context unknowns from the plan are resolved above. Key high-level 
 - AI: DeepSeek planner/triage + Codex reports, both non-executor, policy-reduced.
 - Reports: react-pdf + sanitization layer; versioned JSON contract.
 - Private agent: outbound WS to control worker with signed job specs.
-- Multi-user: global identity plus explicit membership/invitation, account-bound rotating session.
-- Queue/admin: PostgreSQL fencing/outbox/fair scheduling and separate MFA control plane with JIT grants.
+- Multi-user: existing global `user` plus explicit membership/invitation, account-bound rotating session.
+- Queue/admin: PostgreSQL fencing/outbox/exact tenant fairness and separate OIDC/WebAuthn MFA control plane with JIT grants.
