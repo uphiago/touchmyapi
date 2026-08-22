@@ -1,0 +1,20 @@
+docs/superpowers/specs/2026-08-22-foundation-phase2-design.md
+  s_bc54431df54bf2::t_5cbd3d474fea37 1-97,99-166,168-233
+  s_bc54431df54bf2::t_2a55f8737bb49f 98,167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ba676c0559099049d05652fc2fc12ac34972393f",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
