@@ -1,0 +1,22 @@
+packages/policy/src/limits.ts
+  s_bc54431df54bf2::t_23f4de30ff3cd8 100,113
+  s_bc54431df54bf2::t_95e8c1231738a2 98-99,101-112,114-116
+packages/policy/test/limits.test.ts
+  s_bc54431df54bf2::t_8cd721c71361cc 117-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "75505e4dfe50a3b23b4c1b76fd47302bfe3e0bca",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
