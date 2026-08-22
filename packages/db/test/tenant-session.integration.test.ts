@@ -111,39 +111,35 @@ async function createFixture(db: DbConnection): Promise<Fixture> {
 }
 
 async function expectHiddenOrDenied(
-  tenant: TenantConnection,
-  operation: () => Promise<unknown>,
+  connection: DbConnection,
+  accountId: string,
+  operation: (tenant: TenantConnection) => Promise<unknown>,
 ): Promise<void> {
-  await tenant.unsafe("savepoint adversarial_probe");
   try {
-    const result = await operation();
+    const result = await withTenant(connection, accountId, "api_rls", operation);
     expect(result).toEqual([]);
   } catch (error: unknown) {
     const pgError = error as { code?: string; message?: string };
     expect(["42501", "23503"]).toContain(pgError.code);
     expect(pgError.message).toMatch(/permission denied|row-level security|foreign key/i);
-  } finally {
-    await tenant.unsafe("rollback to savepoint adversarial_probe");
-    await tenant.unsafe("release savepoint adversarial_probe");
   }
 }
 
 async function expectCountHiddenOrDenied(
-  tenant: TenantConnection,
-  operation: () => Promise<unknown>,
+  connection: DbConnection,
+  accountId: string,
+  operation: (tenant: TenantConnection) => Promise<unknown>,
 ): Promise<void> {
-  await tenant.unsafe("savepoint inference_probe");
   try {
-    const result = (await operation()) as Array<{ count?: number | string }>;
+    const result = (await withTenant(connection, accountId, "api_rls", operation)) as Array<{
+      count?: number | string;
+    }>;
     expect(result).toHaveLength(1);
     expect(Number(result[0]?.count)).toBe(0);
   } catch (error: unknown) {
     const pgError = error as { code?: string; message?: string };
     expect(pgError.code).toBe("42501");
     expect(pgError.message).toMatch(/permission denied|row-level security/i);
-  } finally {
-    await tenant.unsafe("rollback to savepoint inference_probe");
-    await tenant.unsafe("release savepoint inference_probe");
   }
 }
 
@@ -268,123 +264,141 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
     ).rejects.toThrow(/role/i);
   });
 
+  it("rejects and rolls back when a callback catches a SQL error", async () => {
+    await expect(
+      withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+        await tenant.unsafe("update public.assessment set status = 'running' where id = $1", [
+          fixture.assessmentA,
+        ]);
+        try {
+          await tenant.unsafe("select * from public.table_that_does_not_exist");
+        } catch {
+          return "caught";
+        }
+        return "not-caught";
+      }),
+    ).rejects.toThrow(/does not exist/i);
+
+    const [assessment] =
+      await db`select status from public.assessment where id = ${fixture.assessmentA}`;
+    expect(assessment?.status).toBe("draft");
+  });
+
   it("proves cross-tenant select, inference, DML, and foreign-key references fail closed", async () => {
-    await withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
-      const ids: Record<string, string> = {
-        account: fixture.accountB,
-        session: fixture.sessionB,
-        assessment: fixture.assessmentB,
-        credential: fixture.credentialB,
-        finding: fixture.findingB,
-        audit_event: fixture.auditB,
-      };
-      const tables = Object.keys(ids);
+    const ids: Record<string, string> = {
+      account: fixture.accountB,
+      session: fixture.sessionB,
+      assessment: fixture.assessmentB,
+      credential: fixture.credentialB,
+      finding: fixture.findingB,
+      audit_event: fixture.auditB,
+    };
+    const probe = (operation: (tenant: TenantConnection) => Promise<unknown>) =>
+      expectHiddenOrDenied(db, fixture.accountA, operation);
+    const countProbe = (operation: (tenant: TenantConnection) => Promise<unknown>) =>
+      expectCountHiddenOrDenied(db, fixture.accountA, operation);
 
-      for (const table of tables) {
-        await expectHiddenOrDenied(tenant, () =>
-          tenant.unsafe(`select id from public."${table}" where id = $1`, [ids[table]]),
-        );
-        await expectCountHiddenOrDenied(tenant, () =>
-          tenant.unsafe(`select count(*)::int as count from public."${table}" where id = $1`, [
-            ids[table],
-          ]),
-        );
-      }
-
-      const inserts: Array<() => Promise<unknown>> = [
-        () => tenant.unsafe("insert into public.account (status) values ('active') returning id"),
-        () =>
-          tenant.unsafe(
-            "insert into public.session (account_id, user_id, family_id, token_hash, expires_at) values ($1, $2, gen_random_uuid(), $3, now() + interval '1 hour') returning id",
-            [fixture.accountB, fixture.userB, "c".repeat(64)],
-          ),
-        () =>
-          tenant.unsafe(
-            "insert into public.assessment (account_id, target_category, target_json, scope_json, playbook_id, playbook_version, limits_json) values ($1, 'surface', '{}'::jsonb, '{}'::jsonb, $2, '1.0.0', '{}'::jsonb) returning id",
-            [fixture.accountB, fixture.playbookKey],
-          ),
-        () =>
-          tenant.unsafe(
-            "insert into public.credential (account_id, assessment_id, encrypted_payload, key_id, purpose) values ($1, $2, decode('01', 'hex'), 'probe', 'probe') returning id",
-            [fixture.accountB, fixture.assessmentB],
-          ),
-        () =>
-          tenant.unsafe(
-            "insert into public.finding (account_id, assessment_id, title, category, severity) values ($1, $2, 'probe', 'probe', 'low') returning id",
-            [fixture.accountB, fixture.assessmentB],
-          ),
-        () =>
-          tenant.unsafe(
-            "insert into public.audit_event (account_id, actor, action, payload_json) values ($1, 'probe', 'request', '{}'::jsonb) returning id",
-            [fixture.accountB],
-          ),
-      ];
-      for (const insert of inserts) await expectHiddenOrDenied(tenant, insert);
-
-      const updates: Array<() => Promise<unknown>> = [
-        () =>
-          tenant.unsafe(
-            "update public.account set settings_ia_enabled = false where id = $1 returning id",
-            [ids.account],
-          ),
-        () =>
-          tenant.unsafe("update public.session set revoked_at = now() where id = $1 returning id", [
-            ids.session,
-          ]),
-        () =>
-          tenant.unsafe(
-            "update public.assessment set status = 'queued' where id = $1 returning id",
-            [ids.assessment],
-          ),
-        () =>
-          tenant.unsafe(
-            "update public.credential set purpose = 'probe' where id = $1 returning id",
-            [ids.credential],
-          ),
-        () =>
-          tenant.unsafe("update public.finding set title = 'probe' where id = $1 returning id", [
-            ids.finding,
-          ]),
-        () =>
-          tenant.unsafe(
-            "update public.audit_event set actor = 'probe' where id = $1 returning id",
-            [ids.audit_event],
-          ),
-      ];
-      for (const update of updates) await expectHiddenOrDenied(tenant, update);
-
-      const deletes: Array<() => Promise<unknown>> = [
-        () => tenant.unsafe("delete from public.account where id = $1 returning id", [ids.account]),
-        () => tenant.unsafe("delete from public.session where id = $1 returning id", [ids.session]),
-        () =>
-          tenant.unsafe("delete from public.assessment where id = $1 returning id", [
-            ids.assessment,
-          ]),
-        () =>
-          tenant.unsafe("delete from public.credential where id = $1 returning id", [
-            ids.credential,
-          ]),
-        () => tenant.unsafe("delete from public.finding where id = $1 returning id", [ids.finding]),
-        () =>
-          tenant.unsafe("delete from public.audit_event where id = $1 returning id", [
-            ids.audit_event,
-          ]),
-      ];
-      for (const remove of deletes) await expectHiddenOrDenied(tenant, remove);
-
-      await expectHiddenOrDenied(tenant, () =>
-        tenant.unsafe(
-          "insert into public.credential (account_id, assessment_id, encrypted_payload, key_id, purpose) values ($1, $2, decode('01', 'hex'), 'probe', 'cross-reference') returning id",
-          [fixture.accountA, fixture.assessmentB],
-        ),
+    for (const table of Object.keys(ids)) {
+      await probe((tenant) =>
+        tenant.unsafe(`select id from public."${table}" where id = $1`, [ids[table]]),
       );
-      await expectHiddenOrDenied(tenant, () =>
-        tenant.unsafe(
-          "insert into public.audit_event (account_id, assessment_id, actor, action, payload_json) values ($1, $2, 'probe', 'request', '{}'::jsonb) returning id",
-          [fixture.accountA, fixture.assessmentB],
-        ),
+      await countProbe((tenant) =>
+        tenant.unsafe(`select count(*)::int as count from public."${table}" where id = $1`, [
+          ids[table],
+        ]),
       );
-    });
+    }
+
+    const inserts: Array<(tenant: TenantConnection) => Promise<unknown>> = [
+      (tenant) =>
+        tenant.unsafe("insert into public.account (status) values ('active') returning id"),
+      (tenant) =>
+        tenant.unsafe(
+          "insert into public.session (account_id, user_id, family_id, token_hash, expires_at) values ($1, $2, gen_random_uuid(), $3, now() + interval '1 hour') returning id",
+          [fixture.accountB, fixture.userB, "c".repeat(64)],
+        ),
+      (tenant) =>
+        tenant.unsafe(
+          "insert into public.assessment (account_id, target_category, target_json, scope_json, playbook_id, playbook_version, limits_json) values ($1, 'surface', '{}'::jsonb, '{}'::jsonb, $2, '1.0.0', '{}'::jsonb) returning id",
+          [fixture.accountB, fixture.playbookKey],
+        ),
+      (tenant) =>
+        tenant.unsafe(
+          "insert into public.credential (account_id, assessment_id, encrypted_payload, key_id, purpose) values ($1, $2, decode('01', 'hex'), 'probe', 'probe') returning id",
+          [fixture.accountB, fixture.assessmentB],
+        ),
+      (tenant) =>
+        tenant.unsafe(
+          "insert into public.finding (account_id, assessment_id, title, category, severity) values ($1, $2, 'probe', 'probe', 'low') returning id",
+          [fixture.accountB, fixture.assessmentB],
+        ),
+      (tenant) =>
+        tenant.unsafe(
+          "insert into public.audit_event (account_id, actor, action, payload_json) values ($1, 'probe', 'request', '{}'::jsonb) returning id",
+          [fixture.accountB],
+        ),
+    ];
+    for (const insert of inserts) await probe(insert);
+
+    const updates: Array<(tenant: TenantConnection) => Promise<unknown>> = [
+      (tenant) =>
+        tenant.unsafe(
+          "update public.account set settings_ia_enabled = false where id = $1 returning id",
+          [ids.account],
+        ),
+      (tenant) =>
+        tenant.unsafe("update public.session set revoked_at = now() where id = $1 returning id", [
+          ids.session,
+        ]),
+      (tenant) =>
+        tenant.unsafe("update public.assessment set status = 'queued' where id = $1 returning id", [
+          ids.assessment,
+        ]),
+      (tenant) =>
+        tenant.unsafe("update public.credential set purpose = 'probe' where id = $1 returning id", [
+          ids.credential,
+        ]),
+      (tenant) =>
+        tenant.unsafe("update public.finding set title = 'probe' where id = $1 returning id", [
+          ids.finding,
+        ]),
+      (tenant) =>
+        tenant.unsafe("update public.audit_event set actor = 'probe' where id = $1 returning id", [
+          ids.audit_event,
+        ]),
+    ];
+    for (const update of updates) await probe(update);
+
+    const deletes: Array<(tenant: TenantConnection) => Promise<unknown>> = [
+      (tenant) =>
+        tenant.unsafe("delete from public.account where id = $1 returning id", [ids.account]),
+      (tenant) =>
+        tenant.unsafe("delete from public.session where id = $1 returning id", [ids.session]),
+      (tenant) =>
+        tenant.unsafe("delete from public.assessment where id = $1 returning id", [ids.assessment]),
+      (tenant) =>
+        tenant.unsafe("delete from public.credential where id = $1 returning id", [ids.credential]),
+      (tenant) =>
+        tenant.unsafe("delete from public.finding where id = $1 returning id", [ids.finding]),
+      (tenant) =>
+        tenant.unsafe("delete from public.audit_event where id = $1 returning id", [
+          ids.audit_event,
+        ]),
+    ];
+    for (const remove of deletes) await probe(remove);
+
+    await probe((tenant) =>
+      tenant.unsafe(
+        "insert into public.credential (account_id, assessment_id, encrypted_payload, key_id, purpose) values ($1, $2, decode('01', 'hex'), 'probe', 'cross-reference') returning id",
+        [fixture.accountA, fixture.assessmentB],
+      ),
+    );
+    await probe((tenant) =>
+      tenant.unsafe(
+        "insert into public.audit_event (account_id, assessment_id, actor, action, payload_json) values ($1, $2, 'probe', 'request', '{}'::jsonb) returning id",
+        [fixture.accountA, fixture.assessmentB],
+      ),
+    );
   });
 
   it("keeps nested scopes independent and expires captured TenantConnections", async () => {

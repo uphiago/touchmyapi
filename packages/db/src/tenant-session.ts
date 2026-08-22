@@ -62,9 +62,7 @@ export async function withTenant<T>(
           values?: unknown[],
         ): Promise<Row[]> => {
           if (!active) throw new Error("TenantConnection is no longer active");
-          return (await transaction.savepoint(async (savepoint) =>
-            savepoint.unsafe(query, values as never),
-          )) as Row[];
+          return (await transaction.unsafe(query, values as never)) as Row[];
         },
       });
       callbackCompleted = true;
