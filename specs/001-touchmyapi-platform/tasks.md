@@ -39,7 +39,7 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 
 **⚠️ CRITICAL**: No user story work begins until this phase is complete.
 
-- [ ] T009 [P] Implement zod contract schemas in `packages/contracts/types.ts` for: assessment state machine, target categories, playbook contract, job spec, artifact manifest, export JSON, billing event, audit event (mirror `specs/001-.../contracts/`)
+- [x] T009 [P] Implement zod contract schemas in `packages/contracts/types.ts` for: assessment state machine, target categories, playbook contract, job spec, artifact manifest, export JSON, billing event, audit event (mirror `specs/001-.../contracts/`)
 - [ ] T010 [P] Implement `packages/policy/scope.ts`: target normalization (external URL/domain/API spec → normalized descriptor), inclusion/exclusion matching, private/local/metadata-IP blocklist rules (per research R8)
 - [ ] T011 [P] Implement `packages/policy/entitlement.ts`: plan rights matrix (free_unverified/free_verified/pro/lifetime) → allowed result visibility, playbook slice, credit caps (spec FR-005)
 - [ ] T012 [P] Implement `packages/policy/limits.ts`: rate/duration/concurrency/credit cap reducer; browser/model/runner inputs can only reduce, never increase playbook limits (spec FR-014)
