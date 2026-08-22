@@ -24,7 +24,7 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 
 - [x] T001 Bootstrap Bun workspace monorepo (`bun init` + root `package.json` workspaces: `apps/*`, `packages/*`, `tests/*`)
 - [x] T002 [P] Configure TypeScript strict shared config in `packages/tsconfig/base.json` (moduleResolution bundler, noUncheckedIndexedAccess)
-- [ ] T003 [P] Configure Vitest at repo root (`vitest.config.ts`) with workspaces for unit/contract/integration/isolation/e2e
+- [x] T003 [P] Configure Vitest at repo root (`vitest.config.ts`) with workspaces for unit/contract/integration/isolation/e2e
 - [ ] T004 [P] Configure drizzle-kit + Drizzle ORM in `packages/db` (`drizzle.config.ts`, schema dir)
 - [ ] T005 [P] Configure ESLint + Prettier at repo root (`.eslintrc`, `.prettierrc`); commit hooks via `husky`
 - [ ] T006 [P] Create `.env.example` with documented vars (DATABASE_URL, GOOGLE_CLIENT_ID/SECRET, STRIPE_*, SANDBOX_IMPL, OBJECT_STORAGE_*); `.env` stays gitignored
