@@ -2,6 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDbConnection, type DbConnection } from "../src/index";
 
 const RUN_DB_TESTS = process.env.RUN_DB_TESTS === "1";
+const normalizeRelationName = (value: string) => value.replaceAll('"', "");
+if (!RUN_DB_TESTS) {
+  console.info(
+    "[schema.integration] PostgreSQL checks skipped; set RUN_DB_TESTS=1 and DATABASE_URL=postgres://.../<name>_test to run them.",
+  );
+}
 const EXPECTED_TABLES = [
   "account",
   "user",
@@ -74,7 +80,9 @@ function databaseUrlForIntegration(): string {
   return databaseUrl;
 }
 
-describe.skipIf(!RUN_DB_TESTS)("PostgreSQL foundation schema", () => {
+const schemaDescribe = RUN_DB_TESTS ? describe : describe.skip;
+
+schemaDescribe("PostgreSQL foundation schema", () => {
   let db!: DbConnection;
 
   beforeAll(() => {
@@ -153,17 +161,173 @@ describe.skipIf(!RUN_DB_TESTS)("PostgreSQL foundation schema", () => {
     expect(nullableByTable.get("audit_event")).toBe("YES");
 
     const uniqueRows = await db`
-      select table_name, constraint_name
-      from information_schema.table_constraints
-      where table_schema = 'public' and constraint_type = 'UNIQUE'
+      select c.conrelid::regclass::text as table_name, c.conname as constraint_name,
+             array_agg(a.attname order by k.ordinality) as columns
+      from pg_constraint c
+      cross join lateral unnest(c.conkey) with ordinality as k(attnum, ordinality)
+      join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
+      where c.contype = 'u' and c.connamespace = 'public'::regnamespace
+      group by c.conrelid, c.conname
+      order by table_name, constraint_name
     `;
-    const uniqueNames = new Set(
-      uniqueRows.map((row) => `${row.table_name}:${row.constraint_name}`),
+    const actualUnique = uniqueRows.map(
+      (row) =>
+        `${normalizeRelationName(row.table_name as string)}:${row.constraint_name}:${(row.columns as string[]).join(",")}`,
     );
-    expect([...uniqueNames].some((value) => value.startsWith("user:"))).toBe(true);
-    expect([...uniqueNames].some((value) => value.startsWith("billing_event:"))).toBe(true);
-    expect([...uniqueNames].some((value) => value.startsWith("job:"))).toBe(true);
-    expect([...uniqueNames].some((value) => value.startsWith("agent:"))).toBe(true);
+    const expectedUnique = [
+      "agent:agent_account_id_id_unique:account_id,id",
+      "agent:agent_token_hash_unique:token_hash",
+      "assessment:assessment_account_id_id_unique:account_id,id",
+      "authorization_attestation:authorization_attestation_account_id_id_unique:account_id,id",
+      "audit_event:audit_event_account_id_id_unique:account_id,id",
+      "billing_event:billing_event_account_id_id_unique:account_id,id",
+      "billing_event:billing_event_stripe_event_id_unique:stripe_event_id",
+      "credential:credential_account_id_id_unique:account_id,id",
+      "credit_entry:credit_entry_account_id_id_unique:account_id,id",
+      "entitlement:entitlement_account_id_id_unique:account_id,id",
+      "finding:finding_account_id_id_unique:account_id,id",
+      "job:job_account_id_id_unique:account_id,id",
+      "job:job_dedupe_key_unique:dedupe_key",
+      "notification:notification_account_id_id_unique:account_id,id",
+      "report:report_account_id_id_unique:account_id,id",
+      "runner_execution:runner_execution_account_id_id_unique:account_id,id",
+      "session:session_account_id_id_unique:account_id,id",
+      "session:session_token_hash_unique:token_hash",
+      "user:user_account_id_id_unique:account_id,id",
+      "user:user_account_id_unique:account_id",
+      "user:user_provider_subject_unique:provider,provider_subject",
+      "verification:verification_account_id_id_unique:account_id,id",
+    ].sort();
+    expect(actualUnique).toEqual(expectedUnique);
+  });
+
+  it("matches the exact tenant-safe foreign-key matrix", async () => {
+    const rows = await db`
+      select child.relname as child_table, c.conname as constraint_name,
+             parent.relname as parent_table,
+             array_agg(child_attr.attname order by child_key.ordinality) as child_columns,
+             array_agg(parent_attr.attname order by parent_key.ordinality) as parent_columns
+      from pg_constraint c
+      join pg_class child on child.oid = c.conrelid
+      join pg_class parent on parent.oid = c.confrelid
+      cross join lateral unnest(c.conkey) with ordinality as child_key(attnum, ordinality)
+      join lateral unnest(c.confkey) with ordinality as parent_key(attnum, ordinality)
+        on parent_key.ordinality = child_key.ordinality
+      join pg_attribute child_attr on child_attr.attrelid = c.conrelid and child_attr.attnum = child_key.attnum
+      join pg_attribute parent_attr on parent_attr.attrelid = c.confrelid and parent_attr.attnum = parent_key.attnum
+      where c.contype = 'f' and child.relnamespace = 'public'::regnamespace
+      group by child.relname, c.conname, parent.relname
+      order by child_table, constraint_name
+    `;
+    const actual = rows.map(
+      (row) =>
+        `${row.child_table}:${row.constraint_name}:${row.parent_table}:${(row.child_columns as string[]).join(",")}>${(row.parent_columns as string[]).join(",")}`,
+    );
+    const expected = [
+      "assessment:assessment_account_fk:account:account_id>id",
+      "agent:agent_account_fk:account:account_id>id",
+      "assessment:assessment_agent_fk:agent:account_id,agent_id>account_id,id",
+      "assessment:assessment_playbook_fk:playbook:playbook_id,playbook_version>key,playbook_version",
+      "assessment:assessment_verification_fk:verification:account_id,verification_ref>account_id,id",
+      "authorization_attestation:authorization_attestation_assessment_fk:assessment:account_id,assessment_id>account_id,id",
+      "authorization_attestation:authorization_attestation_user_fk:user:account_id,user_id>account_id,id",
+      "audit_event:audit_event_account_fk:account:account_id>id",
+      "audit_event:audit_event_assessment_fk:assessment:account_id,assessment_id>account_id,id",
+      "audit_event:audit_event_job_fk:job:account_id,job_id>account_id,id",
+      "audit_event:audit_event_prev_fk:audit_event:account_id,prev_event_id>account_id,id",
+      "billing_event:billing_event_account_fk:account:account_id>id",
+      "credential:credential_assessment_fk:assessment:account_id,assessment_id>account_id,id",
+      "credit_entry:credit_entry_account_fk:account:account_id>id",
+      "credit_entry:credit_entry_assessment_fk:assessment:account_id,assessment_id>account_id,id",
+      "entitlement:entitlement_account_fk:account:account_id>id",
+      "entitlement:entitlement_source_event_fk:billing_event:account_id,source_event_id>account_id,id",
+      "finding:finding_assessment_fk:assessment:account_id,assessment_id>account_id,id",
+      "job:job_account_fk:account:account_id>id",
+      "job:job_assessment_fk:assessment:account_id,assessment_id>account_id,id",
+      "notification:notification_account_fk:account:account_id>id",
+      "notification:notification_assessment_fk:assessment:account_id,assessment_id>account_id,id",
+      "report:report_assessment_fk:assessment:account_id,assessment_id>account_id,id",
+      "runner_execution:runner_execution_job_fk:job:account_id,job_id>account_id,id",
+      "session:session_account_user_fk:user:account_id,user_id>account_id,id",
+      "user:user_account_fk:account:account_id>id",
+      "verification:verification_account_fk:account:account_id>id",
+    ].sort();
+    expect(actual).toEqual(expected);
+  });
+
+  it("matches critical defaults, primary keys, nullability, and checks", async () => {
+    const columns = await db`
+      select table_name, column_name, data_type, udt_name, is_nullable, column_default
+      from information_schema.columns
+      where table_schema = 'public'
+        and ((table_name = 'account' and column_name in ('id', 'status', 'settings_ia_enabled', 'created_at', 'deleted_at'))
+          or (table_name = 'session' and column_name in ('id', 'token_hash', 'expires_at'))
+          or (table_name = 'assessment' and column_name in ('target_json', 'limits_json', 'status', 'credits_estimate', 'credits_consumed', 'updated_at'))
+          or (table_name = 'job' and column_name in ('status', 'attempts', 'max_attempts'))
+          or (table_name = 'runner_execution' and column_name = 'cleaned_up')
+          or (table_name = 'finding' and column_name = 'published')
+          or (table_name = 'billing_event' and column_name in ('signature_valid', 'processing_status'))
+          or (table_name = 'entitlement' and column_name = 'status')
+          or (table_name = 'agent' and column_name = 'status'))
+    `;
+    const byColumn = new Map(columns.map((row) => [`${row.table_name}.${row.column_name}`, row]));
+    for (const name of ["account.id", "session.id"]) {
+      expect(byColumn.get(name)?.udt_name, name).toBe("uuid");
+      expect(byColumn.get(name)?.is_nullable, name).toBe("NO");
+      expect(byColumn.get(name)?.column_default, name).toMatch(/gen_random_uuid/);
+    }
+    for (const name of [
+      "account.status",
+      "account.settings_ia_enabled",
+      "assessment.status",
+      "job.status",
+      "job.attempts",
+      "job.max_attempts",
+      "runner_execution.cleaned_up",
+      "finding.published",
+      "billing_event.signature_valid",
+      "billing_event.processing_status",
+      "entitlement.status",
+      "agent.status",
+    ]) {
+      expect(byColumn.get(name)?.column_default, name).toBeTruthy();
+      expect(byColumn.get(name)?.is_nullable, name).toBe("NO");
+    }
+    expect(byColumn.get("session.token_hash")?.data_type).toBe("text");
+    expect(byColumn.get("session.token_hash")?.is_nullable).toBe("NO");
+    expect(byColumn.get("account.deleted_at")?.is_nullable).toBe("YES");
+    expect(byColumn.get("assessment.target_json")?.udt_name).toBe("jsonb");
+    expect(byColumn.get("assessment.limits_json")?.udt_name).toBe("jsonb");
+
+    const primaryKeys = await db`
+      select c.conrelid::regclass::text as table_name,
+             array_agg(a.attname order by k.ordinality) as columns
+      from pg_constraint c
+      cross join lateral unnest(c.conkey) with ordinality as k(attnum, ordinality)
+      join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
+      where c.contype = 'p' and c.connamespace = 'public'::regnamespace
+      group by c.conrelid
+    `;
+    const primaryByTable = new Map(
+      primaryKeys.map((row) => [
+        normalizeRelationName(row.table_name as string),
+        row.columns as string[],
+      ]),
+    );
+    for (const table of EXPECTED_TABLES.filter((name) => name !== "playbook")) {
+      expect(primaryByTable.get(table), table).toEqual(["id"]);
+    }
+    expect(primaryByTable.get("playbook")).toEqual(["key", "playbook_version"]);
+
+    const checks = await db`
+      select conname from pg_constraint where contype = 'c' and connamespace = 'public'::regnamespace order by conname
+    `;
+    expect(checks.map((row) => row.conname)).toEqual([
+      "assessment_credits_consumed_nonnegative",
+      "assessment_credits_estimate_nonnegative",
+      "job_attempts_nonnegative",
+      "job_max_attempts_positive",
+    ]);
   });
 
   it("requires and uniquely stores opaque session token hashes", async () => {

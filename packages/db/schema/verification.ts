@@ -18,7 +18,6 @@ export const verification = pgTable(
   },
   (table) => [
     unique("verification_account_id_id_unique").on(table.accountId, table.id),
-    unique("verification_challenge_token_unique").on(table.challengeToken),
     foreignKey({
       name: "verification_account_fk",
       columns: [table.accountId],
