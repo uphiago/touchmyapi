@@ -45,6 +45,7 @@ type IPv4 = [number, number, number, number];
 type IPv6 = [number, number, number, number, number, number, number, number];
 
 const DEFAULT_PORTS = { "http:": 80, "https:": 443 } as const;
+const compiledScopeSet = new WeakSet<object>();
 const forbiddenNameSet = new Set([
   "localhost",
   "metadata",
@@ -55,6 +56,10 @@ const forbiddenNameSet = new Set([
 
 function failure<T>(code: string): ScopeResult<T> {
   return { ok: false, code };
+}
+
+function isCompiledScope(input: unknown): input is CompiledScope {
+  return typeof input === "object" && input !== null && compiledScopeSet.has(input);
 }
 
 function hasControlCharacter(input: string): boolean {
@@ -495,10 +500,12 @@ export function compileScope(input: {
   }
   const inclusions = input.inclusions.map(compileRule).map((rule) => Object.freeze(rule));
   const exclusions = input.exclusions.map(compileRule).map((rule) => Object.freeze(rule));
-  return Object.freeze({
+  const compiled = Object.freeze({
     inclusions: Object.freeze(inclusions),
     exclusions: Object.freeze(exclusions),
   });
+  compiledScopeSet.add(compiled);
+  return compiled;
 }
 
 function pathMatches(prefix: string, path: string): boolean {
@@ -522,7 +529,7 @@ function ruleMatches(rule: ScopeRule, candidate: NormalizedTarget): boolean {
 
 export function matchesScope(scope: CompiledScope, candidate: string): boolean;
 export function matchesScope(scope: CompiledScope, candidate: string): boolean {
-  if (typeof candidate !== "string") return false;
+  if (!isCompiledScope(scope) || typeof candidate !== "string") return false;
   const normalized = normalizeExternalUrl(candidate);
   if (!normalized.ok) return false;
   const target = normalized.value;

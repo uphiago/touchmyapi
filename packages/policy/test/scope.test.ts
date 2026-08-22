@@ -272,6 +272,33 @@ describe("compiled scopes", () => {
     expect(matchesScope(scope, "https://example.com/admin")).toBe(true);
   });
 
+  it("fails closed for null, malformed, forged, or adulterated compiled scopes", () => {
+    const valid = compileScope({
+      inclusions: ["example.com"],
+      exclusions: ["example.com/private"],
+    });
+    const invalidScopes: unknown[] = [
+      null,
+      undefined,
+      {},
+      [],
+      42,
+      { inclusions: valid.inclusions, exclusions: valid.exclusions },
+      { ...valid, inclusions: [...valid.inclusions] },
+      {
+        inclusions: [{ ...valid.inclusions[0] }],
+        exclusions: valid.exclusions,
+      },
+      Object.freeze({ inclusions: [], exclusions: [] }),
+    ];
+
+    for (const invalid of invalidScopes) {
+      expect(() => matchesScope(invalid as never, "https://example.com/")).not.toThrow();
+      expect(matchesScope(invalid as never, "https://example.com/")).toBe(false);
+    }
+    expect(matchesScope(valid, "https://example.com/")).toBe(true);
+  });
+
   it("reports an invalid wildcard code for an empty label", () => {
     expect(() => compileScope({ inclusions: ["*..example.com"], exclusions: [] })).toThrowError(
       expect.objectContaining({ code: "invalid_wildcard" }),
