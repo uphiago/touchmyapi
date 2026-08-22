@@ -1,0 +1,2 @@
+# Bun runtime configuration for the TouchMyAPI monorepo.
+# Workspaces are declared in package.json ("workspaces": ["apps/*", "packages/*"]).

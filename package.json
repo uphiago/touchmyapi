@@ -1,0 +1,17 @@
+{
+  "name": "touchmyapi",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:api": "bun --cwd apps/api dev",
+    "dev:web": "bun --cwd apps/web dev",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test",
+    "verify:workspace": "bun scripts/verify-workspace.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
