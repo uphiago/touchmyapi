@@ -23,6 +23,7 @@ describe("membership policy", () => {
         "assessment:create",
         "assessment:cancel",
         "billing:read",
+        "billing:purchase",
       ],
     ],
     [
@@ -87,6 +88,16 @@ describe("membership policy", () => {
     const result = capabilities("viewer");
     expect(canMembershipCapability(result, "membership:manage")).toBe(false);
     expect(canMembershipCapability(result, "unknown" as MembershipCapability)).toBe(false);
+    expect(
+      canMembershipCapability(
+        {
+          ...result,
+          allowed: true,
+          capabilities: ["membership:manage"],
+        },
+        "membership:manage",
+      ),
+    ).toBe(false);
   });
 
   it("returns a transaction-layer decision for the last active owner", () => {

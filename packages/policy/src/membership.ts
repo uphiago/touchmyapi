@@ -37,6 +37,7 @@ export type LastOwnerDecision = Readonly<{
 }>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const evaluationSet = new WeakSet<object>();
 const CAPABILITIES = new Set<MembershipCapability>([
   "account:read",
   "membership:manage",
@@ -56,6 +57,7 @@ const ROLE_CAPABILITIES: Readonly<Record<MembershipRole, readonly MembershipCapa
       "assessment:create",
       "assessment:cancel",
       "billing:read",
+      "billing:purchase",
     ]) as readonly MembershipCapability[],
     admin: Object.freeze([
       "account:read",
@@ -96,7 +98,7 @@ export function evaluateMembership(input: MembershipInput): MembershipEvaluation
   assertRoleStatus(input.role, input.status);
   const active = input.status === "active";
   const capabilities = active ? ROLE_CAPABILITIES[input.role] : [];
-  return Object.freeze({
+  const result = Object.freeze({
     allowed: active,
     accountId: input.accountId,
     userId: input.userId,
@@ -105,6 +107,8 @@ export function evaluateMembership(input: MembershipInput): MembershipEvaluation
     capabilities,
     reason: active ? "ok" : "membership_suspended",
   });
+  evaluationSet.add(result);
+  return result;
 }
 
 /** Check a capability against a snapshot; unknown capabilities fail closed. */
@@ -113,6 +117,7 @@ export function canMembershipCapability(
   capability: MembershipCapability,
 ): boolean {
   return (
+    evaluationSet.has(evaluation) &&
     evaluation.allowed &&
     CAPABILITIES.has(capability) &&
     evaluation.capabilities.includes(capability)
