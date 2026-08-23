@@ -45,11 +45,11 @@ The provider boundary remains Google-only per the approved spec. Provider config
 
 **Files:** create `packages/policy/src/membership.ts`, `packages/policy/test/membership.test.ts`; modify `packages/policy/src/index.ts`.
 
-- [ ] Write table-driven RED tests for each role and active/suspended/removed status. Owner/admin manage members; operator creates/cancels assessments; viewer reads; billing reads billing and can initiate purchase intent only. Test account/user binding and deny unknown role/status.
-- [ ] Run `bun run test:unit -- membership`; verify failure before implementation.
-- [ ] Implement immutable role capability sets keyed by the supplied `accountId` and `userId`; make the last-active-owner guard an explicit decision returned to the transaction layer, not an index shortcut. Freeze outputs and deny by default.
-- [ ] Run `bun run test:unit -- membership && bun run typecheck`.
-- [ ] Commit `policy: enforce membership role capabilities`.
+- [x] Write table-driven RED tests for each role and active/suspended/removed status. Owner/admin manage members; operator creates/cancels assessments; viewer reads; billing reads billing and can initiate purchase intent only. Test account/user binding and deny unknown role/status.
+- [x] Run `bun run test:unit -- membership`; verify failure before implementation.
+- [x] Implement immutable role capability sets keyed by the supplied `accountId` and `userId`; make the last-active-owner guard an explicit decision returned to the transaction layer, not an index shortcut. Freeze outputs and deny by default.
+- [x] Run `bun run test:unit -- membership && bun run typecheck`.
+- [x] Commit `policy: enforce membership role capabilities`.
 
 ## Task 4 — T074 account list/switch and session binding
 
