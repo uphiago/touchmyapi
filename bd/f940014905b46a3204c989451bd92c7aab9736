@@ -1,0 +1,23 @@
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_de30e9588bc8d6 22-24,26
+  s_bc54431df54bf2::t_fe1c4f8f083c2c 92-95,108,117-119
+README.md
+  s_bc54431df54bf2::t_9d8072f687fcf8 7,13
+  s_bc54431df54bf2::t_dc65c710dfcbb1 21-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "bdf940014905b46a3204c989451bd92c7aab9736",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
