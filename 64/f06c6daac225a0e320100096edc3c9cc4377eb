@@ -1,0 +1,38 @@
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_b86e6e5042da44 195
+apps/api/src/server.ts
+  s_bc54431df54bf2::t_7e2ce00c462bb8 3,6-9,13
+apps/api/src/local-development.ts
+  s_bc54431df54bf2::t_7e2ce00c462bb8 1-2,4-75,88-91,94-137,143-148,156-198
+  s_bc54431df54bf2::t_ca02152e5881ee 3,76-87,92-93,138-142,149-155
+docs/reviews/2026-08-23-multiuser-membership-foundation.md
+  s_bc54431df54bf2::t_b86e6e5042da44 101-105
+docs/superpowers/plans/2026-08-23-membership-ui.md
+  s_bc54431df54bf2::t_d14bfc8bb0f3d4 145-148
+scripts/dev-local.ts
+  s_bc54431df54bf2::t_b86e6e5042da44 41,60-67,69
+  s_bc54431df54bf2::t_7e2ce00c462bb8 36,43
+apps/web/src/App.tsx
+  s_bc54431df54bf2::t_7e2ce00c462bb8 16,71-78
+apps/api/test/local-development.test.ts
+  s_bc54431df54bf2::t_f5b843eeb7ac6b 21,44
+  s_bc54431df54bf2::t_b86e6e5042da44 1-20,22-43,45-56
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_b86e6e5042da44 89-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "64f06c6daac225a0e320100096edc3c9cc4377eb",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
