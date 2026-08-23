@@ -1,0 +1,20 @@
+apps/api/src/assessments.ts
+  s_bc54431df54bf2::t_6cbbb13192d574 84-92,96-97
+  s_bc54431df54bf2::t_3d3c4030bddd41 93-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "761d1e630b46f7bdecd1ba2fee1de321e86143ae",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
