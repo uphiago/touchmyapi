@@ -40,6 +40,7 @@ const EXPECTED_TABLES = [
   "entitlement",
   "agent",
   "audit_event",
+  "audit_system_state",
   "notification",
 ] as const;
 
@@ -169,10 +170,24 @@ schemaDescribe("PostgreSQL foundation schema", () => {
     `;
     const nullableByTable = new Map(accountColumns.map((row) => [row.table_name, row.is_nullable]));
     for (const table of EXPECTED_TABLES) {
-      if (table === "account" || table === "playbook" || table === "audit_event") continue;
+      if (
+        table === "account" ||
+        table === "playbook" ||
+        table === "audit_event" ||
+        table === "audit_system_state"
+      )
+        continue;
       expect(nullableByTable.get(table), table).toBe("NO");
     }
     expect(nullableByTable.get("audit_event")).toBe("YES");
+
+    const systemColumns = await db`
+      select column_name, data_type, is_nullable
+      from information_schema.columns
+      where table_schema = 'public' and table_name = 'audit_system_state'
+      order by ordinal_position
+    `;
+    expect(systemColumns).toEqual([{ column_name: "id", data_type: "text", is_nullable: "NO" }]);
 
     const uniqueRows = await db`
       select c.conrelid::regclass::text as table_name, c.conname as constraint_name,
@@ -342,10 +357,13 @@ schemaDescribe("PostgreSQL foundation schema", () => {
         row.columns as string[],
       ]),
     );
-    for (const table of EXPECTED_TABLES.filter((name) => name !== "playbook")) {
+    for (const table of EXPECTED_TABLES.filter(
+      (name) => name !== "playbook" && name !== "audit_system_state",
+    )) {
       expect(primaryByTable.get(table), table).toEqual(["id"]);
     }
     expect(primaryByTable.get("playbook")).toEqual(["key", "playbook_version"]);
+    expect(primaryByTable.get("audit_system_state")).toEqual(["id"]);
 
     const [familyIndex] = await db`
       select indexdef
@@ -369,8 +387,12 @@ schemaDescribe("PostgreSQL foundation schema", () => {
         ["assessment_credits_estimate_nonnegative", "check credits_estimate >= 0"],
         ["job_attempts_nonnegative", "check attempts >= 0"],
         ["job_max_attempts_positive", "check max_attempts > 0"],
+        ["audit_system_state_id_check", "check id = 'system'::text"],
       ]),
     );
+
+    const [systemState] = await db`select id from public.audit_system_state`;
+    expect(systemState?.id).toBe("system");
   });
 
   it("requires and uniquely stores opaque session token hashes", async () => {

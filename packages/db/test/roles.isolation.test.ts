@@ -198,7 +198,9 @@ describeDb("PostgreSQL least-privilege roles", () => {
         and c.relkind in ('r', 'p')
       order by c.relname
     `;
-    expect(tables.map((row) => row.relname)).toEqual([...TENANT_TABLES, "playbook"].sort());
+    expect(tables.map((row) => row.relname)).toEqual(
+      [...TENANT_TABLES, "playbook", "audit_system_state"].sort(),
+    );
     expect(new Set(tables.map((row) => row.owner))).toEqual(new Set([String(tables[0]?.owner)]));
     const functions = await db`
       select p.proname, pg_get_function_identity_arguments(p.oid) as args, r.rolname as owner
@@ -239,6 +241,90 @@ describeDb("PostgreSQL least-privilege roles", () => {
       select has_schema_privilege('public', 'public', 'create') as allowed
     `;
     expect(schema?.allowed).toBe(false);
+
+    for (const role of ["audit_system", "audit_system_connector"] as const) {
+      for (const table of [...TENANT_TABLES, "playbook", "audit_system_state"]) {
+        for (const privilege of PRIVILEGES) {
+          const [row] = await db`
+            select has_table_privilege(${role}, ${`public.${table}`}, ${privilege}) as allowed
+          `;
+          expect(row?.allowed, `${role}/${table}/${privilege}`).toBe(
+            role === "audit_system" &&
+              table === "audit_event" &&
+              ["select", "insert"].includes(privilege)
+              ? true
+              : role === "audit_system" &&
+                  table === "audit_system_state" &&
+                  ["select", "update"].includes(privilege)
+                ? true
+                : false,
+          );
+        }
+      }
+    }
+  });
+
+  it("isolates the system audit role to accountless audit rows and the singleton", async () => {
+    const roles = await db`
+      select rolname, rolsuper, rolbypassrls, rolinherit, rolcanlogin,
+             rolcreatedb, rolcreaterole, rolreplication
+      from pg_roles
+      where rolname in ('audit_system', 'audit_system_connector')
+      order by rolname
+    `;
+    expect(roles).toEqual([
+      {
+        rolname: "audit_system",
+        rolsuper: false,
+        rolbypassrls: false,
+        rolinherit: false,
+        rolcanlogin: false,
+        rolcreatedb: false,
+        rolcreaterole: false,
+        rolreplication: false,
+      },
+      {
+        rolname: "audit_system_connector",
+        rolsuper: false,
+        rolbypassrls: false,
+        rolinherit: false,
+        rolcanlogin: true,
+        rolcreatedb: false,
+        rolcreaterole: false,
+        rolreplication: false,
+      },
+    ]);
+    const [membership] = await db`
+      select pg_has_role('audit_system_connector', 'audit_system', 'member') as member
+    `;
+    expect(membership?.member).toBe(true);
+    const policies = await db`
+      select c.relname, p.polname, p.polcmd, pg_get_expr(p.polqual, p.polrelid) as using_expr,
+             pg_get_expr(p.polwithcheck, p.polrelid) as check_expr
+      from pg_policy p
+      join pg_class c on c.oid = p.polrelid
+      where c.relname in ('audit_event', 'audit_system_state')
+        and 'audit_system' = any (array(select r.rolname from pg_roles r where r.oid = any(p.polroles)))
+      order by c.relname, p.polname
+    `;
+    expect(policies.map((row) => row.polname)).toEqual([
+      "audit_event_audit_system_insert",
+      "audit_event_audit_system_select",
+      "audit_system_state_audit_system_lock",
+      "audit_system_state_audit_system_select",
+    ]);
+    expect(policies.map((row) => normalizePolicyExpression(row.using_expr))).toEqual([
+      "",
+      "account_id IS NULL",
+      "id = 'system'",
+      "id = 'system'",
+    ]);
+    expect(policies.map((row) => normalizePolicyExpression(row.check_expr))).toEqual([
+      "account_id IS NULL",
+      "",
+      "id = 'system'",
+      "",
+    ]);
   });
 
   it("keeps auth bootstrap without direct table DML and grants explicit runtime access", async () => {
@@ -292,7 +378,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
       expect(row.relforcerowsecurity).toBe(true);
       const expectedCount =
         row.relname === "audit_event"
-          ? 6
+          ? 8
           : ["account", "user", "session"].includes(String(row.relname))
             ? 4
             : 3;
@@ -353,6 +439,12 @@ describeDb("PostgreSQL least-privilege roles", () => {
       expect(normalizePolicyExpression(byName.get(name)?.check_expr)).toBe(
         "rls_tenant_matches(account_id) AND NULLIF(current_setting('app.tenant', true), '') IS NOT NULL",
       );
+    }
+    for (const name of ["audit_event_audit_system_select", "audit_event_audit_system_insert"]) {
+      expectedNames.add(name);
+      const policy = byName.get(name);
+      expect(policy?.roles).toEqual(["audit_system"]);
+      expect(policy?.polcmd).toBe(name.endsWith("select") ? "r" : "a");
     }
     for (const table of ["account", "user", "session", "audit_event"]) {
       expectedNames.add(`${table}_bootstrap`);

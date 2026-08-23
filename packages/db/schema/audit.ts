@@ -1,8 +1,24 @@
-import { foreignKey, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import {
+  check,
+  foreignKey,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { account } from "./identity";
 import { assessment } from "./assessment";
 import { job } from "./execution";
 import { auditAction, createdAt, id } from "./common";
+
+export const auditSystemState = pgTable(
+  "audit_system_state",
+  { id: text("id").primaryKey() },
+  (table) => [check("audit_system_state_id_check", sql`${table.id} = 'system'`)],
+);
 
 export const auditEvent = pgTable(
   "audit_event",
