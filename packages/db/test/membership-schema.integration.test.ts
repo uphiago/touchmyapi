@@ -249,5 +249,19 @@ describeDb("Phase 2A membership schema", () => {
       )
     `;
     expect(denied).toEqual([]);
+
+    await db`
+      update account_membership
+      set status = 'suspended'
+      where account_id = ${accountB} and user_id = ${userA}
+    `;
+    expect(await db`select * from public.auth_list_accounts(${newHash})`).toEqual([]);
+    expect(
+      await db`
+        select * from public.auth_switch_account(
+          ${newHash}, ${accountA}, ${"e".repeat(64)}, now() + interval '1 day'
+        )
+      `,
+    ).toEqual([]);
   });
 });

@@ -55,6 +55,14 @@ BEGIN
     AND a.status = 'active'::public.account_status
     AND a.deleted_at IS NULL;
   IF current_user_id IS NULL THEN RETURN; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.account_membership AS current_membership
+    WHERE current_membership.account_id = current_account_id
+      AND current_membership.user_id = current_user_id
+      AND current_membership.status = 'active'::public.membership_status
+  ) THEN
+    RETURN;
+  END IF;
   RETURN QUERY
   SELECT m.account_id, m.role, m.status, (m.account_id = current_account_id)
   FROM public.account_membership AS m
@@ -103,6 +111,14 @@ BEGIN
     AND a.deleted_at IS NULL
   FOR UPDATE OF s;
   IF found_session_id IS NULL THEN RETURN; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.account_membership AS current_membership
+    WHERE current_membership.account_id = found_account_id
+      AND current_membership.user_id = found_user_id
+      AND current_membership.status = 'active'::public.membership_status
+  ) THEN
+    RETURN;
+  END IF;
 
   SELECT true INTO membership_ok
   FROM public.account_membership AS m
