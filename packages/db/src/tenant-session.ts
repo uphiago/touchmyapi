@@ -525,6 +525,17 @@ async function assertSafePrincipal(
                and acl.grantee = reachable.oid
                and acl.privilege_type = 'EXECUTE'
                and p.prosecdef
+               and not (
+                 reachable.rolname = 'api_rls'
+                 and n.nspname = 'app_private'
+                 and p.proname = 'queue_enqueue'
+                 and oidvectortypes(p.proargtypes) in (
+                   'uuid, uuid, text, timestamp with time zone, integer, integer',
+                   'uuid, uuid, timestamp with time zone, integer, integer'
+                 )
+                 and p.proowner = (select oid from pg_roles where rolname = 'queue_control')
+                 and p.proconfig = array['search_path=pg_catalog, public, app_private']::text[]
+               )
            )
       ) as unsafe_membership
     from pg_roles r
@@ -687,18 +698,32 @@ async function assertSwitchedPrincipal(
           and acl.grantee = r.oid
           and acl.privilege_type = 'EXECUTE'
           and not (
-            n.nspname = 'public'
-            and (
-              (
-                p.proname = 'rls_tenant_matches'
-                and oidvectortypes(p.proargtypes) = 'uuid'
-                and not p.prosecdef
+            (
+              n.nspname = 'public'
+              and (
+                (
+                  p.proname = 'rls_tenant_matches'
+                  and oidvectortypes(p.proargtypes) = 'uuid'
+                  and not p.prosecdef
+                )
+                or (
+                  p.proname = 'rls_bootstrap_context'
+                  and oidvectortypes(p.proargtypes) = ''
+                  and not p.prosecdef
+                )
               )
-              or (
-                p.proname = 'rls_bootstrap_context'
-                and oidvectortypes(p.proargtypes) = ''
-                and not p.prosecdef
+            )
+            or (
+              r.rolname = 'api_rls'
+              and n.nspname = 'app_private'
+              and p.proname = 'queue_enqueue'
+              and oidvectortypes(p.proargtypes) in (
+                'uuid, uuid, text, timestamp with time zone, integer, integer',
+                'uuid, uuid, timestamp with time zone, integer, integer'
               )
+              and p.prosecdef
+              and p.proowner = (select oid from pg_roles where rolname = 'queue_control')
+              and p.proconfig = array['search_path=pg_catalog, public, app_private']::text[]
             )
           )
       ) as unexpected_function_access

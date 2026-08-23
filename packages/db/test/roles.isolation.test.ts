@@ -24,6 +24,7 @@ const TENANT_TABLES = [
   "notification",
 ] as const;
 const MEMBERSHIP_TABLES = ["account_invitation", "account_membership"] as const;
+const QUEUE_TABLES = ["outbox_event", "queue_global_state", "queue_tenant_state"] as const;
 const AUDIT_STATE_TABLE = "audit_account_state" as const;
 const AUTH_FUNCTIONS = [
   ["auth_complete_google_login", "text,citext,text,timestamp with time zone,inet,text"],
@@ -214,6 +215,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
       [
         ...TENANT_TABLES,
         ...MEMBERSHIP_TABLES,
+        ...QUEUE_TABLES,
         "playbook",
         "audit_system_state",
         AUDIT_STATE_TABLE,
@@ -489,9 +491,11 @@ describeDb("PostgreSQL least-privilege roles", () => {
       const expectedCount =
         row.relname === "audit_event"
           ? 8
-          : ["account", "user", "session"].includes(String(row.relname))
+          : ["assessment", "job"].includes(String(row.relname))
             ? 4
-            : 3;
+            : ["account", "user", "session"].includes(String(row.relname))
+              ? 4
+              : 3;
       expect(Number(row.policy_count)).toBe(expectedCount);
     }
     const [state] = await db`
@@ -588,6 +592,11 @@ describeDb("PostgreSQL least-privilege roles", () => {
     }
     expectedNames.add("audit_account_state_bootstrap");
     expect(byName.get("audit_account_state_bootstrap")?.polcmd).toBe("*");
+    for (const name of ["assessment_queue_control", "job_queue_control"]) {
+      expectedNames.add(name);
+      expect(byName.get(name)?.polcmd).toBe("*");
+      expect(byName.get(name)?.roles).toEqual(["queue_control"]);
+    }
     expect([...byName.keys()].sort()).toEqual([...expectedNames].sort());
   });
 
@@ -758,6 +767,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
           await tx`delete from public.audit_event where account_id = ${cleanupAccountId}`;
           await tx`delete from public.account_membership where account_id = ${cleanupAccountId}`;
           await tx`delete from public."user" where account_id = ${cleanupAccountId}`;
+          await tx`delete from public.queue_tenant_state where account_id = ${cleanupAccountId}`;
           await tx`delete from public.account where id = ${cleanupAccountId}`;
         });
       }

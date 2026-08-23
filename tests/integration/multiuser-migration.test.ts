@@ -98,6 +98,8 @@ describe.skipIf(!RUN_DB_TESTS)("multi-user expand-contract migration", () => {
       if (accountId) await db`delete from public.audit_event where account_id = ${accountId}`;
       if (accountId)
         await db`delete from public.audit_account_state where account_id = ${accountId}`;
+      if (accountId)
+        await db`delete from public.queue_tenant_state where account_id = ${accountId}`;
       if (accountId) await db`delete from public.account where id = ${accountId}`;
     }
   });
@@ -164,6 +166,8 @@ describe.skipIf(!RUN_DB_TESTS)("multi-user expand-contract migration", () => {
         await db`delete from public.audit_event where account_id in (${accountA}, ${accountB || accountA})`;
       if (accountA)
         await db`delete from public.audit_account_state where account_id in (${accountA}, ${accountB || accountA})`;
+      if (accountA)
+        await db`delete from public.queue_tenant_state where account_id in (${accountA}, ${accountB || accountA})`;
       if (accountB) await db`delete from public.account where id = ${accountB}`;
       if (accountA) await db`delete from public.account where id = ${accountA}`;
     }

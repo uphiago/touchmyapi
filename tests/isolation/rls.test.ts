@@ -163,8 +163,8 @@ async function createTenantRows(
     values (${accountId}, ${assessment.id}, 'fixture') returning id`;
   if (!notification) throw new Error("notification fixture missing");
   const [job] = await tx`insert into public.job
-    (account_id, assessment_id, playbook_version, job_spec_json, dedupe_key)
-    values (${accountId}, ${assessment.id}, ${playbookVersion}, '{}'::jsonb, ${`dedupe-${suffix}`}) returning id`;
+    (account_id, assessment_id, playbook_version, job_spec_json, normalized_target_key, dedupe_key)
+    values (${accountId}, ${assessment.id}, ${playbookVersion}, '{}'::jsonb, ${`target-${suffix}`}, ${`dedupe-${suffix}`}) returning id`;
   if (!job) throw new Error("job fixture missing");
   const [runnerExecution] = await tx`insert into public.runner_execution
     (account_id, job_id, sandbox_impl)
@@ -540,8 +540,8 @@ describeDb("PostgreSQL default-deny tenant isolation", () => {
         await tx.unsafe("reset app.tenant");
         for (const operation of [
           () => tx`insert into public.job
-            (account_id, assessment_id, playbook_version, job_spec_json, dedupe_key)
-            values (${rowsA.accountId}, ${rowsA.assessmentId}, '1.0.0', '{}'::jsonb, ${`insert-${run}`})`,
+            (account_id, assessment_id, playbook_version, job_spec_json, normalized_target_key, dedupe_key)
+            values (${rowsA.accountId}, ${rowsA.assessmentId}, '1.0.0', '{}'::jsonb, ${`insert-target-${run}`}, ${`insert-${run}`})`,
           () => tx`insert into public.runner_execution
             (account_id, job_id, sandbox_impl)
             values (${rowsA.accountId}, ${rowsA.jobId}, 'fixture')`,
@@ -580,8 +580,8 @@ describeDb("PostgreSQL default-deny tenant isolation", () => {
         await expectDenied(
           tx,
           () => tx`insert into public.job
-        (id, account_id, assessment_id, playbook_version, job_spec_json, dedupe_key)
-        values (gen_random_uuid(), ${rowsB.accountId}, ${rowsB.assessmentId}, '1.0.0', '{}'::jsonb, ${`cross-${run}`})`,
+        (id, account_id, assessment_id, playbook_version, job_spec_json, normalized_target_key, dedupe_key)
+        values (gen_random_uuid(), ${rowsB.accountId}, ${rowsB.assessmentId}, '1.0.0', '{}'::jsonb, ${`cross-target-${run}`}, ${`cross-${run}`})`,
           /row-level security/,
         );
 

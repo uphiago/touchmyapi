@@ -128,6 +128,10 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant closed capability boundary", () => {
               fixture.accountA,
               fixture.accountB,
             ]);
+            await tx.unsafe("delete from public.queue_tenant_state where account_id in ($1, $2)", [
+              fixture.accountA,
+              fixture.accountB,
+            ]);
             await tx.unsafe("delete from public.account where id in ($1, $2)", [
               fixture.accountA,
               fixture.accountB,
@@ -158,6 +162,21 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant closed capability boundary", () => {
       expect(await tenant.account.readCurrent()).toMatchObject({ id: fixture.accountA });
     });
     await expectCleanBorrowedConnection();
+  });
+
+  it("accepts the fixed policy-gated queue enqueue function granted to api_rls", async () => {
+    const [grant] = await adminDb`
+      select has_function_privilege(
+        'api_rls',
+        'app_private.queue_enqueue(uuid, uuid, text, timestamptz, integer, integer)',
+        'execute'
+      ) as allowed
+    `;
+    expect(grant?.allowed).toBe(true);
+
+    await withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+      expect((await tenant.account.readCurrent())?.id).toBe(fixture.accountA);
+    });
   });
 
   it("keeps RLS account reads isolated for API, worker, and read-only reporting roles", async () => {

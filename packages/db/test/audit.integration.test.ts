@@ -87,6 +87,7 @@ async function createFixture(owner: RawDbConnection): Promise<Fixture> {
 describeDb("closed audit append capabilities", () => {
   let owner!: RawDbConnection;
   let fixture!: Fixture;
+  const systemActors: string[] = [];
 
   beforeAll(async () => {
     owner = createRawDbConnection(databaseUrlForTest());
@@ -98,6 +99,9 @@ describeDb("closed audit append capabilities", () => {
     if (fixture?.system) await getRawSystemAuditDatabase(fixture.system)?.end();
     if (fixture) {
       await owner.begin(async (tx) => {
+        for (const actor of systemActors) {
+          await tx`delete from public.audit_event where account_id is null and actor = ${actor}`;
+        }
         await tx.unsafe(
           "delete from public.audit_event where account_id is null and actor in ('system:a', 'system:b')",
         );
@@ -111,6 +115,9 @@ describeDb("closed audit append capabilities", () => {
           fixture.accountId,
         ]);
         await tx.unsafe('delete from public."user" where account_id = $1::uuid', [
+          fixture.accountId,
+        ]);
+        await tx.unsafe("delete from public.queue_tenant_state where account_id = $1::uuid", [
           fixture.accountId,
         ]);
         await tx.unsafe("delete from public.account where id = $1::uuid", [fixture.accountId]);
@@ -276,6 +283,9 @@ describeDb("closed audit append capabilities", () => {
         login.account_id,
       ]);
       await owner.unsafe('delete from public."user" where account_id = $1::uuid', [
+        login.account_id,
+      ]);
+      await owner.unsafe("delete from public.queue_tenant_state where account_id = $1::uuid", [
         login.account_id,
       ]);
       await owner.unsafe("delete from public.account where id = $1::uuid", [login.account_id]);
@@ -533,6 +543,9 @@ describeDb("closed audit append capabilities", () => {
       await owner.unsafe('delete from public."user" where account_id = $1::uuid', [
         other.account_id,
       ]);
+      await owner.unsafe("delete from public.queue_tenant_state where account_id = $1::uuid", [
+        other.account_id,
+      ]);
       await owner.unsafe("delete from public.account where id = $1::uuid", [other.account_id]);
     }
   });
@@ -574,17 +587,21 @@ describeDb("closed audit append capabilities", () => {
   });
 
   it("serializes accountless system appends on the singleton lock", async () => {
+    const run = randomUUID();
+    const actorA = `system:a:${run}`;
+    const actorB = `system:b:${run}`;
+    systemActors.push(actorA, actorB);
     const [first, second] = await Promise.all([
       withSystemAudit(fixture.system, (context) =>
         appendSystemAuditEvent(context, {
-          actor: "system:a",
+          actor: actorA,
           action: "request",
           payload: { index: 1 },
         }),
       ),
       withSystemAudit(fixture.system, (context) =>
         appendSystemAuditEvent(context, {
-          actor: "system:b",
+          actor: actorB,
           action: "request",
           payload: { index: 2 },
         }),
@@ -594,12 +611,13 @@ describeDb("closed audit append capabilities", () => {
     expect(second.accountId).toBeNull();
     const rows = await owner`
       select id, prev_event_id from public.audit_event
-      where account_id is null and actor in ('system:a', 'system:b')
+      where account_id is null and actor in (${actorA}, ${actorB})
       order by created_at, id
     `;
     expect(new Set(rows.map((row) => row.id))).toEqual(new Set([first.id, second.id]));
-    expect(rows.filter((row) => row.prev_event_id === null)).toHaveLength(1);
-    expect(rows.filter((row) => row.prev_event_id !== null)).toHaveLength(1);
+    expect(
+      rows.filter((row) => row.prev_event_id === first.id || row.prev_event_id === second.id),
+    ).toHaveLength(1);
   });
 
   it("rolls back a tenant mutation and its audit append together", async () => {

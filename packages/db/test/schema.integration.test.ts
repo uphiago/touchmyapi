@@ -45,6 +45,9 @@ const EXPECTED_TABLES = [
   "audit_account_state",
   "audit_system_state",
   "notification",
+  "outbox_event",
+  "queue_global_state",
+  "queue_tenant_state",
 ] as const;
 
 const EXPECTED_ENUMS: Record<string, string[]> = {
@@ -197,7 +200,8 @@ schemaDescribe("PostgreSQL foundation schema", () => {
         table === "account" ||
         table === "playbook" ||
         table === "audit_event" ||
-        table === "audit_system_state"
+        table === "audit_system_state" ||
+        table === "queue_global_state"
       )
         continue;
       expect(nullableByTable.get(table), table).toBe("NO");
@@ -246,6 +250,8 @@ schemaDescribe("PostgreSQL foundation schema", () => {
       "job:job_account_id_id_unique:account_id,id",
       "job:job_dedupe_key_unique:dedupe_key",
       "notification:notification_account_id_id_unique:account_id,id",
+      "outbox_event:outbox_event_account_id_id_unique:account_id,id",
+      "outbox_event:outbox_event_key_unique:event_key",
       "report:report_account_id_id_unique:account_id,id",
       "runner_execution:runner_execution_account_id_id_unique:account_id,id",
       "session:session_account_id_id_unique:account_id,id",
@@ -310,6 +316,8 @@ schemaDescribe("PostgreSQL foundation schema", () => {
       "job:job_assessment_fk:assessment:account_id,assessment_id>account_id,id",
       "notification:notification_account_fk:account:account_id>id",
       "notification:notification_assessment_fk:assessment:account_id,assessment_id>account_id,id",
+      "outbox_event:outbox_event_account_fk:account:account_id>id",
+      "queue_tenant_state:queue_tenant_state_account_fk:account:account_id>id",
       "report:report_assessment_fk:assessment:account_id,assessment_id>account_id,id",
       "runner_execution:runner_execution_job_fk:job:account_id,job_id>account_id,id",
       "session:session_membership_fk:account_membership:account_id,user_id>account_id,user_id",
@@ -395,13 +403,17 @@ schemaDescribe("PostgreSQL foundation schema", () => {
     );
     for (const table of EXPECTED_TABLES.filter(
       (name) =>
-        name !== "playbook" && name !== "audit_system_state" && name !== "audit_account_state",
+        name !== "playbook" &&
+        name !== "audit_system_state" &&
+        name !== "audit_account_state" &&
+        name !== "queue_tenant_state",
     )) {
       expect(primaryByTable.get(table), table).toEqual(["id"]);
     }
     expect(primaryByTable.get("playbook")).toEqual(["key", "playbook_version"]);
     expect(primaryByTable.get("audit_system_state")).toEqual(["id"]);
     expect(primaryByTable.get("audit_account_state")).toEqual(["account_id"]);
+    expect(primaryByTable.get("queue_tenant_state")).toEqual(["account_id"]);
 
     const [familyIndex] = await db`
       select indexdef
@@ -425,7 +437,16 @@ schemaDescribe("PostgreSQL foundation schema", () => {
         ["assessment_credits_consumed_nonnegative", "check credits_consumed >= 0"],
         ["assessment_credits_estimate_nonnegative", "check credits_estimate >= 0"],
         ["job_attempts_nonnegative", "check attempts >= 0"],
+        ["job_fencing_nonnegative", "check fencing_token >= 0"],
         ["job_max_attempts_positive", "check max_attempts > 0"],
+        ["outbox_event_attempts_nonnegative", "check attempts >= 0"],
+        ["outbox_event_fencing_nonnegative", "check fencing_token >= 0"],
+        ["outbox_event_max_attempts_positive", "check max_attempts > 0"],
+        ["queue_global_state_id_global", "check id = 'global'::text"],
+        ["queue_global_state_limit_positive", "check concurrency_limit > 0"],
+        ["queue_global_state_running_nonnegative", "check running_count >= 0"],
+        ["queue_tenant_state_limit_positive", "check concurrency_limit > 0"],
+        ["queue_tenant_state_running_nonnegative", "check running_count >= 0"],
         ["audit_system_state_id_check", "check id = 'system'::text"],
       ]),
     );
