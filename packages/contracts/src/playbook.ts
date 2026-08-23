@@ -7,9 +7,20 @@ const semverSchema = z
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/,
   );
 
+const actionIdSchema = z.enum([
+  "dns.records",
+  "tls.cert",
+  "http.headers",
+  "robots.txt",
+  "sitemap.xml",
+  "endpoint.minimal",
+]);
+
+const nonNegativeNumberSchema = z.number().finite().nonnegative();
+
 const actionSchema = z
   .object({
-    id: z.string(),
+    id: actionIdSchema,
     type: z.enum([
       "http_probe",
       "dns_lookup",
@@ -19,8 +30,13 @@ const actionSchema = z
       "endpoint_probe",
     ]),
     allowedTargets: z.literal("scope"),
-    method: z.string().optional(),
-    limit: z.object({ requests: z.number(), durationS: z.number() }).strict(),
+    method: z.literal("GET").optional(),
+    limit: z
+      .object({
+        requests: nonNegativeNumberSchema,
+        durationS: nonNegativeNumberSchema,
+      })
+      .strict(),
   })
   .strict();
 
@@ -36,13 +52,13 @@ export const playbookSchema = z
     actions: z.array(actionSchema),
     limits: z
       .object({
-        maxDurationS: z.number(),
-        maxConcurrency: z.number(),
-        maxRatePerMin: z.number(),
+        maxDurationS: nonNegativeNumberSchema,
+        maxConcurrency: nonNegativeNumberSchema,
+        maxRatePerMin: nonNegativeNumberSchema,
         egress: z
           .object({ allow: z.array(z.literal("scope_target")), blockDefaults: z.boolean() })
           .strict(),
-        impactLevels: z.array(z.string()),
+        impactLevels: z.array(z.enum(["low", "medium", "high"])),
       })
       .strict(),
     stopSignals: z.array(
