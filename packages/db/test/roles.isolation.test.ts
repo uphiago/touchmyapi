@@ -23,6 +23,7 @@ const TENANT_TABLES = [
   "audit_event",
   "notification",
 ] as const;
+const MEMBERSHIP_TABLES = ["account_invitation", "account_membership"] as const;
 const AUDIT_STATE_TABLE = "audit_account_state" as const;
 const AUTH_FUNCTIONS = [
   ["auth_complete_google_login", "text,citext,text,timestamp with time zone,inet,text"],
@@ -204,7 +205,13 @@ describeDb("PostgreSQL least-privilege roles", () => {
       order by c.relname
     `;
     expect(tables.map((row) => row.relname)).toEqual(
-      [...TENANT_TABLES, "playbook", "audit_system_state", AUDIT_STATE_TABLE].sort(),
+      [
+        ...TENANT_TABLES,
+        ...MEMBERSHIP_TABLES,
+        "playbook",
+        "audit_system_state",
+        AUDIT_STATE_TABLE,
+      ].sort(),
     );
     expect(new Set(tables.map((row) => row.owner))).toEqual(new Set([String(tables[0]?.owner)]));
     const functions = await db`
