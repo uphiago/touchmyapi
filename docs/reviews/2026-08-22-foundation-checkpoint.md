@@ -4,11 +4,11 @@
 
 **Branch:** `feat/foundation-phase2`
 
-**Scope:** Policy, schema, RLS, tenant-capability boundary, accepted audit chain, and accepted credential AEAD; T019–T021 remain pending.
+**Scope:** Policy, schema, RLS, tenant-capability boundary, accepted audit chain, credential AEAD, and passive playbook catalog; T020–T021 remain pending.
 
 ## Outcome
 
-The accepted checkpoint is T010–T018. T016 replaced its arbitrary tenant-SQL callback with an opaque public database handle and transaction-bound closed capabilities. T017 adds redacted monotonic tenant/system audit chains, dedicated FORCE-RLS lock rows, owner-compatible bootstrap policies, sequence-defaulted fixed-column inserts, and API/worker/system capability expiry. T018 adds an isolated version-2 AES-256-GCM envelope with key-ID-bound AAD, strict UTF-8/input limits, explicit version-1 rejection, stable errors, and best-effort zeroization. Both specification and adversarial quality reviews passed. T019–T021 remain pending. No assessment, target network access, billing mutation, runner, report generation, AI execution, membership API, queue, or admin runtime was added.
+The accepted checkpoint is T010–T019. T016 replaced its arbitrary tenant-SQL callback with an opaque public database handle and transaction-bound closed capabilities. T017 adds redacted monotonic tenant/system audit chains, dedicated FORCE-RLS lock rows, owner-compatible bootstrap policies, sequence-defaulted fixed-column inserts, and API/worker/system capability expiry. T018 adds an isolated version-2 AES-256-GCM envelope with key-ID-bound AAD, strict UTF-8/input limits, explicit version-1 rejection, stable errors, and best-effort zeroization. T019 adds a strict passive-only catalog whose limits/evidence/order are accepted by the policy engine and whose slice is detached and non-executing. Both specification and adversarial quality reviews passed. T020–T021 remain pending. No assessment, target network access, billing mutation, runner, report generation, AI execution, membership API, queue, or admin runtime was added.
 
 | Task range | Status | Evidence |
 | --- | --- | --- |
@@ -20,7 +20,8 @@ The accepted checkpoint is T010–T018. T016 replaced its arbitrary tenant-SQL c
 | T016 | Accepted | Opaque handle, closed role-specific capabilities, live-grant and lifecycle proof; spec/quality Ready: Yes |
 | T017 | Accepted | Redacted monotonic tenant/system chains; migrations 0007–0010; 56 integration and 22 isolation tests; spec/quality Ready: Yes |
 | T018 | Accepted | Version-2 credential AEAD; 12/12 focused tests; spec/quality Ready: Yes |
-| T019–T021 | Pending | No implementation yet |
+| T019 | Accepted | Closed passive catalog + catalog→policy authorization; 29 contract and 229 unit tests; spec/quality Ready: Yes |
+| T020–T021 | Pending | No implementation yet |
 | T071–T094 | Design only | Membership, fenced PostgreSQL queue/outbox, and admin control-plane docs/tasks approved; no runtime implementation |
 
 ## T016 resolved finding
@@ -48,8 +49,7 @@ Two old `tma_t016_*` roles and one large object were observed in a reused local 
 
 ## Resume order
 
-1. Implement T019 passive playbook contract.
-2. Implement T020 Hono security boundary and T021 Google OAuth PKCE.
+1. Implement T020 Hono security boundary and T021 Google OAuth PKCE.
 3. Run the Foundation Phase 2 final acceptance gate.
 4. Execute T071–T080 membership, T081–T087 PostgreSQL queue/outbox, and T088–T094 admin work in the documented dependency order.
 

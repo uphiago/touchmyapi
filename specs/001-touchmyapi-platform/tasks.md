@@ -49,10 +49,10 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 - [x] T016 [P] Replace the provisional `packages/db/src/tenant-session.ts` arbitrary `unsafe(string)` surface with an opaque `TenantDatabase` and closed typed account capabilities while preserving reserved-backend `app.tenant` + `SET LOCAL ROLE`, rollback/cleanup, exact role validation, context expiry, and adversarial isolation. A post-preflight table/function/worker-UPDATE grant cannot add an exposed operation; see `docs/reviews/2026-08-22-t016-capability-boundary.md`.
 - [x] T017 [P] Implement `packages/db/src/audit.ts`: chained append-only audit event writer hitting `audit_event` with recursive redaction and a narrow transaction-owned chain-lock capability (spec FR-018)
 - [x] T018 [P] Implement `packages/secrets/src/aead.ts`: version-2 AES-256-GCM envelope AEAD encrypt/decrypt for external credentials at rest (key per `key_id`, key-ID AAD, bounded inputs, explicit legacy rejection, rotation hooks) (spec FR-010; see `docs/reviews/2026-08-23-t018-credential-aead.md`)
-- [ ] T019 [P] Implement `packages/playbooks/src/index.ts`: playbook schema validation + `surface-public-posture@1.0.0` passive contract (actions: dns.records, tls.cert, http.headers, robots.txt, sitemap.xml, endpoint.minimal), per playbook contract doc
+- [x] T019 [P] Implement `packages/playbooks/src/index.ts`: strict playbook schema validation + policy-aligned `surface-public-posture@1.0.0` passive contract (closed actions, canonical order, detached `slicePassive`, no execution/network behavior) (see `docs/reviews/2026-08-23-t019-passive-playbook.md`)
 - [ ] T020 Implement `apps/api/src/server.ts`: Hono app skeleton with cookie session middleware, zod validation, error envelope `{error:{code,message}}`, centralized audit logging
 - [ ] T021 Implement `apps/api/src/auth/google.ts`: Google OAuth PKCE via `openid-client` (login/callback/logout), HttpOnly Secure SameSite session cookies, rotation + revocation (spec FR-001/FR-002); GitHub/X remain model-disabled
-- **Checkpoint (not yet reached)**: Foundation is ready only when T010–T021 are checked and all required DB/API/OAuth gates are green. T010–T018 are accepted; T019–T021 remain pending, so user stories must not begin.
+- **Checkpoint (not yet reached)**: Foundation is ready only when T010–T021 are checked and all required DB/API/OAuth gates are green. T010–T019 are accepted; T020–T021 remain pending, so user stories must not begin.
 
 ---
 

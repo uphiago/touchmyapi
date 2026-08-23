@@ -746,11 +746,11 @@ git commit -m "feat: add context-bound credential aead"
 - Modify: `packages/contracts/src/playbook.ts`
 - Modify: `packages/contracts/src/index.ts`
 
-- [ ] **Step 1: Escrever RED do contrato e slice**
+- [x] **Step 1: Escrever RED do contrato e slice**
 
 Teste parse do catálogo exato, versão, target `surface`, limites 300/1/10, egress somente `scope_target`, stop signals, severities `info/low`, ações exatamente `dns.records`, `tls.cert`, `http.headers`, `robots.txt`, `sitemap.xml`, `endpoint.minimal`; campos extra, action type desconhecido, target fora de scope e action não declarada devem falhar. Afirme que package não exporta função de execução nem chama `fetch`/DNS.
 
-- [ ] **Step 2: Implementar schema e contrato literal**
+- [x] **Step 2: Implementar schema e contrato literal**
 
 Endureça `playbookSchema` com `.strict()` em todo objeto e vocabulário fechado. `surfacePublicPosture` deve ser uma constante `Readonly<Playbook>` validada por `playbookSchema.parse`:
 
@@ -779,7 +779,7 @@ export const surfacePublicPosture = playbookSchema.parse({
 
 `packages/playbooks/src/index.ts` deve exportar somente schema, tipo, catálogo e função pura `slicePassive`; função retorna novas estruturas e não altera limites.
 
-- [ ] **Step 3: Rodar GREEN, contract gate e commit**
+- [x] **Step 3: Rodar GREEN, contract gate e commit**
 
 Execute `bun run test:contract`, `bun run typecheck`, `bun run lint`, `bun run format`; esperado PASS. Commit:
 
