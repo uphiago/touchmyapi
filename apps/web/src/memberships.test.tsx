@@ -194,6 +194,6 @@ describe("membership workspace components", () => {
     );
 
     expect(markup).toContain("example.test");
-    expect(markup).toContain(">Queue</button>");
+    expect(markup).toContain("Review &amp; queue</button>");
   });
 });
