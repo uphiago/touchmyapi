@@ -71,6 +71,15 @@ describe("surface public posture playbook", () => {
     ).toThrow();
   });
 
+  it("rejects a passive catalog whose actions are out of canonical order", () => {
+    expect(() =>
+      slicePassive({
+        ...surfacePublicPosture,
+        actions: [...surfacePublicPosture.actions].reverse(),
+      }),
+    ).toThrow();
+  });
+
   it("does not expose execution or network behavior", async () => {
     const module = await import("../src");
     expect(module).not.toHaveProperty("execute");

@@ -7,6 +7,7 @@ import {
   type ActionRequest,
 } from "../src/engine";
 import { compileScope } from "../src/scope";
+import { surfacePublicPosture } from "../../playbooks/src";
 
 const scope = compileScope({ inclusions: ["example.com"], exclusions: [] });
 const ipv6Scope = compileScope({
@@ -103,7 +104,12 @@ const playbook = (
     id === "endpoint.minimal"
       ? { method: "GET" }
       : {}),
-    limit: { requests: 1, durationS: 30 },
+    limit:
+      id === "http.headers"
+        ? { requests: 5, durationS: 30 }
+        : id === "endpoint.minimal"
+          ? { requests: 2, durationS: 60 }
+          : { requests: 1, durationS: 30 },
   })),
   limits: {
     maxDurationS: 300,
@@ -113,7 +119,10 @@ const playbook = (
     impactLevels: ["low"],
   },
   stopSignals: ["scope_escape", "rate_exceeded", "unauthorized_endpoint", "duration_exceeded"],
-  evidence: { expected: ["public_posture"], format: "manifest" as const },
+  evidence: {
+    expected: ["http_headers_snapshot", "tls_cert_metadata"],
+    format: "manifest" as const,
+  },
   severityPossible: ["info", "low"],
 });
 
@@ -342,6 +351,11 @@ describe("authorize", () => {
     expect(Object.isFrozen(result.target)).toBe(true);
     expect(Object.isFrozen(result.resolvedAddresses)).toBe(true);
     expect(() => (result.resolvedAddresses as string[]).push("1.1.1.1")).toThrow();
+  });
+
+  it("authorizes the exported surface public posture catalog", () => {
+    const result = authorize(valid({ playbook: surfacePublicPosture }));
+    expect(result).toMatchObject({ allowed: true, blocked: [], reason: "allowed" });
   });
 
   it("allows active verified assessments only for plans with active rights", () => {

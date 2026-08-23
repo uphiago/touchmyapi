@@ -22,9 +22,12 @@ function assertCanonicalPassive(playbook: Playbook): void {
   }
 
   const seen = new Set<string>();
-  for (const action of playbook.actions) {
+  for (const [index, action] of playbook.actions.entries()) {
     const expected = passiveActionShape.get(action.id);
-    if (!expected || seen.has(action.id)) throw new Error("invalid passive playbook");
+    const expectedId = [...passiveActionShape.keys()][index];
+    if (!expected || action.id !== expectedId || seen.has(action.id)) {
+      throw new Error("invalid passive playbook");
+    }
     seen.add(action.id);
     if (
       action.type !== expected.type ||

@@ -126,7 +126,7 @@ const CANONICAL_ACTIONS = Object.freeze([
     type: "http_probe",
     allowedTargets: "scope",
     method: "GET",
-    limit: Object.freeze({ requests: 1, durationS: 30 }),
+    limit: Object.freeze({ requests: 5, durationS: 30 }),
   }),
   Object.freeze({
     id: "robots.txt",
@@ -147,7 +147,7 @@ const CANONICAL_ACTIONS = Object.freeze([
     type: "endpoint_probe",
     allowedTargets: "scope",
     method: "GET",
-    limit: Object.freeze({ requests: 1, durationS: 30 }),
+    limit: Object.freeze({ requests: 2, durationS: 60 }),
   }),
 ] as const);
 const CANONICAL_STOP_SIGNALS = Object.freeze([
@@ -161,7 +161,7 @@ const CANONICAL_PRECONDITIONS = Object.freeze([
 ] as const);
 const CANONICAL_IMPACT_LEVELS = Object.freeze(["low"] as const);
 const CANONICAL_EVIDENCE = Object.freeze({
-  expected: Object.freeze(["public_posture"] as const),
+  expected: Object.freeze(["http_headers_snapshot", "tls_cert_metadata"] as const),
   format: "manifest" as const,
 });
 const CANONICAL_SEVERITY = Object.freeze(["info", "low"] as const);
@@ -914,7 +914,7 @@ function parsePlaybook(
     evidence.value.format !== "manifest" ||
     expectedEvidence === null ||
     expectedEvidence.length !== CANONICAL_EVIDENCE.expected.length ||
-    expectedEvidence[0] !== CANONICAL_EVIDENCE.expected[0]
+    expectedEvidence.some((value, index) => value !== CANONICAL_EVIDENCE.expected[index])
   )
     return { code: "invalid_playbook" };
   const severity = uniqueSafeStrings(value.severityPossible, SEVERITY_LEVELS);
