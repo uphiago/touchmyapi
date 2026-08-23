@@ -1,0 +1,60 @@
+.specify/memory/constitution.md
+  s_bc54431df54bf2::t_bb7896337d7518 3-5,9,47,53,57
+docs/superpowers/plans/2026-08-22-multiuser-queue-admin.md
+  s_bc54431df54bf2::t_0080bb9a9f560f 226
+  s_bc54431df54bf2::t_0f2c6a4b2d63e2 5,7,23,28
+  s_bc54431df54bf2::t_736cb89a2b8826 166-167,169-171,176-178,181-183,188,192-193,199,203-204,215
+  s_bc54431df54bf2::t_286ff9b8d46b97 29,161,216,221,227,238,271,277
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_c43dd68fbb3582 201
+  s_bc54431df54bf2::t_09c7f36274646a 77,200,202-206,212
+specs/001-touchmyapi-platform/data-model.md
+  s_bc54431df54bf2::t_b18f1a921dd045 194-213,504
+specs/001-touchmyapi-platform/contracts/queue.md
+  s_bc54431df54bf2::t_f76533e17edf56 5-22,61
+  s_bc54431df54bf2::t_850d8e0038b8ab 62
+docs/superpowers/plans/2026-08-22-foundation-phase2.md
+  s_bc54431df54bf2::t_d2a0feb28fa6f7 9-10
+  s_bc54431df54bf2::t_90040b4715d6d3 49,69,156,205,209,229,253,293,297,315,354,372,376,392,417,421,438,463,467,490,494,514,532,561,565,569,584,588,611,615,630,634,647,651
+docs/superpowers/specs/2026-08-22-multiuser-queue-admin-design.md
+  s_bc54431df54bf2::t_dddb85400331e2 52
+  s_bc54431df54bf2::t_a72b7619d3c242 140,142,150,152
+  s_bc54431df54bf2::t_3b143950d9e503 169
+  s_bc54431df54bf2::t_6c673a764d6329 58-77,82
+README.md
+  s_bc54431df54bf2::t_24f437d8bf94a9 3,7,31,49,53-60,63
+  s_bc54431df54bf2::t_777df93958d78c 64
+specs/001-touchmyapi-platform/contracts/index.md
+  s_bc54431df54bf2::t_24f437d8bf94a9 3,5
+specs/001-touchmyapi-platform/contracts/job.md
+  s_bc54431df54bf2::t_8b315c4b0f2129 71-72
+specs/001-touchmyapi-platform/research.md
+  s_bc54431df54bf2::t_015bbbe73181a8 90-91
+  s_bc54431df54bf2::t_0b22b714eeda8e 96
+specs/001-touchmyapi-platform/plan.md
+  s_bc54431df54bf2::t_24f437d8bf94a9 61
+  s_bc54431df54bf2::t_ac25fb459a86eb 11,29,43
+specs/001-touchmyapi-platform/spec.md
+  s_bc54431df54bf2::t_e71e99e3d4a7a9 87,89,137,165-166,187
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_c4dfa774a2f983 10-11,14-16,19,65-66,95,99-106,109-110,118,124-128
+  s_bc54431df54bf2::t_3e49bdb16a894c 133
+docs/superpowers/specs/2026-08-22-foundation-phase2-design.md
+  s_bc54431df54bf2::t_24b86e4d40d2c9 7-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d9f7f6b9ff4eb7de49a14ad2ae3e3013f2921c5b",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
