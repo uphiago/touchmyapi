@@ -31,6 +31,7 @@ const RUNTIME_ROLE_NAMES: Readonly<Record<RuntimeRole, string>> = {
 const TENANT_TABLES = [
   "account",
   "user",
+  "account_membership",
   "session",
   "assessment",
   "authorization_attestation",
@@ -60,6 +61,7 @@ const API_INSERT_TABLES = [
 const API_SELECT_TABLES = [
   "account",
   "user",
+  "account_membership",
   "assessment",
   "authorization_attestation",
   "verification",

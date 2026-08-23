@@ -56,6 +56,7 @@ const EXPECTED_TABLE_PRIVILEGES = {
       "audit_event",
       AUDIT_STATE_TABLE,
       "notification",
+      "account_membership",
     ],
     insert: ["assessment", "authorization_attestation", "verification", "credential", "agent"],
     update: [
@@ -235,7 +236,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
 
   it("has exact table privileges and no PUBLIC object access", async () => {
     for (const role of RUNTIME_ROLES) {
-      for (const table of [...TENANT_TABLES, "playbook", AUDIT_STATE_TABLE]) {
+      for (const table of [...TENANT_TABLES, ...MEMBERSHIP_TABLES, "playbook", AUDIT_STATE_TABLE]) {
         for (const privilege of PRIVILEGES) {
           const [row] = await db`
             select has_table_privilege(${role}, ${`public.${table}`}, ${privilege}) as allowed
@@ -246,7 +247,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
         }
       }
     }
-    for (const table of [...TENANT_TABLES, "playbook", AUDIT_STATE_TABLE]) {
+    for (const table of [...TENANT_TABLES, ...MEMBERSHIP_TABLES, "playbook", AUDIT_STATE_TABLE]) {
       for (const privilege of PRIVILEGES) {
         const [row] = await db`
           select has_table_privilege('public', ${`public.${table}`}, ${privilege}) as allowed
@@ -254,6 +255,14 @@ describeDb("PostgreSQL least-privilege roles", () => {
         expect(row?.allowed, `PUBLIC/${table}/${privilege}`).toBe(false);
       }
     }
+    const [invitationAccountColumn] = await db`
+      select has_column_privilege('api_rls', 'public.account_invitation', 'account_id', 'select') as allowed
+    `;
+    const [invitationTokenColumn] = await db`
+      select has_column_privilege('api_rls', 'public.account_invitation', 'token_hash', 'select') as allowed
+    `;
+    expect(invitationAccountColumn?.allowed).toBe(true);
+    expect(invitationTokenColumn?.allowed).toBe(false);
     const [schema] = await db`
       select has_schema_privilege('public', 'public', 'create') as allowed
     `;

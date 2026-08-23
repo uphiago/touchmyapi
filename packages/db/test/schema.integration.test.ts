@@ -293,7 +293,7 @@ schemaDescribe("PostgreSQL foundation schema", () => {
       "assessment:assessment_playbook_fk:playbook:playbook_id,playbook_version>key,playbook_version",
       "assessment:assessment_verification_fk:verification:account_id,verification_ref>account_id,id",
       "authorization_attestation:authorization_attestation_assessment_fk:assessment:account_id,assessment_id>account_id,id",
-      "authorization_attestation:authorization_attestation_user_fk:user:account_id,user_id>account_id,id",
+      "authorization_attestation:authorization_attestation_membership_fk:account_membership:account_id,user_id>account_id,user_id",
       "audit_event:audit_event_account_fk:account:account_id>id",
       "audit_account_state:audit_account_state_account_fk:account:account_id>id",
       "audit_event:audit_event_assessment_fk:assessment:account_id,assessment_id>account_id,id",
@@ -312,6 +312,7 @@ schemaDescribe("PostgreSQL foundation schema", () => {
       "notification:notification_assessment_fk:assessment:account_id,assessment_id>account_id,id",
       "report:report_assessment_fk:assessment:account_id,assessment_id>account_id,id",
       "runner_execution:runner_execution_job_fk:job:account_id,job_id>account_id,id",
+      "session:session_membership_fk:account_membership:account_id,user_id>account_id,user_id",
       "session:session_user_fk:user:user_id>id",
       "user:user_account_fk:account:account_id>id",
       "verification:verification_account_fk:account:account_id>id",
@@ -470,6 +471,7 @@ schemaDescribe("PostgreSQL foundation schema", () => {
       .begin(async (tx) => {
         await tx`insert into account (id) values (${accountId})`;
         await tx`insert into "user" (id, account_id, provider, provider_subject) values (${userId}, ${accountId}, 'google', ${`session-test-${userId}`})`;
+        await tx`insert into account_membership (account_id, user_id, role, status) values (${accountId}, ${userId}, 'owner', 'active')`;
         await tx`insert into session (id, account_id, user_id, token_hash, expires_at) values (${sessionId}, ${accountId}, ${userId}, ${hash}, now() + interval '1 hour')`;
         const [stored] = await tx`select token_hash from session where id = ${sessionId}`;
         expect(stored?.token_hash).toBe(hash);

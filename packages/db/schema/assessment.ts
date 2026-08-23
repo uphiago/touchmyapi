@@ -10,7 +10,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { assessmentStatus, createdAt, id, targetCategory, updatedAt } from "./common";
-import { account, user } from "./identity";
+import { account } from "./identity";
+import { accountMembership } from "./membership";
 import { agent } from "./execution";
 import { verification } from "./verification";
 import { playbook } from "./catalog";
@@ -81,9 +82,9 @@ export const authorizationAttestation = pgTable(
       foreignColumns: [assessment.accountId, assessment.id],
     }),
     foreignKey({
-      name: "authorization_attestation_user_fk",
+      name: "authorization_attestation_membership_fk",
       columns: [table.accountId, table.userId],
-      foreignColumns: [user.accountId, user.id],
+      foreignColumns: [accountMembership.accountId, accountMembership.userId],
     }),
   ],
 );

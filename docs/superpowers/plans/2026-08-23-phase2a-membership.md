@@ -93,13 +93,13 @@ T080 and are intentionally not marked complete yet.
 
 ## Task 7 — T077 membership RLS and session/attestation composite references
 
-**Files:** generated migration; modify `packages/db/schema/assessment.ts` and `packages/db/schema/identity.ts`; create `tests/isolation/multiuser-rls.test.ts`.
+**Files:** `packages/db/migrations/0017_multiuser_rls_references.sql`, `packages/db/schema/identity-base.ts`, `packages/db/schema/assessment.ts`, `packages/db/schema/identity.ts`, `packages/db/schema/membership.ts`, `packages/db/src/tenant-session.ts`, and `tests/isolation/multiuser-rls.test.ts`.
 
-- [ ] Write RED isolation tests with two accounts/users proving membership, invitation, session, assessment, and attestation cannot cross-read/write/reference with missing or wrong tenant context.
-- [ ] Run `RUN_DB_TESTS=1 bun run test:isolation -- --maxWorkers=1 multiuser-rls`; verify the expected failure before migration/policy changes.
-- [ ] Extend the already-forced membership RLS policies and add composite `(account_id,user_id)` references only where session/attestation rows need tenant-bound actors. Membership identity columns remain immutable `user.id` FKs plus explicit tenant `account_id` so one global user can join multiple accounts while legacy `user.account_id` is still unique. Keep global user lookup only inside fixed auth functions.
-- [ ] Apply migration and run the full isolation project sequentially on the fresh `_test` database; verify table grants and role attributes.
-- [ ] Commit `security: enforce membership rls boundaries`.
+- [x] Write RED isolation tests with two accounts/users proving membership, invitation, session, assessment, and attestation cannot cross-read/write/reference with missing or wrong tenant context.
+- [x] Run the focused test, observe the expected missing-composite-FK failure, then apply the minimal migration/policy changes.
+- [x] Extend the already-forced membership RLS policies and add composite `(account_id,user_id)` references only where session/attestation rows need tenant-bound actors. Membership identity columns remain immutable `user.id` FKs plus explicit tenant `account_id` so one global user can join multiple accounts while legacy `user.account_id` is still unique. Keep global user lookup only inside fixed auth functions.
+- [x] Apply migration and run the full isolation project sequentially on a fresh `_test` database; verify table grants, column grants, role attributes, and the tenant-session preflight allowlist (24/24 isolation, 64/64 integration).
+- [x] Commit and push the RLS boundary slice.
 
 ## Task 8 — T078 server-driven account UI
 

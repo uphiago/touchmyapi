@@ -10,7 +10,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import { account, user } from "./identity";
+import { account, user } from "./identity-base";
 import { citext, createdAt, id, updatedAt } from "./common";
 
 export const membershipRole = pgEnum("membership_role", [
