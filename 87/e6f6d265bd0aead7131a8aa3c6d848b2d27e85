@@ -1,0 +1,27 @@
+packages/policy/test/engine.test.ts
+  s_bc54431df54bf2::t_2f05fe20b80590 107-112,122-125
+  s_bc54431df54bf2::t_1e30767d291fd2 10,356-358
+  s_bc54431df54bf2::t_d2231a930d63a9 359-360
+packages/policy/src/engine.ts
+  s_bc54431df54bf2::t_2f05fe20b80590 129,150,164,917
+packages/playbooks/test/playbook.test.ts
+  s_bc54431df54bf2::t_1e30767d291fd2 74-82
+packages/playbooks/src/index.ts
+  s_bc54431df54bf2::t_2f05fe20b80590 25,27-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "87e6f6d265bd0aead7131a8aa3c6d848b2d27e85",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
