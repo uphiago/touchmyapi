@@ -1,0 +1,65 @@
+packages/db/test/queue-schema.integration.test.ts
+  s_bc54431df54bf2::t_f9d3bd587ca334 1-10,15-45,65-83,90-97,103-109,119-134,138-141
+  s_bc54431df54bf2::t_caeea8c53a7c8a 110-114
+  s_bc54431df54bf2::t_d17e7ca8e6cbb2 11-14,46-64,84-89,98-102,115-118,135-137
+  s_bc54431df54bf2::t_b336e999faee8f 142-145
+packages/db/src/queue-bootstrap.ts
+  s_bc54431df54bf2::t_3cb6fa687a2fcc 1-47
+packages/db/schema/queue.ts
+  s_bc54431df54bf2::t_fc7581204baeb1 1-95
+  s_bc54431df54bf2::t_4d706327bcc0ff 96-97
+packages/db/schema/index.ts
+  s_bc54431df54bf2::t_fee0274d53bea1 8
+docs/superpowers/plans/2026-08-22-multiuser-queue-admin.md
+  s_bc54431df54bf2::t_ef92f405c753b6 170
+  s_bc54431df54bf2::t_c22c7ad3f1678a 171
+  s_bc54431df54bf2::t_b6f8ae98e75711 172
+docs/reviews/2026-08-23-queue-schema.md
+  s_bc54431df54bf2::t_5e6371c1f836f3 1-44
+packages/db/src/index.ts
+  s_bc54431df54bf2::t_3533a9a7c0ef67 6-7
+  s_bc54431df54bf2::t_ddb2d90346ea9b 8
+packages/contracts/test/queue.test.ts
+  s_bc54431df54bf2::t_1b3590a9e3ead3 1-110
+packages/db/migrations/0018_queue_schema.sql
+  s_bc54431df54bf2::t_1fe14b9ef13027 77
+  s_bc54431df54bf2::t_fe50ca324ebf47 61-76,78-89,109-231
+  s_bc54431df54bf2::t_1fb41bc568a902 90-108
+  s_bc54431df54bf2::t_dffbe659a3f7af 1-60
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_6c6c0f35928d93 201
+packages/contracts/src/queue.ts
+  s_bc54431df54bf2::t_2c5560463cae27 1-100
+packages/db/src/queue.ts
+  s_bc54431df54bf2::t_59428d3f44a06c 1-31
+packages/db/package.json
+  s_bc54431df54bf2::t_0b3a8daad54f63 16
+packages/db/schema/execution.ts
+  s_bc54431df54bf2::t_85a24da0329f14 12,28-30,35,40-41
+  s_bc54431df54bf2::t_96a7cad5b7a5c2 58-61
+packages/contracts/src/index.ts
+  s_bc54431df54bf2::t_5de9ab63d21e68 23-37
+  s_bc54431df54bf2::t_348af0c9a722b3 22
+packages/db/migrations/meta/0018_snapshot.json
+  s_bc54431df54bf2::t_0e871868dfff6f 1-2907
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_a50f104887706b 130-136,139
+bun.lock
+  s_bc54431df54bf2::t_e1c27d4eda9cca 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f5af72b97ad5ab0dc622ba7afdea94425815ea74",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
