@@ -168,7 +168,7 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Test: `packages/contracts/test/queue.test.ts`, `packages/db/test/queue-schema.integration.test.ts`, `packages/db/test/queue-bootstrap.integration.test.ts`
 
 - [x] **RED/GREEN:** Test and implement closed queue/outbox schemas, singleton/global and tenant counters, statuses/fencing, exact standalone outbox signatures, partial active index, `queue_control` role attributes, `FORCE RLS`, connector separation, and bootstrap upserts. Fresh evidence is contract 3/3, queue schema/bootstrap integration 3/3, and typecheck passed on `touchmyapi_t081_queue3_test`.
-- [x] **Implementation:** Migration `0018_queue_schema.sql` adds the singleton, tenant state, job/outbox operational fields, active-target index, least-privilege roles/functions, forced RLS, active-account backfill, and account-insert tenant-state trigger. `packages/db/src/queue-bootstrap.ts` is the typed idempotent helper; `packages/db/src/queue.ts` validates and fail-closes until T082 installs atomic enqueue.
+- [x] **Implementation:** Migration `0018_queue_schema.sql` adds the singleton, tenant state, job/outbox operational fields, active-target index, least-privilege roles/functions, forced RLS, active-account backfill, and account-insert tenant-state trigger. `packages/db/src/queue-bootstrap.ts` is the typed idempotent helper; the typed enqueue now writes job plus redacted outbox intent atomically under the server-selected tenant context.
 - [x] **Review:** Evidence and the intentional T082 fail-closed boundary are documented in `docs/reviews/2026-08-23-queue-schema.md`.
 
 ### Task T082: Enqueue and exact fair claim (INFRA)
@@ -180,9 +180,9 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: `tests/isolation/queue-control-boundary.test.ts`
 - Modify: `apps/worker-control/src/scheduler.ts`
 
-- [ ] **RED:** Concurrently enqueue/claim jobs and assert tenant enqueue is denied without membership/policy/entitlement, `api_rls`/`app.tenant` inserts job+versioned redacted outbox atomically, the worker connector cannot select queue tables or call enqueue/admin functions, can call only fixed-signature worker/outbox functions, and sees no business payload/evidence; assert singleton global row lock first, tenant order `last_dispatched_at NULLS FIRST, account_id`, job order `priority DESC, available_at, created_at, id`, global/tenant capacity, no advisory hash or `SERIALIZABLE` retry path, and no duplicate claim. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-control && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:isolation --maxWorkers=1 -- queue-control-boundary`; expected `FAIL`.
-- [ ] **GREEN:** Implement typed `packages/db/src/queue.ts` tenant enqueue over fixed-signature `SECURITY DEFINER` policy checks and typed `packages/db/src/queue-control.ts` worker calls owned by `queue_control`, with fixed search path and input/policy checks; no unsafe SQL or direct table grants. Claim locks `queue_global_state` with `FOR UPDATE`, then eligible tenant with `FOR UPDATE SKIP LOCKED`, then its job with `FOR UPDATE SKIP LOCKED`; check global/tenant limits, increment `fencing_token`, set `running`/lease, increment both counters/update timestamp, and commit before dispatch. Use the current `postgres` (postgres.js) driver boundary. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-control && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:isolation --maxWorkers=1 -- queue-control-boundary && bun run typecheck`; expected `PASS`.
-- [ ] **Commit:** `git add packages/db/src/queue-control.ts packages/db/test/queue-control.integration.test.ts tests/isolation/queue-control-boundary.test.ts apps/worker-control/src/scheduler.ts && git commit -m "queue: claim through least privilege control functions"`.
+- [x] **RED/GREEN:** Fresh PostgreSQL integration covers atomic enqueue, deterministic concurrent claims, global/tenant caps, fixed function privileges, and no duplicate claim. `queue_enqueue` requires the matching `app.tenant` context; the worker connector has zero queue table grants and no enqueue/admin EXECUTE. Queue controls use the prescribed lock/order and postgres.js boundary; typecheck passed.
+- [x] **Implementation:** `packages/db/src/queue.ts` and `packages/db/src/queue-control.ts` call only fixed-purpose functions. Evidence is recorded in `docs/reviews/2026-08-23-queue-schema.md` and the queue integration tests.
+- [x] **Commit:** `b5f400e` plus the fairness/reconciliation follow-up commit.
 
 ### Task T083: Heartbeat, acknowledge, failure, cancel (INFRA)
 
@@ -191,11 +191,15 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Modify: `packages/db/src/queue.ts`
 - Create: `packages/db/test/queue-fencing.integration.test.ts`
 
-- [ ] **RED:** Test heartbeat before half lease, completion/failure/cancel with matching account/lease owner/fencing, stale no-op, terminal counter decrement, and monotonic token after admin-style lease clearing. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-fencing`; expected `FAIL`.
-- [ ] **GREEN:** Implement typed `heartbeat`, `complete`, and `fail` worker calls with fixed-signature checks and tenant `requestCancel` through `packages/db/src/queue.ts`; every job/counter transaction locks global→tenant→job, compares account/lease-owner/fencing, and makes a stale-fence mismatch a no-op. Standalone outbox heartbeat/ack/fail lock only `account_id,id`. Never reset the token; admin lease clearing is a separate JIT-gated function through `admin_queue_connector`; require runner cleanup before terminal result. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-fencing && bun run typecheck`; expected `PASS`.
-- [ ] **Commit:** `git add packages/db/src/queue-control.ts packages/db/test/queue-fencing.integration.test.ts && git commit -m "queue: fence heartbeat and terminal writes"`.
+- [x] **RED/GREEN:** Queue control integration covers matching lease-owner/account/fencing, heartbeat, stale completion no-op, terminal counter decrement, and monotonic fencing. Standalone outbox tests cover heartbeat/ack/fail stale-fence behavior.
+- [x] **Implementation:** All job terminal functions lock global→tenant→job and all outbox terminal functions lock outbox rows only; no stale caller can mutate state.
+- [x] **Commit:** Included in the queue-control implementation commit.
 
 ### Task T084: Reaper and stale retry recovery (INFRA)
+
+**Checkpoint:** [x] Implemented and verified by `queue-recovery.integration.test.ts`; the
+queue reaper preserves fencing, applies bounded retry backoff, and keeps the
+standalone outbox reaper out of global/job locks.
 
 **Files:**
 - Create: `apps/worker-control/src/reaper.ts`
@@ -208,6 +212,10 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 
 ### Task T085: Reconciler and exact fairness proof (INFRA)
 
+**Checkpoint:** [x] Implemented and verified by the scheduler unit tests plus
+fresh `queue-reconcile` integration. Reconciliation locks global, tenants, and
+jobs in deterministic order and repairs only operationally discoverable state.
+
 **Files:**
 - Create: `apps/worker-control/src/fair-scheduler.ts`
 - Create: `apps/worker-control/src/reconciler.ts`
@@ -219,6 +227,12 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - [ ] **Commit:** `git add apps/worker-control/src apps/worker-control/test packages/db/src/queue-control.ts packages/db/test/queue-reconcile.integration.test.ts && git commit -m "queue: prove tenant fairness and reconcile counters"`.
 
 ### Task T086: Transactional outbox and notification hint (INFRA)
+
+**Checkpoint:** [x] Standalone outbox claim/heartbeat/ack/fail/reap functions,
+typed controls, and the worker-control claim adapter are implemented and
+covered by fresh integration tests. Delivery remains at-least-once and the
+database remains authoritative; a future dispatcher may add `NOTIFY` as only a
+wake-up hint.
 
 **Files:**
 - Modify: `packages/db/src/queue-control.ts`

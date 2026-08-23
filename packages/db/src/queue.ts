@@ -18,16 +18,19 @@ export class QueueUnavailableError extends Error {
 export async function enqueueJob(db: RawDbConnection, input: QueueEnqueueRequest): Promise<string> {
   const request = queueEnqueueRequestSchema.parse(input);
   const availableAt = request.availableAt ? new Date(request.availableAt) : new Date();
-  const [row] = await db`
-    select app_private.queue_enqueue(
-      ${request.accountId}::uuid,
-      ${request.assessmentId}::uuid,
-      ${request.normalizedTargetKey},
-      ${availableAt},
-      ${request.priority},
-      ${request.maxAttempts}
-    )
-  `;
+  const [row] = await db.begin(async (transaction) => {
+    await transaction`select set_config('app.tenant', ${request.accountId}, true)`;
+    return transaction`
+      select app_private.queue_enqueue(
+        ${request.accountId}::uuid,
+        ${request.assessmentId}::uuid,
+        ${request.normalizedTargetKey},
+        ${availableAt},
+        ${request.priority},
+        ${request.maxAttempts}
+      )
+    `;
+  });
   const jobId = row?.queue_enqueue as string | null | undefined;
   if (!jobId) throw new QueueUnavailableError();
   return jobId;

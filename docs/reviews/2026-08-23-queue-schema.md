@@ -1,9 +1,10 @@
 # Queue/outbox schema boundary review
 
-**Status:** T081 contract/schema/bootstrap slice complete and pushed with the
-membership worktree. T082 owns the transactional enqueue and worker claim
-implementation; until then the typed enqueue boundary fails closed with
-queue_unavailable.
+**Status:** T081–T086 queue foundation slices are implemented on
+`feat/foundation-phase2`. Tenant enqueue, fenced claim/terminal transitions,
+lease recovery, fairness reconciliation, and standalone outbox operations are
+now exercised against freshly migrated PostgreSQL databases. Assessment/API
+integration (T027/T029/T087) remains the next gate.
 
 ## Delivered
 
@@ -22,23 +23,43 @@ queue_unavailable.
   upsert in the account/auth transaction. The typed ensureQueueState helper
   accepts only a validated server account UUID and never selects membership.
 - The typed enqueue module validates the server-derived request and calls only
-  the fixed app_private function. The placeholder function is fail-closed
-  until T082 supplies the atomic job/outbox implementation.
+  the fixed app_private function inside a transaction. PostgreSQL requires the
+  matching `app.tenant` context and writes the job plus redacted outbox intent
+  atomically.
+- `queue-control.ts` exposes only fixed worker/outbox calls. Claim locks the
+  singleton first, then the deterministic tenant/job order; leases use
+  monotonic fencing tokens and stale writes are no-ops. Recovery applies
+  bounded backoff without resetting fencing.
+- Reconciliation repairs tenant/global running counters while deriving missing
+  tenant rows only from job/outbox operational accounts. The pure scheduler
+  mirrors `last_dispatched_at NULLS FIRST, account_id` and fails closed at the
+  global or tenant cap.
+- Outbox claim/heartbeat/ack/fail/reap use outbox-only locks and preserve
+  redacted error text. The worker connector retains zero table grants and has
+  no enqueue/admin function execute privilege.
 
 ## Evidence
 
-Fresh database: touchmyapi_t081_queue3_test.
+Fresh databases: `touchmyapi_t081_queue3_test` (schema) and
+`touchmyapi_t085_reconcile2_test` (queue controls).
 
     bun run test:contract -- queue
     RUN_DB_TESTS=1 DATABASE_URL=..._test \
       bun run test:integration -- --maxWorkers=1 queue-schema
+    RUN_DB_TESTS=1 DATABASE_URL=..._test \
+      bun run test:integration -- --maxWorkers=1 \
+      queue-schema queue-enqueue queue-control queue-recovery \
+      queue-reconcile queue-fairness outbox-control
+    bun run test:unit -- fair-scheduler
     bun run typecheck
 
-Results: contract 3/3, queue schema/bootstrap integration 3/3, and strict
-TypeScript passed. The integration suite checks table shape, forced RLS,
-connector separation, exact standalone outbox signatures, partial active
+Results: contract 3/3, queue integration 10/10, scheduler unit 2/2, and strict
+TypeScript passed. The queue integration suite checks atomic enqueue and
+redacted outbox payloads, deterministic concurrent claims, fencing and stale
+no-op terminal writes, stale lease recovery, counter reconciliation, forced
+RLS/connector separation, exact standalone outbox signatures, partial active
 target protection, singleton initialization, account-trigger tenant
 initialization, and idempotent bootstrap updates.
 
-No worker claims or job execution happen in T081. T082 must replace the
-fail-closed placeholder before any assessment can be queued.
+The queue primitives are ready for the API and worker-control integration gate;
+they do not yet dispatch a real assessment or expose an admin queue route.

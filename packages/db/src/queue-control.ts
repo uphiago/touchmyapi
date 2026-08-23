@@ -211,6 +211,20 @@ export async function reapOutboxEvents(
   return Number(row?.outbox_reap ?? 0);
 }
 
+export async function reconcileQueueState(
+  db: RawDbConnection,
+  batchSize: number,
+  now = new Date(),
+): Promise<number> {
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 100) {
+    throw new RangeError("batchSize must be between 1 and 100");
+  }
+  const [row] = await db`
+    select app_private.queue_reconcile(${batchSize}, ${now})
+  `;
+  return Number(row?.queue_reconcile ?? 0);
+}
+
 function validateLeaseInput(workerId: string, fencingToken: number, leaseSeconds: number): void {
   if (!WORKER_ID.test(workerId)) throw new TypeError("workerId is invalid");
   if (!Number.isSafeInteger(fencingToken) || fencingToken < 0) {

@@ -17,6 +17,7 @@ export {
   heartbeatQueueJob,
   reapOutboxEvents,
   reapQueueJobs,
+  reconcileQueueState,
 } from "./queue-control";
 export type { OutboxClaim, QueueClaim, QueueHeartbeat } from "./queue-control";
 

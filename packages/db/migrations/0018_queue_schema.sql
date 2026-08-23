@@ -549,6 +549,11 @@ BEGIN
      OR p_available_at IS NULL THEN
     RETURN NULL;
   END IF;
+  IF NULLIF(current_setting('app.tenant', true), '') IS NULL
+     OR current_setting('app.tenant', true) !~* '^[0-9a-f-]{36}$'
+     OR current_setting('app.tenant', true)::uuid <> p_account_id THEN
+    RETURN NULL;
+  END IF;
   safe_target_key := btrim(p_normalized_target_key);
   safe_available_at := p_available_at;
   SELECT playbook_version
@@ -952,3 +957,75 @@ GRANT EXECUTE ON FUNCTION app_private.outbox_claim(text, integer, timestamptz),
   app_private.outbox_fail(uuid, uuid, text, bigint, text, timestamptz),
   app_private.outbox_reap(integer, timestamptz)
   TO queue_connector;
+
+CREATE OR REPLACE FUNCTION app_private.queue_reconcile(
+  p_batch_size integer,
+  p_now timestamptz
+)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+DECLARE
+  account_row record;
+  job_row record;
+  repaired_count integer := 0;
+  running_jobs integer := 0;
+BEGIN
+  IF p_batch_size IS NULL OR p_batch_size < 1 OR p_batch_size > 100 OR p_now IS NULL THEN
+    RETURN 0;
+  END IF;
+  PERFORM 1 FROM public.queue_global_state WHERE id = 'global' FOR UPDATE;
+  IF NOT FOUND THEN RETURN 0; END IF;
+
+  FOR account_row IN
+    SELECT account_id
+    FROM (
+      SELECT DISTINCT account_id FROM public.job
+      UNION
+      SELECT DISTINCT account_id FROM public.outbox_event
+    ) AS operational_accounts
+    ORDER BY account_id
+    LIMIT p_batch_size
+  LOOP
+    INSERT INTO public.queue_tenant_state (account_id, running_count, concurrency_limit, updated_at)
+    VALUES (account_row.account_id, 0, 2, p_now)
+    ON CONFLICT (account_id) DO NOTHING;
+    PERFORM 1 FROM public.queue_tenant_state
+    WHERE account_id = account_row.account_id
+    FOR UPDATE SKIP LOCKED;
+    IF NOT FOUND THEN
+      CONTINUE;
+    END IF;
+    running_jobs := 0;
+    FOR job_row IN
+      SELECT id
+      FROM public.job
+      WHERE account_id = account_row.account_id
+        AND status = 'running'::public.job_status
+      ORDER BY id
+      FOR UPDATE SKIP LOCKED
+    LOOP
+      running_jobs := running_jobs + 1;
+    END LOOP;
+    UPDATE public.queue_tenant_state
+    SET running_count = running_jobs,
+        updated_at = p_now
+    WHERE account_id = account_row.account_id;
+    repaired_count := repaired_count + 1;
+  END LOOP;
+
+  UPDATE public.queue_global_state
+  SET running_count = (
+        SELECT COALESCE(sum(running_count), 0)::integer
+        FROM public.queue_tenant_state
+      ),
+      updated_at = p_now
+  WHERE id = 'global';
+  RETURN repaired_count;
+END;
+$$;
+ALTER FUNCTION app_private.queue_reconcile(integer, timestamptz) OWNER TO queue_control;
+REVOKE ALL ON FUNCTION app_private.queue_reconcile(integer, timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_private.queue_reconcile(integer, timestamptz) TO queue_connector;

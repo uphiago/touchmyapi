@@ -101,6 +101,14 @@ describe.skipIf(!RUN_DB_TESTS)("PostgreSQL queue schema and bootstrap", () => {
       { proname: "outbox_heartbeat", args: "uuid, uuid, text, bigint, timestamp with time zone" },
       { proname: "outbox_reap", args: "integer, timestamp with time zone" },
     ]);
+    const [enqueue] = await db.unsafe(
+      "select has_function_privilege('queue_connector', 'app_private.queue_enqueue(uuid, uuid, text, timestamptz, integer, integer)', 'execute') as allowed",
+    );
+    const [claim] = await db.unsafe(
+      "select has_function_privilege('queue_connector', 'app_private.queue_claim(text, integer, timestamptz)', 'execute') as allowed",
+    );
+    expect(enqueue).toEqual({ allowed: false });
+    expect(claim).toEqual({ allowed: true });
   });
 
   it("upserts global and tenant state without selecting account membership", async () => {
