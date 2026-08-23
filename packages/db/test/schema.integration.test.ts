@@ -40,6 +40,7 @@ const EXPECTED_TABLES = [
   "entitlement",
   "agent",
   "audit_event",
+  "audit_account_state",
   "audit_system_state",
   "notification",
 ] as const;
@@ -180,6 +181,7 @@ schemaDescribe("PostgreSQL foundation schema", () => {
       expect(nullableByTable.get(table), table).toBe("NO");
     }
     expect(nullableByTable.get("audit_event")).toBe("YES");
+    expect(nullableByTable.get("audit_account_state")).toBe("NO");
 
     const systemColumns = await db`
       select column_name, data_type, is_nullable
@@ -261,6 +263,7 @@ schemaDescribe("PostgreSQL foundation schema", () => {
       "authorization_attestation:authorization_attestation_assessment_fk:assessment:account_id,assessment_id>account_id,id",
       "authorization_attestation:authorization_attestation_user_fk:user:account_id,user_id>account_id,id",
       "audit_event:audit_event_account_fk:account:account_id>id",
+      "audit_account_state:audit_account_state_account_fk:account:account_id>id",
       "audit_event:audit_event_assessment_fk:assessment:account_id,assessment_id>account_id,id",
       "audit_event:audit_event_job_fk:job:account_id,job_id>account_id,id",
       "audit_event:audit_event_prev_fk:audit_event:account_id,prev_event_id>account_id,id",
@@ -358,12 +361,14 @@ schemaDescribe("PostgreSQL foundation schema", () => {
       ]),
     );
     for (const table of EXPECTED_TABLES.filter(
-      (name) => name !== "playbook" && name !== "audit_system_state",
+      (name) =>
+        name !== "playbook" && name !== "audit_system_state" && name !== "audit_account_state",
     )) {
       expect(primaryByTable.get(table), table).toEqual(["id"]);
     }
     expect(primaryByTable.get("playbook")).toEqual(["key", "playbook_version"]);
     expect(primaryByTable.get("audit_system_state")).toEqual(["id"]);
+    expect(primaryByTable.get("audit_account_state")).toEqual(["account_id"]);
 
     const [familyIndex] = await db`
       select indexdef
@@ -400,6 +405,15 @@ schemaDescribe("PostgreSQL foundation schema", () => {
       select relrowsecurity, relforcerowsecurity
       from pg_class
       where oid = 'public.audit_system_state'::regclass
+    `;
+    expect(state).toEqual({ relrowsecurity: true, relforcerowsecurity: true });
+  });
+
+  it("forces RLS on the per-account audit lock table", async () => {
+    const [state] = await db`
+      select relrowsecurity, relforcerowsecurity
+      from pg_class
+      where oid = 'public.audit_account_state'::regclass
     `;
     expect(state).toEqual({ relrowsecurity: true, relforcerowsecurity: true });
   });

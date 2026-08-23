@@ -144,19 +144,24 @@ function appended(row: Record<string, unknown>): AppendedAuditEvent {
 }
 
 export async function appendAuditEvent(
-  context: TenantContext<"api_rls">,
+  context: TenantContext<"api_rls" | "worker_rls">,
   input: AuditAppendInput,
 ): Promise<AppendedAuditEvent> {
   const executor = getActiveTenantExecutor(context);
-  if (executor.role !== "api_rls") {
-    throw new Error("audit append requires api_rls capability");
+  if (executor.role !== "api_rls" && executor.role !== "worker_rls") {
+    throw new Error("audit append requires api_rls or worker_rls capability");
   }
   const normalized = normalizeInput(input);
   const accountRows = await executor.backend.unsafe(
-    "select id from public.account where id = $1::uuid and status = 'active' and deleted_at is null for update",
+    "select id from public.account where id = $1::uuid and status = 'active' and deleted_at is null",
     [executor.accountId],
   );
   if (accountRows.length === 0) throw new Error("active tenant account required");
+  const stateRows = await executor.backend.unsafe(
+    "select account_id from public.audit_account_state where account_id = $1::uuid for update",
+    [executor.accountId],
+  );
+  if (stateRows.length === 0) throw new Error("audit account state unavailable");
   const tailRows = await executor.backend.unsafe(
     "select id from public.audit_event where account_id = $1::uuid order by created_at desc, id desc limit 1",
     [executor.accountId],

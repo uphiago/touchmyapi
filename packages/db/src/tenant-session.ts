@@ -45,6 +45,7 @@ const TENANT_TABLES = [
   "entitlement",
   "agent",
   "audit_event",
+  "audit_account_state",
   "notification",
 ] as const;
 
@@ -70,6 +71,7 @@ const API_SELECT_TABLES = [
   "entitlement",
   "agent",
   "audit_event",
+  "audit_account_state",
   "notification",
 ] as const;
 const API_UPDATE_TABLES = [
@@ -79,6 +81,7 @@ const API_UPDATE_TABLES = [
   "credential",
   "agent",
   "notification",
+  "audit_account_state",
 ] as const;
 const API_DELETE_TABLES = ["credential", "agent"] as const;
 const WORKER_INSERT_TABLES = [
@@ -107,6 +110,7 @@ const WORKER_SELECT_TABLES = [
   "agent",
   "audit_event",
   "notification",
+  "audit_account_state",
 ] as const;
 const WORKER_UPDATE_TABLES = [
   "assessment",
@@ -117,6 +121,7 @@ const WORKER_UPDATE_TABLES = [
   "report",
   "agent",
   "notification",
+  "audit_account_state",
 ] as const;
 const WORKER_DELETE_TABLES = ["job", "runner_execution", "credential"] as const;
 const REPORTING_SELECT_TABLES = [

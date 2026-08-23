@@ -20,6 +20,20 @@ export const auditSystemState = pgTable(
   (table) => [check("audit_system_state_id_check", sql`${table.id} = 'system'`)],
 );
 
+export const auditAccountState = pgTable(
+  "audit_account_state",
+  {
+    accountId: uuid("account_id").primaryKey(),
+  },
+  (table) => [
+    foreignKey({
+      name: "audit_account_state_account_fk",
+      columns: [table.accountId],
+      foreignColumns: [account.id],
+    }),
+  ],
+);
+
 export const auditEvent = pgTable(
   "audit_event",
   {

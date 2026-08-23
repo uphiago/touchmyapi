@@ -164,6 +164,28 @@ describeDb("closed audit append capabilities", () => {
     expect(rows.filter((row) => row.prev_event_id !== null)).toHaveLength(1);
   });
 
+  it("links concurrent API and worker appends into one chain", async () => {
+    await owner.unsafe("delete from public.audit_event where account_id = $1::uuid", [
+      fixture.accountId,
+    ]);
+    const [apiEvent, workerEvent] = await Promise.all([
+      withTenant(fixture.connector, fixture.accountId, "api_rls", (context) =>
+        appendAuditEvent(context, { actor: "api:concurrent", action: "request", payload: {} }),
+      ),
+      withTenant(fixture.connector, fixture.accountId, "worker_rls", (context) =>
+        appendAuditEvent(context, { actor: "worker:concurrent", action: "runner", payload: {} }),
+      ),
+    ]);
+    const rows = await owner`
+      select id, prev_event_id from public.audit_event
+      where account_id = ${fixture.accountId} and actor in ('api:concurrent', 'worker:concurrent')
+      order by created_at, id
+    `;
+    expect(new Set(rows.map((row) => row.id))).toEqual(new Set([apiEvent.id, workerEvent.id]));
+    expect(rows.filter((row) => row.prev_event_id === null)).toHaveLength(1);
+    expect(rows.filter((row) => row.prev_event_id !== null)).toHaveLength(1);
+  });
+
   it("expires captured tenant and system contexts", async () => {
     let tenantContext!: TenantContext<"api_rls">;
     await withTenant(fixture.connector, fixture.accountId, "api_rls", async (context) => {
@@ -207,18 +229,147 @@ describeDb("closed audit append capabilities", () => {
     ).rejects.toThrow(/no longer active|expired/i);
   });
 
-  it("rejects worker tenant contexts without leaking an event", async () => {
+  it("allows worker tenant contexts to append through the account lock", async () => {
+    const event = await withTenant(fixture.connector, fixture.accountId, "worker_rls", (context) =>
+      appendAuditEvent(context, {
+        actor: "worker:append",
+        action: "runner",
+        payload: {},
+      }),
+    );
+    expect(event.accountId).toBe(fixture.accountId);
+    const rows = await owner`
+      select id from public.audit_event where account_id = ${fixture.accountId} and actor = 'worker:deferred'
+    `;
+    expect(rows).toEqual([]);
+    const workerRows = await owner`
+      select id from public.audit_event where account_id = ${fixture.accountId} and actor = 'worker:append'
+    `;
+    expect(workerRows).toEqual([{ id: event.id }]);
+  });
+
+  it("seeds and locks the own audit state row while isolating other accounts", async () => {
+    const [seeded] = await owner`
+      select account_id from public.audit_account_state where account_id = ${fixture.accountId}
+    `;
+    expect(seeded?.account_id).toBe(fixture.accountId);
+
+    const [other] = await owner.begin(async (tx) => {
+      await tx.unsafe("set local role auth_bootstrap");
+      return tx`select * from public.auth_complete_google_login(
+        ${`t017-other-${randomUUID()}`}, ${`other-${randomUUID()}@example.test`}::citext,
+        ${randomUUID().replaceAll("-", "") + "a".repeat(32)}, now() + interval '1 hour', null, null
+      )`;
+    });
+    if (!other) throw new Error("other account fixture missing");
+    try {
+      const [freshState] = await owner`
+        select account_id from public.audit_account_state where account_id = ${other.account_id}
+      `;
+      expect(freshState?.account_id).toBe(other.account_id);
+      await owner.unsafe(
+        "delete from public.audit_event where account_id in ($1::uuid, $2::uuid)",
+        [fixture.accountId, other.account_id],
+      );
+      const [ownEvent, otherEvent] = await Promise.all([
+        withTenant(fixture.connector, fixture.accountId, "api_rls", (context) =>
+          appendAuditEvent(context, {
+            actor: "api:independent-account",
+            action: "request",
+            payload: {},
+          }),
+        ),
+        withTenant(fixture.connector, other.account_id, "worker_rls", (context) =>
+          appendAuditEvent(context, {
+            actor: "worker:independent-account",
+            action: "runner",
+            payload: {},
+          }),
+        ),
+      ]);
+      expect(ownEvent.prevEventId).toBeNull();
+      expect(otherEvent.prevEventId).toBeNull();
+      const connector = getRawTenantDatabase(fixture.connector);
+      for (const role of ["api_rls", "worker_rls"] as const) {
+        const rows = await connector.begin(async (tx) => {
+          await tx.unsafe(`set local role ${role}`);
+          await tx.unsafe("select set_config('app.tenant', $1, true)", [fixture.accountId]);
+          return tx.unsafe(
+            "select account_id from public.audit_account_state where account_id = $1::uuid for update",
+            [fixture.accountId],
+          );
+        });
+        expect(rows).toEqual([{ account_id: fixture.accountId }]);
+      }
+      for (const role of ["api_rls", "worker_rls"] as const) {
+        await expect(
+          connector.begin(async (tx) => {
+            await tx.unsafe(`set local role ${role}`);
+            await tx.unsafe("select set_config('app.tenant', $1, true)", [fixture.accountId]);
+            const rows = await tx.unsafe(
+              "select account_id from public.audit_account_state where account_id = $1::uuid for update",
+              [other.account_id],
+            );
+            expect(rows).toEqual([]);
+          }),
+        ).resolves.toBeUndefined();
+
+        await expect(
+          connector.begin(async (tx) => {
+            await tx.unsafe(`set local role ${role}`);
+            await tx.unsafe("select set_config('app.tenant', $1, true)", [fixture.accountId]);
+            await tx.unsafe(
+              "update public.audit_account_state set account_id = $1::uuid where account_id = $2::uuid",
+              [other.account_id, fixture.accountId],
+            );
+          }),
+        ).rejects.toThrow();
+        await expect(
+          connector.begin(async (tx) => {
+            await tx.unsafe(`set local role ${role}`);
+            await tx.unsafe("select set_config('app.tenant', $1, true)", [fixture.accountId]);
+            await tx.unsafe("delete from public.audit_account_state where account_id = $1::uuid", [
+              fixture.accountId,
+            ]);
+          }),
+        ).rejects.toThrow();
+        await expect(
+          connector.begin(async (tx) => {
+            await tx.unsafe(`set local role ${role}`);
+            await tx.unsafe("select set_config('app.tenant', $1, true)", [fixture.accountId]);
+            await tx.unsafe(
+              "insert into public.audit_account_state (account_id) values ($1::uuid)",
+              [fixture.accountId],
+            );
+          }),
+        ).rejects.toThrow();
+      }
+    } finally {
+      await owner.unsafe("delete from public.audit_event where account_id = $1::uuid", [
+        other.account_id,
+      ]);
+      await owner.unsafe("delete from public.session where account_id = $1::uuid", [
+        other.account_id,
+      ]);
+      await owner.unsafe('delete from public."user" where account_id = $1::uuid', [
+        other.account_id,
+      ]);
+      await owner.unsafe("delete from public.account where id = $1::uuid", [other.account_id]);
+    }
+  });
+
+  it("rejects reporting audit append without inserting an event", async () => {
     await expect(
-      withTenant(fixture.connector, fixture.accountId, "worker_rls", (context) =>
+      withTenant(fixture.connector, fixture.accountId, "reporting_rls", (context) =>
         appendAuditEvent(context as unknown as TenantContext<"api_rls">, {
-          actor: "worker:deferred",
-          action: "runner",
+          actor: "reporting:append",
+          action: "publish",
           payload: {},
         }),
       ),
-    ).rejects.toThrow(/api_rls|capability/i);
+    ).rejects.toThrow(/reporting|capability/i);
     const rows = await owner`
-      select id from public.audit_event where account_id = ${fixture.accountId} and actor = 'worker:deferred'
+      select id from public.audit_event where account_id = ${fixture.accountId} and actor = 'reporting:append'
     `;
     expect(rows).toEqual([]);
   });

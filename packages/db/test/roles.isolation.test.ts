@@ -23,6 +23,7 @@ const TENANT_TABLES = [
   "audit_event",
   "notification",
 ] as const;
+const AUDIT_STATE_TABLE = "audit_account_state" as const;
 const AUTH_FUNCTIONS = [
   ["auth_complete_google_login", "text,citext,text,timestamp with time zone,inet,text"],
   ["auth_resolve_session", "text"],
@@ -47,6 +48,7 @@ const EXPECTED_TABLE_PRIVILEGES = {
       "entitlement",
       "agent",
       "audit_event",
+      AUDIT_STATE_TABLE,
       "notification",
     ],
     insert: [
@@ -57,7 +59,15 @@ const EXPECTED_TABLE_PRIVILEGES = {
       "audit_event",
       "agent",
     ],
-    update: ["account", "assessment", "verification", "credential", "agent", "notification"],
+    update: [
+      "account",
+      "assessment",
+      "verification",
+      "credential",
+      "agent",
+      "notification",
+      AUDIT_STATE_TABLE,
+    ],
     delete: ["credential", "agent"],
   },
   worker_rls: {
@@ -78,6 +88,7 @@ const EXPECTED_TABLE_PRIVILEGES = {
       "entitlement",
       "agent",
       "audit_event",
+      AUDIT_STATE_TABLE,
       "notification",
     ],
     insert: ["job", "runner_execution", "finding", "report", "audit_event", "notification"],
@@ -90,6 +101,7 @@ const EXPECTED_TABLE_PRIVILEGES = {
       "report",
       "agent",
       "notification",
+      AUDIT_STATE_TABLE,
     ],
     delete: ["job", "runner_execution", "credential"],
   },
@@ -199,7 +211,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
       order by c.relname
     `;
     expect(tables.map((row) => row.relname)).toEqual(
-      [...TENANT_TABLES, "playbook", "audit_system_state"].sort(),
+      [...TENANT_TABLES, "playbook", "audit_system_state", AUDIT_STATE_TABLE].sort(),
     );
     expect(new Set(tables.map((row) => row.owner))).toEqual(new Set([String(tables[0]?.owner)]));
     const functions = await db`
@@ -218,7 +230,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
 
   it("has exact table privileges and no PUBLIC object access", async () => {
     for (const role of RUNTIME_ROLES) {
-      for (const table of [...TENANT_TABLES, "playbook"]) {
+      for (const table of [...TENANT_TABLES, "playbook", AUDIT_STATE_TABLE]) {
         for (const privilege of PRIVILEGES) {
           const [row] = await db`
             select has_table_privilege(${role}, ${`public.${table}`}, ${privilege}) as allowed
@@ -229,7 +241,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
         }
       }
     }
-    for (const table of [...TENANT_TABLES, "playbook"]) {
+    for (const table of [...TENANT_TABLES, "playbook", AUDIT_STATE_TABLE]) {
       for (const privilege of PRIVILEGES) {
         const [row] = await db`
           select has_table_privilege('public', ${`public.${table}`}, ${privilege}) as allowed
@@ -243,7 +255,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
     expect(schema?.allowed).toBe(false);
 
     for (const role of ["audit_system", "audit_system_connector"] as const) {
-      for (const table of [...TENANT_TABLES, "playbook", "audit_system_state"]) {
+      for (const table of [...TENANT_TABLES, "playbook", "audit_system_state", AUDIT_STATE_TABLE]) {
         for (const privilege of PRIVILEGES) {
           const [row] = await db`
             select has_table_privilege(${role}, ${`public.${table}`}, ${privilege}) as allowed
@@ -328,7 +340,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
   });
 
   it("keeps auth bootstrap without direct table DML and grants explicit runtime access", async () => {
-    for (const table of TENANT_TABLES) {
+    for (const table of [...TENANT_TABLES, AUDIT_STATE_TABLE]) {
       const privileges = await db`
         select
           has_table_privilege('auth_bootstrap', ${table}, 'select') as select,
@@ -346,6 +358,33 @@ describeDb("PostgreSQL least-privilege roles", () => {
              has_table_privilege('api_rls', 'public.audit_event', 'delete') as delete
     `;
     expect(auditApi[0]).toEqual({ select: true, insert: true, update: false, delete: false });
+
+    for (const role of ["api_rls", "worker_rls"] as const) {
+      const statePrivileges = await db`
+        select has_table_privilege(${role}, 'public.audit_account_state', 'select') as select,
+               has_table_privilege(${role}, 'public.audit_account_state', 'insert') as insert,
+               has_table_privilege(${role}, 'public.audit_account_state', 'update') as update,
+               has_table_privilege(${role}, 'public.audit_account_state', 'delete') as delete
+      `;
+      expect(statePrivileges[0]).toEqual({
+        select: true,
+        insert: false,
+        update: true,
+        delete: false,
+      });
+    }
+    const reportingState = await db`
+      select has_table_privilege('reporting_rls', 'public.audit_account_state', 'select') as select,
+             has_table_privilege('reporting_rls', 'public.audit_account_state', 'insert') as insert,
+             has_table_privilege('reporting_rls', 'public.audit_account_state', 'update') as update,
+             has_table_privilege('reporting_rls', 'public.audit_account_state', 'delete') as delete
+    `;
+    expect(reportingState[0]).toEqual({
+      select: false,
+      insert: false,
+      update: false,
+      delete: false,
+    });
 
     for (const table of TENANT_TABLES) {
       const reporting = await db`
@@ -384,6 +423,13 @@ describeDb("PostgreSQL least-privilege roles", () => {
             : 3;
       expect(Number(row.policy_count)).toBe(expectedCount);
     }
+    const [state] = await db`
+      select c.relrowsecurity, c.relforcerowsecurity, count(p.polname)::int as policy_count
+      from pg_class c left join pg_policy p on p.polrelid = c.oid
+      where c.oid = 'public.audit_account_state'::regclass
+      group by c.relrowsecurity, c.relforcerowsecurity
+    `;
+    expect(state).toEqual({ relrowsecurity: true, relforcerowsecurity: true, policy_count: 5 });
   });
 
   it("catalogues policy commands and tenant predicates without command widening", async () => {
@@ -395,7 +441,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
       from pg_policy p
       join pg_class c on c.oid = p.polrelid
       where c.relnamespace = 'public'::regnamespace
-        and c.relname = any(${TENANT_TABLES}::text[])
+        and c.relname = any(${[...TENANT_TABLES, AUDIT_STATE_TABLE]}::text[])
     `;
     const byName = new Map(policies.map((policy) => [policy.polname, policy]));
     const expectedNames = new Set<string>();
@@ -456,6 +502,21 @@ describeDb("PostgreSQL least-privilege roles", () => {
         "rls_bootstrap_context()",
       );
     }
+    for (const role of ["api_rls", "worker_rls"] as const) {
+      const policy = byName.get(`audit_account_state_${role}_tenant`);
+      expectedNames.add(`audit_account_state_${role}_tenant`);
+      expect(policy?.polcmd, `${role}/audit_account_state`).toBe("r");
+      expect(policy?.roles).toEqual([role]);
+      expect(normalizePolicyExpression(policy?.using_expr)).toBe(
+        "rls_tenant_matches(account_id) AND NULLIF(current_setting('app.tenant', true), '') IS NOT NULL",
+      );
+      const lock = byName.get(`audit_account_state_${role}_lock`);
+      expectedNames.add(`audit_account_state_${role}_lock`);
+      expect(lock?.polcmd, `${role}/audit_account_state lock`).toBe("w");
+      expect(lock?.roles).toEqual([role]);
+    }
+    expectedNames.add("audit_account_state_bootstrap");
+    expect(byName.get("audit_account_state_bootstrap")?.polcmd).toBe("*");
     expect([...byName.keys()].sort()).toEqual([...expectedNames].sort());
   });
 
