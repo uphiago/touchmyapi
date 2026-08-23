@@ -395,6 +395,15 @@ schemaDescribe("PostgreSQL foundation schema", () => {
     expect(systemState?.id).toBe("system");
   });
 
+  it("forces RLS on the singleton system audit lock table", async () => {
+    const [state] = await db`
+      select relrowsecurity, relforcerowsecurity
+      from pg_class
+      where oid = 'public.audit_system_state'::regclass
+    `;
+    expect(state).toEqual({ relrowsecurity: true, relforcerowsecurity: true });
+  });
+
   it("requires and uniquely stores opaque session token hashes", async () => {
     const rows = await db`
       select column_name, is_nullable, data_type

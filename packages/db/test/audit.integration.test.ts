@@ -54,7 +54,7 @@ async function createFixture(owner: RawDbConnection): Promise<Fixture> {
   await owner.unsafe(
     `create role ${quoteIdentifier(role)} login noinherit nosuperuser nobypassrls nocreatedb nocreaterole noreplication password ${sqlStringLiteral(password)}`,
   );
-  await owner.unsafe(`grant api_rls to ${quoteIdentifier(role)}`);
+  await owner.unsafe(`grant api_rls, worker_rls to ${quoteIdentifier(role)}`);
   const systemPassword = randomUUID().replaceAll("-", "");
   await owner.unsafe(
     `alter role audit_system_connector password ${sqlStringLiteral(systemPassword)}`,
@@ -165,7 +165,7 @@ describeDb("closed audit append capabilities", () => {
   });
 
   it("expires captured tenant and system contexts", async () => {
-    let tenantContext!: TenantContext;
+    let tenantContext!: TenantContext<"api_rls">;
     await withTenant(fixture.connector, fixture.accountId, "api_rls", async (context) => {
       tenantContext = context;
     });
@@ -188,6 +188,59 @@ describeDb("closed audit append capabilities", () => {
         payload: {},
       }),
     ).rejects.toThrow(/no longer active|expired/i);
+  });
+
+  it("expires a captured system context when its callback throws", async () => {
+    let captured!: SystemAuditContext;
+    await expect(
+      withSystemAudit(fixture.system, async (context) => {
+        captured = context;
+        throw new Error("system callback failed");
+      }),
+    ).rejects.toThrow("system callback failed");
+    await expect(
+      appendSystemAuditEvent(captured, {
+        actor: "system:expired",
+        action: "request",
+        payload: {},
+      }),
+    ).rejects.toThrow(/no longer active|expired/i);
+  });
+
+  it("rejects worker tenant contexts without leaking an event", async () => {
+    await expect(
+      withTenant(fixture.connector, fixture.accountId, "worker_rls", (context) =>
+        appendAuditEvent(context as unknown as TenantContext<"api_rls">, {
+          actor: "worker:deferred",
+          action: "runner",
+          payload: {},
+        }),
+      ),
+    ).rejects.toThrow(/api_rls|capability/i);
+    const rows = await owner`
+      select id from public.audit_event where account_id = ${fixture.accountId} and actor = 'worker:deferred'
+    `;
+    expect(rows).toEqual([]);
+  });
+
+  it("converts throwing accessors into a stable validation error", async () => {
+    const secret = "do-not-leak-secret-value";
+    const payload = {
+      get token(): string {
+        throw new Error(secret);
+      },
+    } as unknown as Record<string, unknown>;
+    let caught: unknown;
+    try {
+      await withTenant(fixture.connector, fixture.accountId, "api_rls", (context) =>
+        appendAuditEvent(context, { actor: "user:accessor", action: "request", payload }),
+      );
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(TypeError);
+    expect((caught as Error).message).toBe("invalid audit input");
+    expect((caught as Error).message).not.toContain(secret);
   });
 
   it("serializes accountless system appends on the singleton lock", async () => {
@@ -295,6 +348,28 @@ describeDb("closed audit append capabilities", () => {
         );
       }),
     ).rejects.toThrow();
+  });
+
+  it("allows the direct system connector only accountless audit work", async () => {
+    const system = getRawSystemAuditDatabase(fixture.system);
+    await expect(
+      system.begin(async (tx) => {
+        await tx.unsafe("set local role audit_system");
+        const state = await tx.unsafe(
+          "select id from public.audit_system_state where id = 'system' for update",
+        );
+        expect(state).toEqual([{ id: "system" }]);
+        const inserted = await tx.unsafe(
+          "insert into public.audit_event (account_id, actor, action, payload_json) values (null, 'system:direct', 'request', '{}'::jsonb) returning account_id",
+        );
+        expect(inserted).toEqual([{ account_id: null }]);
+        const visible = await tx.unsafe(
+          "select actor from public.audit_event where account_id is null and actor = 'system:direct'",
+        );
+        expect(visible).toEqual([{ actor: "system:direct" }]);
+        throw new Error("rollback direct system probe");
+      }),
+    ).rejects.toThrow("rollback direct system probe");
   });
 
   it("rejects dangerous connector grants before switching roles", async () => {

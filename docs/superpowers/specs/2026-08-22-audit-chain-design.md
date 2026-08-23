@@ -7,7 +7,22 @@
 
 `appendAuditEvent(context, input)` is a closed repository operation over the accepted `TenantContext`; it never accepts SQL, a raw connection, or an account ID. It recursively redacts sensitive key names and JWT/PEM-like values before validation/persistence. It derives the account from the active context, locks `public.account` with `FOR UPDATE`, reads the account-local `audit_event` tail, and inserts the next event with `prev_event_id` inside the same transaction. The account-row lock serializes one tenant chain without advisory SQL.
 
+The account-row writer is intentionally API-only: `appendAuditEvent` accepts
+`TenantContext<"api_rls">` and rejects every other runtime role before SQL.
+`FOR UPDATE` on the business account row requires the API role's existing
+account-update capability. Worker audit appends are deferred until a
+purpose-built non-business lock authority exists; this boundary does not grant
+worker account mutation merely to reuse the account-row lock.
+
 Accountless system events use a separate opaque `SystemAuditDatabase` and `withSystemAudit` capability. A migration adds the singleton `audit_system_state(id='system')`; fixed system append code locks that row, reads only the `account_id IS NULL` tail, and inserts the next system event. A dedicated `audit_system` `NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT` role and `audit_system_connector` login are limited by FORCE RLS to this singleton and accountless audit rows. Neither role has business-table privileges or a generic execution API.
+
+PostgreSQL requires a narrow `UPDATE` ACL and matching FORCE-RLS policy for a
+`SELECT ... FOR UPDATE` row lock. The system role therefore has a lock-only
+`UPDATE` privilege on `audit_system_state`; its sole immutable, check-constrained
+row (`id = 'system'`) cannot be changed by the fixed writer, which never issues
+an UPDATE. This is an intentional lock-only exception to the otherwise
+SELECT-only singleton boundary, retained to provide deterministic concurrency
+without advisory locks or a definer function.
 
 ## Alternatives rejected
 

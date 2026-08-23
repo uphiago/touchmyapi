@@ -85,7 +85,7 @@ function redactValue(value: unknown, seen: WeakSet<object>, keySensitive = false
   return result;
 }
 
-function normalizeInput(input: AuditAppendInput): {
+function normalizeInputUnsafe(input: AuditAppendInput): {
   actor: string;
   action: AuditAction;
   payload: Record<string, unknown>;
@@ -118,6 +118,22 @@ function normalizeInput(input: AuditAppendInput): {
   };
 }
 
+function normalizeInput(input: AuditAppendInput): {
+  actor: string;
+  action: AuditAction;
+  payload: Record<string, unknown>;
+  assessmentId: string | null;
+  jobId: string | null;
+} {
+  try {
+    return normalizeInputUnsafe(input);
+  } catch {
+    // Input may be backed by accessors or proxies. Never expose their thrown
+    // values (which may contain credentials) through the validation boundary.
+    invalidInput();
+  }
+}
+
 function appended(row: Record<string, unknown>): AppendedAuditEvent {
   return {
     id: String(row.id),
@@ -128,10 +144,13 @@ function appended(row: Record<string, unknown>): AppendedAuditEvent {
 }
 
 export async function appendAuditEvent(
-  context: TenantContext,
+  context: TenantContext<"api_rls">,
   input: AuditAppendInput,
 ): Promise<AppendedAuditEvent> {
   const executor = getActiveTenantExecutor(context);
+  if (executor.role !== "api_rls") {
+    throw new Error("audit append requires api_rls capability");
+  }
   const normalized = normalizeInput(input);
   const accountRows = await executor.backend.unsafe(
     "select id from public.account where id = $1::uuid and status = 'active' and deleted_at is null for update",
