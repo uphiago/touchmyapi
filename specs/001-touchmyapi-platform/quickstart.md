@@ -1,6 +1,6 @@
 # Quickstart: TouchMyAPI Foundation
 
-**Foundation validation** | **Updated**: 2026-08-22
+**Foundation validation** | **Updated**: 2026-08-23
 
 This guide validates the code that exists today. It does not claim that the full platform scenarios in the [product spec](./spec.md) are implemented.
 
@@ -19,10 +19,11 @@ This guide validates the code that exists today. It does not claim that the full
 - Strict passive `@touchmyapi/playbooks` catalog `surface-public-posture@1.0.0` (T019), aligned with the policy engine and containing no execution/network behavior
 - Dependency-injected Hono API boundary (T020) with exact CORS, request IDs, stable errors, audit gating, and no assessment routes
 - Google-only OAuth Authorization Code + PKCE boundary (T021) with encrypted transient state, hash-only rotating sessions, revocation, secure cookies, and a fakeable adapter for tests
+- T071–T075 multi-user foundation: additive memberships/invitations, role capability policy, active-account session list/switch, hash-only invitation acceptance, and credentialed API CORS with injectable stores
 
 No assessment execution, external target access, queue, billing mutation, AI execution, report generation, or runner exists in this checkpoint. T016 and T017 are accepted: the tenant wrapper is an opaque database handle with fixed capabilities, and the audit writer provides redacted monotonic tenant/system chains with FORCE-RLS lock authorities and no raw SQL export. T018 is accepted as the isolated external-credential AEAD boundary, T019 as the passive catalog boundary, T020 as the API boundary, and T021 as the fakeable Google auth boundary. The real OIDC composition requires explicit production credentials and is not exercised by tests.
 
-The historical Foundation Phase 2 remains intentionally limited to T010–T021 and does not implement organizations, invitations, roles, or admin operations. The approved Phase 2A extension is documented separately and is scheduled after T021: account/workspace membership first, then the fenced PostgreSQL queue/outbox, followed by the separate admin control plane. SSO and SCIM remain out of scope.
+The historical Foundation Phase 2 remains intentionally limited to T010–T021. The approved Phase 2A extension is being implemented after T021: T071–T075 provide the additive membership foundation, while the full lifecycle API/UI remains in T076–T080. The fenced PostgreSQL queue/outbox follows, then the separate admin control plane. SSO and SCIM remain out of scope; GitHub/X are model-disabled and provider adapters remain injectable until production credentials are supplied.
 
 ## Prerequisites
 
@@ -119,7 +120,7 @@ docker compose --profile local -f infra/docker/compose.yml exec -T postgres psql
   < infra/docker/postgres/init/002_test_database.sql
 ```
 
-The current DB package proves schema shape, runtime-role privileges, auth-bootstrap isolation, cross-account RLS behavior, T016's closed tenant-capability boundary, and T017's atomic audit writer with API/worker/system chain isolation. T018's focused AEAD suite, T019's catalog→policy authorization suite, T020's API boundary suite, and T021's fake-adapter OAuth suite are green; the database/API foundation gate is accepted.
+The current DB package proves schema shape, runtime-role privileges, auth-bootstrap isolation, cross-account RLS behavior, T016's closed tenant-capability boundary, and T017's atomic audit writer with API/worker/system chain isolation. T018's focused AEAD suite, T019's catalog→policy authorization suite, T020's API boundary suite, T021's fake-adapter OAuth suite, and the T071–T075 membership foundation gates are green. The aggregate T080 membership acceptance gate is not claimed until T076–T079 are complete.
 
 ## Next validation milestones
 

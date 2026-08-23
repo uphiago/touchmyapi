@@ -63,11 +63,11 @@ The provider boundary remains Google-only per the approved spec. Provider config
 
 ## Task 5 — T075 hashed invitations and explicit acceptance
 
-**Files:** create `packages/db/src/invitations.ts`, `packages/db/migrations/0015_invitations.sql`, `packages/db/test/invitations.unit.test.ts`; the authenticated HTTP route is mounted with the T076 lifecycle API so raw tokens enter only the explicit body boundary.
+**Files:** create `packages/db/src/invitations.ts`, `packages/db/migrations/0015_invitations.sql`, `packages/db/test/invitations.unit.test.ts`; mount the authenticated HTTP boundary in `apps/api/src/auth.ts` so raw tokens enter only the explicit body boundary.
 
 - [x] Write RED tests for 32 random bytes, SHA-256-only persistence, no URL token, redaction before access/app logs, expiry/revocation/replay, same-user idempotency, other-user generic invalid result, and equal-email non-linking.
 - [x] Run the focused invitation integration command and verify failure before implementation.
-- [x] Implement owner/admin creation and the fixed auth-bootstrap acceptance function; the `POST /api/v1/invitations/accept` body route is completed in T076. Lock the invitation, validate authenticated `user_id`, expiry/status/hash, insert membership, set `accepted_by_user_id`, rotate `session.account_id`, and append an audit event atomically. Return generic invalid results; same accepted user replays idempotently.
+- [x] Implement owner/admin creation and the fixed auth-bootstrap acceptance function plus the `POST /api/v1/invitations/accept` body route. Lock the invitation, validate authenticated `user_id`, expiry/status/hash, insert membership, set `accepted_by_user_id`, rotate `session.account_id`, and append an audit event atomically. Return generic invalid results; same accepted user replays idempotently.
 - [x] Run focused integration tests, `bun run typecheck`, and a grep proving token values never enter URLs/logs/audit payloads.
 - [x] Commit `feat: accept hashed invitations explicitly`.
 
