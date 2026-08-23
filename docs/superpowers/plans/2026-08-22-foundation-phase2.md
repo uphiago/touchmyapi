@@ -803,11 +803,11 @@ git commit -m "feat: catalog closed passive playbook"
 - Modify: `apps/api/src/server.ts`
 - Create: `apps/api/test/app.test.ts`
 
-- [ ] **Step 1: Escrever RED da fronteira API**
+- [x] **Step 1: Escrever RED da fronteira API**
 
 Teste `GET /health` 200 e JSON schema atual; `GET /missing` 404 `{error:{code:"not_found",message:"Not Found"}}`; `/health` e `/api/v1/auth/*` aceitam somente o origin configurado (credenciais apenas em auth) e não enviam `access-control-allow-origin` para origin diversa; request ID em sucesso/erro; erro inesperado mapeado para 500 sem stack. Use `AuditSink` fake para provar request audit em `/api/v1`, payload redigido e mutation recusada com 503 quando o sink falha. Teste que assessment route não existe.
 
-- [ ] **Step 2: Implementar `createApp(dependencies)`**
+- [x] **Step 2: Implementar `createApp(dependencies)`**
 
 A factory inicial deve receber `config`, `logger` e um `AuditSink` tipados e não abrir listener; `AuditSink.record` recebe somente action, requestId e payload já redigido para toda request sob `/api/v1`. Task 14 estende as dependências com `sessionStore` e `oidc`. `server.ts` somente chama `Bun.serve`. Use Hono middleware de request ID, CORS de origin exata em `/health` e nas futuras rotas auth (`credentials` somente em auth), audit middleware centralizado, error handler estável e Zod. Falha do audit sink em mutation retorna 503; health não depende de audit. O envelope é:
 
@@ -817,11 +817,11 @@ export const errorEnvelope = (code: string, message: string, field?: string) => 
 
 Mapeie 400/401/403/409/503/500 conforme design; 500 inclui apenas `requestId` em log e mensagem pública genérica. Preserve `/health` fora de auth e mantenha `/api/v1` sem assessment handlers.
 
-- [ ] **Step 3: Rodar GREEN**
+- [x] **Step 3: Rodar GREEN**
 
 Execute `bun run test:unit -- app`, `bun run typecheck`, `bun run --cwd apps/web build`; esperado PASS e shell preservado.
 
-- [ ] **Step 4: Commitar**
+- [x] **Step 4: Commitar**
 
 ```bash
 git add apps/api/package.json apps/api/src apps/api/test
