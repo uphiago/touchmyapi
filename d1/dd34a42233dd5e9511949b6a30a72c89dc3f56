@@ -1,0 +1,30 @@
+packages/db/migrations/0011_multiuser_membership.sql
+  s_bc54431df54bf2::t_aa15d1af676104 78-114
+docs/superpowers/specs/2026-08-22-multiuser-queue-admin-design.md
+  s_bc54431df54bf2::t_1a0caff280533d 154
+packages/db/migrations/0012_membership_identity_fk.sql
+  s_bc54431df54bf2::t_b65d0a438e2507 1-49
+docs/superpowers/plans/2026-08-23-phase2a-membership.md
+  s_bc54431df54bf2::t_1a0caff280533d 38,84,90
+  s_bc54431df54bf2::t_162306a9d752fe 41
+packages/db/test/membership-schema.integration.test.ts
+  s_bc54431df54bf2::t_33abaeef59a4b7 70,82-99,101-131
+  s_bc54431df54bf2::t_1390ca9849d6e1 100
+  s_bc54431df54bf2::t_24ba06bba6fc14 132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d1dd34a42233dd5e9511949b6a30a72c89dc3f56",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
