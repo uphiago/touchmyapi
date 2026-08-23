@@ -1,0 +1,39 @@
+apps/api/src/auth.ts
+  s_bc54431df54bf2::t_2a67f769b6b25c 7-9
+README.md
+  s_bc54431df54bf2::t_6e3c49b5748924 7,13
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_6e3c49b5748924 21,23,122,128
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_6e3c49b5748924 54-55
+docs/reviews/2026-08-23-t021-google-oidc.md
+  s_bc54431df54bf2::t_580e9bfe7d3040 1-40
+docs/reviews/2026-08-22-foundation-phase2-implementation.md
+  s_bc54431df54bf2::t_580e9bfe7d3040 1-26
+docs/reviews/2026-08-22-foundation-checkpoint.md
+  s_bc54431df54bf2::t_719fc2f68220d5 7,11,25,53-54
+docs/superpowers/plans/2026-08-22-foundation-phase2.md
+  s_bc54431df54bf2::t_f1d0c04dbefd3f 9,835-837,840,851,853,868,872,876
+  s_bc54431df54bf2::t_5c7b3a4f99cec1 842,870
+  s_bc54431df54bf2::t_54483db8369811 897,919,923,927
+apps/api/test/auth.test.ts
+  s_bc54431df54bf2::t_2a67f769b6b25c 12-13,140,170
+docs/superpowers/plans/2026-08-23-t021-google-oidc.md
+  s_bc54431df54bf2::t_f1d0c04dbefd3f 3,20-22,30-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "8086a086e5444ef6e9966bf10503f7fc0e4bb1e0",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
