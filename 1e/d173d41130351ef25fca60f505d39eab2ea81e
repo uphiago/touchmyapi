@@ -1,0 +1,19 @@
+docs/superpowers/plans/2026-08-22-t017-audit-chain.md
+  s_bc54431df54bf2::t_7d176030e1e8f9 1-322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "1ed173d41130351ef25fca60f505d39eab2ea81e",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
