@@ -1,0 +1,30 @@
+packages/db/test/schema.integration.test.ts
+  s_bc54431df54bf2::t_c6a9d11367938d 315
+packages/db/test/membership-schema.integration.test.ts
+  s_bc54431df54bf2::t_fe8853c771ae85 199-252
+  s_bc54431df54bf2::t_6db6e309bd77e3 130
+packages/db/migrations/0014_auth_account_switch.sql
+  s_bc54431df54bf2::t_9cd889738f5db5 1-136
+packages/db/schema/identity.ts
+  s_bc54431df54bf2::t_839280f8f2c703 54-56
+packages/db/migrations/meta/0014_snapshot.json
+  s_bc54431df54bf2::t_18414fbbd59451 1-2486
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_649d3794d248d3 102-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ea217da4869f391d0d7aa32daa99e0eac17c93c5",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
