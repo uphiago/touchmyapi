@@ -24,6 +24,8 @@ if (!RUN_DB_TESTS) {
 }
 const EXPECTED_TABLES = [
   "account",
+  "account_membership",
+  "account_invitation",
   "user",
   "session",
   "assessment",
@@ -82,6 +84,9 @@ const EXPECTED_ENUMS: Record<string, string[]> = {
     "billing",
     "delete",
   ],
+  membership_role: ["owner", "admin", "operator", "viewer", "billing"],
+  membership_status: ["active", "suspended", "removed"],
+  invitation_status: ["pending", "accepted", "expired", "revoked"],
 };
 
 function databaseUrlForIntegration(): string {
@@ -225,6 +230,10 @@ schemaDescribe("PostgreSQL foundation schema", () => {
     const expectedUnique = [
       "agent:agent_account_id_id_unique:account_id,id",
       "agent:agent_token_hash_unique:token_hash",
+      "account_invitation:account_invitation_account_id_id_unique:account_id,id",
+      "account_invitation:account_invitation_token_hash_unique:token_hash",
+      "account_membership:account_membership_account_id_id_unique:account_id,id",
+      "account_membership:account_membership_account_user_unique:account_id,user_id",
       "assessment:assessment_account_id_id_unique:account_id,id",
       "authorization_attestation:authorization_attestation_account_id_id_unique:account_id,id",
       "audit_event:audit_event_account_id_id_unique:account_id,id",
@@ -274,6 +283,12 @@ schemaDescribe("PostgreSQL foundation schema", () => {
     const expected = [
       "assessment:assessment_account_fk:account:account_id>id",
       "agent:agent_account_fk:account:account_id>id",
+      "account_invitation:account_invitation_account_fk:account:account_id>id",
+      "account_invitation:account_invitation_accepted_by_user_fk:user:accepted_by_user_id>id",
+      "account_invitation:account_invitation_invited_by_user_fk:user:invited_by_user_id>id",
+      "account_membership:account_membership_account_fk:account:account_id>id",
+      "account_membership:account_membership_invited_by_user_fk:user:invited_by_user_id>id",
+      "account_membership:account_membership_user_fk:user:user_id>id",
       "assessment:assessment_agent_fk:agent:account_id,agent_id>account_id,id",
       "assessment:assessment_playbook_fk:playbook:playbook_id,playbook_version>key,playbook_version",
       "assessment:assessment_verification_fk:verification:account_id,verification_ref>account_id,id",
@@ -405,6 +420,7 @@ schemaDescribe("PostgreSQL foundation schema", () => {
     );
     expect(actualChecks).toEqual(
       new Map([
+        ["account_invitation_token_hash_format", "check token_hash ~ '^[0-9a-f]{64}$'::text"],
         ["assessment_credits_consumed_nonnegative", "check credits_consumed >= 0"],
         ["assessment_credits_estimate_nonnegative", "check credits_estimate >= 0"],
         ["job_attempts_nonnegative", "check attempts >= 0"],
