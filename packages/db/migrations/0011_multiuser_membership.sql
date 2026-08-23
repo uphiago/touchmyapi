@@ -52,7 +52,6 @@ CREATE TABLE IF NOT EXISTS public.account_invitation (
   created_at timestamptz DEFAULT now() NOT NULL,
   CONSTRAINT account_invitation_token_hash_unique UNIQUE (token_hash),
   CONSTRAINT account_invitation_account_id_id_unique UNIQUE (account_id, id),
-  CONSTRAINT account_invitation_token_hash_format CHECK (token_hash ~ '^[0-9a-f]{64}$'),
   CONSTRAINT account_invitation_account_fk FOREIGN KEY (account_id)
     REFERENCES public.account(id),
   CONSTRAINT account_invitation_invited_by_user_fk FOREIGN KEY (account_id, invited_by_user_id)

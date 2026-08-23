@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  check,
   foreignKey,
   index,
   pgEnum,
@@ -81,6 +83,7 @@ export const accountInvitation = pgTable(
   (table) => [
     unique("account_invitation_token_hash_unique").on(table.tokenHash),
     unique("account_invitation_account_id_id_unique").on(table.accountId, table.id),
+    check("account_invitation_token_hash_format", sql`${table.tokenHash} ~ '^[0-9a-f]{64}$'`),
     foreignKey({
       name: "account_invitation_account_fk",
       columns: [table.accountId],
