@@ -132,7 +132,15 @@ async function assertSystemRole(
                  or exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
                             where n.nspname = 'public' and c.relkind in ('r','p','v','m') and c.relowner = x.oid)) as unsafe_membership,
        has_table_privilege(current_user, 'public.audit_event', 'select') as audit_select,
-       has_table_privilege(current_user, 'public.audit_event', 'insert') as audit_insert,
+       has_column_privilege(current_user, 'public.audit_event', 'id', 'insert')
+         and has_column_privilege(current_user, 'public.audit_event', 'account_id', 'insert')
+         and has_column_privilege(current_user, 'public.audit_event', 'assessment_id', 'insert')
+         and has_column_privilege(current_user, 'public.audit_event', 'job_id', 'insert')
+         and has_column_privilege(current_user, 'public.audit_event', 'actor', 'insert')
+         and has_column_privilege(current_user, 'public.audit_event', 'action', 'insert')
+         and has_column_privilege(current_user, 'public.audit_event', 'prev_event_id', 'insert')
+         and has_column_privilege(current_user, 'public.audit_event', 'payload_json', 'insert') as audit_insert,
+       has_column_privilege(current_user, 'public.audit_event', 'chain_seq', 'insert') as audit_chain_seq_insert,
        has_table_privilege(current_user, 'public.audit_event', 'update') as audit_update,
        has_table_privilege(current_user, 'public.audit_event', 'delete') as audit_delete,
        has_table_privilege(current_user, 'public.audit_system_state', 'select') as state_select,
@@ -174,6 +182,7 @@ async function assertSystemRole(
   if (
     !principal.audit_select ||
     !principal.audit_insert ||
+    principal.audit_chain_seq_insert ||
     principal.audit_update ||
     principal.audit_delete
   )

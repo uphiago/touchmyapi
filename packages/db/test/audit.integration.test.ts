@@ -252,23 +252,28 @@ describeDb("closed audit append capabilities", () => {
       )`;
     });
     if (!login) throw new Error("login fixture missing");
-    const [event] = await owner`
-      select chain_seq, prev_event_id from public.audit_event where account_id = ${login.account_id}
-    `;
-    expect(event?.chain_seq).toBeDefined();
-    expect(event?.prev_event_id).toBeNull();
-    const appended = await withTenant(fixture.connector, login.account_id, "api_rls", (context) =>
-      appendAuditEvent(context, { actor: "api:after-login", action: "request", payload: {} }),
-    );
-    expect(appended.prevEventId).toBeDefined();
-    await owner.unsafe("delete from public.audit_event where account_id = $1::uuid", [
-      login.account_id,
-    ]);
-    await owner.unsafe("delete from public.session where account_id = $1::uuid", [
-      login.account_id,
-    ]);
-    await owner.unsafe('delete from public."user" where account_id = $1::uuid', [login.account_id]);
-    await owner.unsafe("delete from public.account where id = $1::uuid", [login.account_id]);
+    try {
+      const [event] = await owner`
+        select chain_seq, prev_event_id from public.audit_event where account_id = ${login.account_id}
+      `;
+      expect(event?.chain_seq).toBeDefined();
+      expect(event?.prev_event_id).toBeNull();
+      const appended = await withTenant(fixture.connector, login.account_id, "api_rls", (context) =>
+        appendAuditEvent(context, { actor: "api:after-login", action: "request", payload: {} }),
+      );
+      expect(appended.prevEventId).toBeDefined();
+    } finally {
+      await owner.unsafe("delete from public.audit_event where account_id = $1::uuid", [
+        login.account_id,
+      ]);
+      await owner.unsafe("delete from public.session where account_id = $1::uuid", [
+        login.account_id,
+      ]);
+      await owner.unsafe('delete from public."user" where account_id = $1::uuid', [
+        login.account_id,
+      ]);
+      await owner.unsafe("delete from public.account where id = $1::uuid", [login.account_id]);
+    }
   });
 
   it("serializes concurrent bootstrap login and tenant append on the state lock", async () => {
@@ -392,6 +397,25 @@ describeDb("closed audit append capabilities", () => {
       select id from public.audit_event where account_id = ${fixture.accountId} and actor = 'worker:append'
     `;
     expect(workerRows).toEqual([{ id: event.id }]);
+  });
+
+  it("rejects direct connector attempts to poison chain_seq", async () => {
+    const raw = getRawTenantDatabase(fixture.connector);
+    const actor = `api:poison-${randomUUID()}`;
+    await expect(
+      raw.begin(async (tx) => {
+        await tx.unsafe("set local role api_rls");
+        await tx.unsafe("select set_config('app.tenant', $1, true)", [fixture.accountId]);
+        await tx.unsafe(
+          "insert into public.audit_event (account_id, actor, action, payload_json, chain_seq) values ($1::uuid, $2, 'request', '{}'::jsonb, 1)",
+          [fixture.accountId, actor],
+        );
+      }),
+    ).rejects.toThrow(/permission denied|chain_seq/i);
+    const rows = await owner`
+      select id from public.audit_event where account_id = ${fixture.accountId} and actor = ${actor}
+    `;
+    expect(rows).toEqual([]);
   });
 
   it("seeds and locks the own audit state row while isolating other accounts", async () => {

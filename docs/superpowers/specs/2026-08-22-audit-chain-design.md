@@ -19,7 +19,10 @@ Each audit row receives a global monotonic `chain_seq` from the migration-owner-
 owned `audit_event_chain_seq` sequence. Tenant and system tails order by this
 sequence rather than transaction-start timestamps, so a transaction that began
 before waiting on the account lock cannot move the chain backward. Runtime
-roles receive only the sequence privileges required by their fixed inserts.
+roles receive only sequence `USAGE` for their fixed inserts; `SELECT` is
+explicitly revoked so the sequence is not a raw ordering API. Runtime audit
+inserts are column-granted for the fixed writer shape and cannot provide
+`chain_seq` or `created_at`; the database assigns `chain_seq` by default.
 
 The login/bootstrap SECURITY DEFINER path evaluates its FORCE-RLS bootstrap
 policies as the migration owner, locks the account-state row before selecting

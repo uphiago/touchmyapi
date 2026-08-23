@@ -51,14 +51,7 @@ const EXPECTED_TABLE_PRIVILEGES = {
       AUDIT_STATE_TABLE,
       "notification",
     ],
-    insert: [
-      "assessment",
-      "authorization_attestation",
-      "verification",
-      "credential",
-      "audit_event",
-      "agent",
-    ],
+    insert: ["assessment", "authorization_attestation", "verification", "credential", "agent"],
     update: [
       "account",
       "assessment",
@@ -91,7 +84,7 @@ const EXPECTED_TABLE_PRIVILEGES = {
       AUDIT_STATE_TABLE,
       "notification",
     ],
-    insert: ["job", "runner_execution", "finding", "report", "audit_event", "notification"],
+    insert: ["job", "runner_execution", "finding", "report", "notification"],
     update: [
       "assessment",
       "verification",
@@ -261,9 +254,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
             select has_table_privilege(${role}, ${`public.${table}`}, ${privilege}) as allowed
           `;
           expect(row?.allowed, `${role}/${table}/${privilege}`).toBe(
-            role === "audit_system" &&
-              table === "audit_event" &&
-              ["select", "insert"].includes(privilege)
+            role === "audit_system" && table === "audit_event" && privilege === "select"
               ? true
               : role === "audit_system" &&
                   table === "audit_system_state" &&
@@ -357,7 +348,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
              has_table_privilege('api_rls', 'public.audit_event', 'update') as update,
              has_table_privilege('api_rls', 'public.audit_event', 'delete') as delete
     `;
-    expect(auditApi[0]).toEqual({ select: true, insert: true, update: false, delete: false });
+    expect(auditApi[0]).toEqual({ select: true, insert: false, update: false, delete: false });
 
     for (const role of ["api_rls", "worker_rls"] as const) {
       const statePrivileges = await db`
@@ -394,7 +385,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
       `;
       expect(sequence, `${role}/audit_event_chain_seq`).toEqual({
         usage: true,
-        select: true,
+        select: false,
         update: false,
       });
     }
@@ -403,6 +394,27 @@ describeDb("PostgreSQL least-privilege roles", () => {
              has_sequence_privilege('reporting_rls', 'public.audit_event_chain_seq', 'SELECT') as select
     `;
     expect(reportingSequence).toEqual({ usage: false, select: false });
+
+    const auditInsertColumns = [
+      "id",
+      "account_id",
+      "assessment_id",
+      "job_id",
+      "actor",
+      "action",
+      "prev_event_id",
+      "payload_json",
+    ];
+    for (const role of ["api_rls", "worker_rls", "audit_system"] as const) {
+      for (const column of [...auditInsertColumns, "chain_seq", "created_at"] as const) {
+        const [privilege] = await db`
+          select has_column_privilege(${role}, 'public.audit_event', ${column}, 'insert') as allowed
+        `;
+        expect(privilege?.allowed, `${role}/audit_event/${column}/insert`).toBe(
+          auditInsertColumns.includes(column),
+        );
+      }
+    }
 
     for (const table of TENANT_TABLES) {
       const reporting = await db`
