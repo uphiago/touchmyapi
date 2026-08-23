@@ -75,6 +75,11 @@ describe.skipIf(!RUN_DB_TESTS)("tenant queue enqueue boundary", () => {
         payload_json: { event: "job_queued", jobId },
       });
       expect(JSON.stringify(event)).not.toContain("credential");
+      const [assessment] = await db.unsafe(
+        "select status from public.assessment where id = $1::uuid",
+        [assessmentId],
+      );
+      expect(assessment).toEqual({ status: "queued" });
     } finally {
       if (jobId)
         await db.unsafe("delete from public.outbox_event where aggregate_id = $1::uuid", [jobId]);

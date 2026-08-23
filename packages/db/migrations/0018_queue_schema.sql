@@ -236,8 +236,8 @@ CREATE POLICY job_queue_control
   USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS assessment_queue_control ON public.assessment;
 CREATE POLICY assessment_queue_control
-  ON public.assessment FOR SELECT TO queue_control
-  USING (true);
+  ON public.assessment FOR ALL TO queue_control
+  USING (true) WITH CHECK (true);
 GRANT SELECT (
   id, account_id, status, available_at, priority, attempts, max_attempts,
   lease_owner, lease_expires_at, fencing_token, started_at, stop_requested_at,
@@ -508,7 +508,9 @@ GRANT EXECUTE ON FUNCTION app_private.queue_heartbeat(uuid, uuid, text, bigint, 
   app_private.queue_fail(uuid, uuid, text, bigint, text)
   TO queue_connector;
 
-GRANT SELECT (id, account_id, target_json, playbook_version)
+GRANT SELECT (id, account_id, target_json, playbook_version, status)
+  ON public.assessment TO queue_control;
+GRANT UPDATE (status, updated_at)
   ON public.assessment TO queue_control;
 GRANT INSERT (
   id, account_id, assessment_id, playbook_version, job_spec_json, status,
@@ -536,6 +538,7 @@ SET search_path = pg_catalog, public, app_private
 AS $$
 DECLARE
   assessment_playbook_version text;
+  assessment_status public.assessment_status;
   job_id uuid;
   safe_target_key text;
   safe_available_at timestamptz;
@@ -556,11 +559,16 @@ BEGIN
   END IF;
   safe_target_key := btrim(p_normalized_target_key);
   safe_available_at := p_available_at;
-  SELECT playbook_version
-  INTO assessment_playbook_version
+  SELECT playbook_version, status
+  INTO assessment_playbook_version, assessment_status
   FROM public.assessment
-  WHERE id = p_assessment_id AND account_id = p_account_id;
-  IF assessment_playbook_version IS NULL THEN RETURN NULL; END IF;
+  WHERE id = p_assessment_id AND account_id = p_account_id
+  FOR UPDATE;
+  IF assessment_playbook_version IS NULL
+     OR assessment_status NOT IN ('draft'::public.assessment_status, 'awaiting_verification'::public.assessment_status)
+  THEN
+    RETURN NULL;
+  END IF;
 
   job_id := gen_random_uuid();
   INSERT INTO public.job (
@@ -589,6 +597,10 @@ BEGIN
     jsonb_build_object('event', 'job_queued', 'jobId', job_id),
     'pending'::public.outbox_status, 0, 5, safe_available_at, 0, clock_timestamp()
   );
+  UPDATE public.assessment
+  SET status = 'queued'::public.assessment_status,
+      updated_at = clock_timestamp()
+  WHERE id = p_assessment_id AND account_id = p_account_id;
   RETURN job_id;
 EXCEPTION
   WHEN unique_violation THEN

@@ -37,6 +37,10 @@ integration (T027/T029/T087) remains the next gate.
 - Outbox claim/heartbeat/ack/fail/reap use outbox-only locks and preserve
   redacted error text. The worker connector retains zero table grants and has
   no enqueue/admin function execute privilege.
+- Queue enqueue locks the assessment, accepts only `draft` or
+  `awaiting_verification`, and transitions it to `queued` in the same
+  job/outbox transaction. This keeps the persisted state machine aligned with
+  the queue source of truth.
 
 ## Evidence
 
