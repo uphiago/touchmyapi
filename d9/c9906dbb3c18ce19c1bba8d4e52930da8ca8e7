@@ -1,0 +1,19 @@
+packages/db/migrations/meta/0015_snapshot.json
+  s_bc54431df54bf2::t_cfeb05d9d60136 1-2486
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d9c9906dbb3c18ce19c1bba8d4e52930da8ca8e7",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
