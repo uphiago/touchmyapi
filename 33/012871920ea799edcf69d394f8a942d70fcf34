@@ -1,0 +1,24 @@
+packages/db/test/queue-enqueue.integration.test.ts
+  s_bc54431df54bf2::t_31564396dbe4d3 78-82
+docs/reviews/2026-08-23-queue-schema.md
+  s_bc54431df54bf2::t_4c8bd54f9ae401 40-43
+packages/db/migrations/0018_queue_schema.sql
+  s_bc54431df54bf2::t_31564396dbe4d3 511-513,541,562-563,565-571,600-603
+  s_bc54431df54bf2::t_eb237d203f283d 239-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "33012871920ea799edcf69d394f8a942d70fcf34",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
