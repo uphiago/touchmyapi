@@ -16,7 +16,7 @@ This guide validates the code that exists today. It does not claim that the full
 - Explicit PostgreSQL connection factory and opt-in integration/isolation suites
 - PostgreSQL 16 Compose service bound to loopback only
 
-No assessment execution, external target access, Google authentication routes, queue, billing mutation, AI execution, report generation, or runner exists in this checkpoint. T016 has an implemented/tested tenant wrapper, but it is not accepted: adversarial review requires replacing its exported arbitrary `unsafe(string)` query surface with closed repository/capability operations so a live privileged ACL change cannot widen a request after validation. T017–T021 remain pending.
+No assessment execution, external target access, Google authentication routes, queue, billing mutation, AI execution, report generation, or runner exists in this checkpoint. T016 is accepted: its tenant wrapper exposes an opaque database handle and fixed account capabilities instead of arbitrary SQL, so a live privileged ACL change cannot add a callback operation. T017–T021 remain pending.
 
 The historical Foundation Phase 2 remains intentionally limited to T010–T021 and does not implement organizations, invitations, roles, or admin operations. The approved Phase 2A extension is documented separately and is scheduled after T021: account/workspace membership first, then the fenced PostgreSQL queue/outbox, followed by the separate admin control plane. SSO and SCIM remain out of scope.
 
@@ -115,14 +115,13 @@ docker compose --profile local -f infra/docker/compose.yml exec -T postgres psql
   < infra/docker/postgres/init/002_test_database.sql
 ```
 
-The current DB package proves schema shape, runtime-role privileges, auth-bootstrap isolation, and cross-account RLS behavior. It must still close T016's arbitrary-query review finding and then implement the atomic audit writer (T017) before the database foundation gate is accepted.
+The current DB package proves schema shape, runtime-role privileges, auth-bootstrap isolation, cross-account RLS behavior, and T016's closed tenant-capability boundary. It must now implement the atomic audit writer (T017) before the database foundation gate is accepted.
 
 ## Next validation milestones
 
 The end-to-end scenarios formerly listed here are not runnable yet. Implement them in the order defined by [tasks.md](./tasks.md):
 
-1. Close T016 by replacing arbitrary tenant SQL with closed typed repositories/capabilities; keep DB gates serialized or on isolated databases.
-2. Implement the atomic redacted audit chain (T017), credential AEAD (T018), and the passive playbook contract/runtime (T019).
+1. Implement the atomic redacted audit chain (T017), credential AEAD (T018), and the passive playbook contract/runtime (T019); keep DB gates serialized or on isolated databases.
 3. Implement the Hono security boundary and Google OAuth sessions (T020–T021).
 4. Only then implement membership and the PostgreSQL queue/outbox before assessment state/UI work.
 5. Add webhook-only Stripe entitlement, HTTP-file verification, SSRF-safe fetching, sandboxed execution, evidence/reports, and the private agent in task order.

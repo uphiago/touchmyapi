@@ -34,7 +34,7 @@ This would provide a stronger database-only interface, but it requires a broad n
 4. validate the switched role, build the frozen opaque context, and run the callback;
 5. reset local state, commit on success, otherwise rollback; discard temporary state and release in all cases.
 
-The public root export changes from `TenantConnection` to `TenantContext`. It has a readonly role and closed repository/capability methods only. The first reusable method is `account.readCurrent()`: it reads the account selected by the transaction context and accepts no account ID. `unsafe`, a generic query function, SQL strings, dynamic identifiers, raw `postgres` objects, and an executor symbol are absent from the callback and package root exports.
+The public root export changes from `TenantConnection` to an opaque `TenantDatabase` plus `TenantContext`. The database handle is backed by a private `WeakMap`, so it can only be passed to `withTenant`; raw `postgres` objects are not exposed from the package root. The context has a readonly role and closed repository/capability methods only. `account.readCurrent()` reads the account selected by the transaction context and accepts no account ID. `account.setIaEnabled(boolean)` is an API-role-only capability that updates only an active, non-deleted context account and throws when that predicate is not met. `unsafe`, a generic query function, SQL strings, dynamic identifiers, raw `postgres` objects, and an executor symbol are absent from the callback and package root exports.
 
 `tenant-internal.ts` is an implementation-only module. It stores a backend executor and the canonical account ID in a `WeakMap<TenantContext, ActiveTenantExecutor>`, rejects expired contexts, and is reachable only by repository modules through relative source imports. `packages/db/package.json` exports only `.`; consumers cannot import the internal entrypoint through the package contract.
 
@@ -51,7 +51,7 @@ T017 will add `appendAuditEvent(context, input)` as a closed capability. It deri
 
 ## Proof plan
 
-1. Compile-time and runtime tests prove that `unsafe` and generic query fields are absent from `TenantContext` and the public `@touchmyapi/db` root.
+1. Compile-time and runtime tests prove that `unsafe` and generic query fields are absent from `TenantContext`, and that the public `@touchmyapi/db` root exposes no raw connection factory or internal subpath.
 2. The live-grant regression grants an otherwise privileged function/table to `api_rls` after role validation, then proves the only exposed `account.readCurrent()` capability neither reaches it nor exposes an invocation path.
 3. Context expiry, callback rollback, backend cleanup, invalid role/context, and existing RLS A/B tests remain green.
 4. T017 tests will prove same-account append serialization, cross-account independence, rollback atomicity, recursive redaction, and inability to forge/retain its transaction-bound audit capability.

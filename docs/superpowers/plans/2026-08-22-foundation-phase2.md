@@ -6,7 +6,7 @@
 
 **Architecture:** `packages/contracts` define os formatos compartilhados; `packages/policy`, `packages/secrets` e `packages/playbooks` são bibliotecas puras que não executam alvos. `packages/db` mantém migrações, funções bootstrap e transações tenant-scoped usando roles PostgreSQL sem privilégios de proprietário; `apps/api` apenas coordena adaptadores validados e expõe saúde e autenticação. A implementação é entregue em cinco gates, sem assessment, fila, runner, billing, relatório, scanner, target fetch ou agente privado.
 
-**Checkpoint 2026-08-22:** os passos de Task 1–9 foram executados. T010–T015 estão aceitas; T016 permanece review-blocked apesar dos testes verdes porque `TenantConnection.unsafe(string)` ainda admite ampliação por um grant privilegiado concorrente após a validação. T017–T021 não foram iniciadas. Consulte `docs/reviews/2026-08-22-foundation-checkpoint.md`. Os checkboxes abaixo registram execução dos passos; `specs/001-touchmyapi-platform/tasks.md` registra aceite.
+**Checkpoint 2026-08-22:** os passos de Task 1–9 foram executados. T010–T016 estão aceitas; T016 substituiu `TenantConnection.unsafe(string)` por `TenantDatabase` opaco e capacidades fechadas, incluindo provas de grants concorrentes. T017–T021 não foram iniciadas. Consulte `docs/reviews/2026-08-22-t016-capability-boundary.md`. Os checkboxes abaixo registram execução dos passos; `specs/001-touchmyapi-platform/tasks.md` registra aceite.
 
 **Tech Stack:** Bun 1.4.0, TypeScript strict, Vitest, Hono, Zod, Drizzle ORM/drizzle-kit, PostgreSQL 16, `postgres`, `openid-client`, Web Crypto/Node `crypto`, Docker Compose, GitHub Actions, React/Vite existente.
 
@@ -26,7 +26,7 @@
 | --- | --- | --- |
 | Saneamento | `.github/workflows/ci.yml`, `.gitignore`, `.husky/pre-commit`, `vitest.config.ts`, `tsconfig.json`, `package.json`, `drizzle.config.ts`, `packages/db/scripts/migrate.ts`, `.env.example`, `infra/docker/compose.yml`, `specs/001-touchmyapi-platform/atlas.html`, `README.md`, `specs/001-touchmyapi-platform/quickstart.md` | Versão Bun, gates CI, topologia de testes, configuração explícita e infraestrutura reproduzível |
 | Policy | `packages/policy/package.json`, `packages/policy/src/{scope,entitlement,limits,engine,index}.ts`, `packages/policy/test/*.test.ts`, `tests/isolation/policy.test.ts` | Normalização, direitos, redução de limites e decisão final sem I/O |
-| DB/RLS | `packages/db/package.json`, `packages/db/schema/*.ts`, `packages/db/migrations/*.sql`, `packages/db/src/{index,tenant-session}.ts`, `packages/db/test/*.test.ts`, `tests/isolation/*.test.ts` | Schema/roles/RLS/auth bootstrap implementados; tenant wrapper provisório review-blocked; audit writer pendente |
+| DB/RLS | `packages/db/package.json`, `packages/db/schema/*.ts`, `packages/db/migrations/*.sql`, `packages/db/src/{index,connection-internal,tenant-session,tenant-account,tenant-internal}.ts`, `packages/db/test/*.test.ts`, `tests/isolation/*.test.ts` | Schema/roles/RLS/auth bootstrap e boundary fechado de tenant implementados; audit writer pendente |
 | Secrets | `packages/secrets/package.json`, `packages/secrets/src/{aead,index}.ts`, `packages/secrets/test/aead.test.ts` | Envelope AEAD injetável e redaction-safe |
 | Playbooks | `packages/playbooks/package.json`, `packages/playbooks/src/{index,surface-public-posture}.ts`, `packages/playbooks/test/*.test.ts` | Contrato versionado e slice passivo fechado, sem execução |
 | API/OAuth | `apps/api/package.json`, `apps/api/src/{app,config,error,request-id,session,server}.ts`, `apps/api/src/auth/{oidc-adapter,google,transient-cookie}.ts`, `apps/api/test/{app,oauth}.test.ts` | Factory Hono, erros seguros, CORS, sessão opaca e adapter OAuth fakeável |
@@ -497,11 +497,11 @@ Verifique as 18 tabelas `account,user,session,assessment,authorization_attestati
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { createDbConnection } from "../src";
+import { createRawDbConnection } from "../src/connection-internal";
 
 describe.runIf(process.env.RUN_DB_TESTS === "1")("PostgreSQL 16 foundation", () => {
   it("will expose every tenant table after migration", async () => {
-    const db = createDbConnection(process.env.DATABASE_URL!);
+    const db = createRawDbConnection(process.env.DATABASE_URL!);
     const result = await db.unsafe<{ relname: string }[]>("select relname from pg_class where relkind = 'r' and relnamespace = 'public'::regnamespace order by relname");
     expect(result.map((row) => row.relname)).toEqual(expect.arrayContaining(["account", "user", "session", "assessment", "authorization_attestation", "verification", "playbook", "job", "runner_execution", "credential", "finding", "report", "credit_entry", "billing_event", "entitlement", "agent", "audit_event", "notification"]));
     await db.end();
@@ -631,18 +631,18 @@ git commit -m "feat: enforce least-privilege postgres rls roles"
 
 Teste dois accounts: A pode selecionar/inserir/atualizar seus rows; A não pode selecionar, inserir, atualizar, deletar, referenciar ou inferir rows B em account, session, assessment, credential, finding e audit. Depois de uma transação A, uma nova conexão borrowed sem tenant não pode herdar `app.tenant` ou role.
 
-- [x] **Step 2: Implementar wrapper fechado**
+- [x] **Step 2: Implementar wrapper fechado (substituído pelo boundary aceito)**
 
 Exporte exatamente:
 
 ```ts
 export type RuntimeRole = "api_rls" | "worker_rls" | "reporting_rls";
-export type TenantConnection = { unsafe<T extends Record<string, unknown>>(query: string, values?: unknown[]): Promise<T[]> };
-export type DbConnection = ReturnType<typeof createDbConnection>;
-export async function withTenant<T>(connection: DbConnection, accountId: string, role: RuntimeRole, callback: (db: TenantConnection) => Promise<T>): Promise<T>;
+export type TenantDatabase = object; // handle opaco, sem driver/raw query público
+export type TenantContext<R extends RuntimeRole> = { readonly role: R; readonly account: object };
+export async function withTenant<T, R extends RuntimeRole>(connection: TenantDatabase, accountId: string, role: R, callback: (context: TenantContext<R>) => Promise<T>): Promise<T>;
 ```
 
-Receba a conexão explicitamente; o módulo não lê `DATABASE_URL` ou `process.env`. Valide UUID, escolha role por mapa literal, abra transaction, execute `select set_config('app.tenant', $1, true)`, `set local role "api_rls"`/role literal do mapa, rode callback, commit; em qualquer erro rollback e sempre devolva conexão com `RESET ROLE`/fim de transaction. Nunca concatene request text em SQL para role. Nenhuma query de account-owned table pode ser exposta fora desse wrapper.
+Receba o handle explicitamente; o módulo não lê `DATABASE_URL` ou `process.env`. Valide UUID, escolha role por mapa literal, abra transaction, execute `select set_config('app.tenant', $1, true)`, `set local role "api_rls"`/role literal do mapa, rode callback, commit; em qualquer erro rollback e sempre devolva conexão com `RESET ROLE`/fim de transaction. O driver raw e o executor vivem em `WeakMap` interno; callbacks usam somente métodos literal/parametrizados, sem SQL, identificador ou `account_id` fornecido pelo chamador.
 
 - [x] **Step 3: Rodar GREEN**
 

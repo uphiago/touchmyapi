@@ -2,15 +2,15 @@
 
 TouchMyAPI is a platform for authorized security assessments. The executable foundation currently includes the Bun monorepo, shared Zod contracts, the pure default-deny policy engine (T010–T013), the PostgreSQL 16 domain schema (T014), least-privilege runtime roles with forced RLS and narrow auth bootstrap functions (T015), a Hono health endpoint, a React/Vite shell, and loopback-only local PostgreSQL infrastructure.
 
-## Project status — paused
+## Project status
 
-Development was intentionally paused on 2026-08-22 at a stable checkpoint. T010–T015 are accepted; T016 remains review-blocked; T017–T021 were not started. The multi-user, PostgreSQL queue/outbox, and separate admin control-plane work in T071–T094 is design-only and remains unchecked. No implementation work should resume past this point until T016 replaces its arbitrary tenant SQL surface with closed typed repository/capability operations and passes a new adversarial quality review.
+T016 is now accepted: it replaced arbitrary tenant SQL with an opaque `TenantDatabase` and closed, transaction-bound capabilities, then passed specification and adversarial quality reviews. T017–T021 remain unimplemented. The multi-user, PostgreSQL queue/outbox, and separate admin control-plane work in T071–T094 is design-only and remains unchecked.
 
 The authoritative handoff is the [foundation checkpoint](docs/reviews/2026-08-22-foundation-checkpoint.md). Status checkboxes live in [platform tasks](specs/001-touchmyapi-platform/tasks.md); architecture and operational decisions remain in the linked plan, spec, research, data model, contracts, and quickstart under `specs/001-touchmyapi-platform/`.
 
 ## Current security boundary
 
-The foundation does **not** execute assessments or contact external targets. Google OAuth, durable queue/outbox, Stripe webhooks, sandboxed runners, reports, AI orchestration, and the private agent remain unimplemented. The tenant transaction wrapper for T016 exists and passes its focused tests, but remains unchecked because adversarial review found that its exported `unsafe(string)` surface cannot fail closed against a privileged ACL/function grant made after role validation. The next implementation session must replace that arbitrary SQL surface with closed repository/capability operations before T016 is accepted. See the [checkpoint review](docs/reviews/2026-08-22-foundation-checkpoint.md).
+The foundation does **not** execute assessments or contact external targets. Google OAuth, durable queue/outbox, Stripe webhooks, sandboxed runners, reports, AI orchestration, and the private agent remain unimplemented. T016 exposes no raw PostgreSQL connection or generic query surface from `@touchmyapi/db`: callers receive an opaque connection handle and a frozen tenant context whose account capabilities are role-specific and expire at transaction completion. See the [checkpoint review](docs/reviews/2026-08-22-foundation-checkpoint.md) and [T016 review](docs/reviews/2026-08-22-t016-capability-boundary.md).
 
 ## Prerequisites
 
