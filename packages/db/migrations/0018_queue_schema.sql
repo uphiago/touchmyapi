@@ -234,6 +234,10 @@ DROP POLICY IF EXISTS job_queue_control ON public.job;
 CREATE POLICY job_queue_control
   ON public.job FOR ALL TO queue_control
   USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS assessment_queue_control ON public.assessment;
+CREATE POLICY assessment_queue_control
+  ON public.assessment FOR SELECT TO queue_control
+  USING (true);
 GRANT SELECT (
   id, account_id, status, available_at, priority, attempts, max_attempts,
   lease_owner, lease_expires_at, fencing_token, started_at, stop_requested_at,
@@ -503,3 +507,119 @@ GRANT EXECUTE ON FUNCTION app_private.queue_heartbeat(uuid, uuid, text, bigint, 
   app_private.queue_complete(uuid, uuid, text, bigint, jsonb),
   app_private.queue_fail(uuid, uuid, text, bigint, text)
   TO queue_connector;
+
+GRANT SELECT (id, account_id, target_json, playbook_version)
+  ON public.assessment TO queue_control;
+GRANT INSERT (
+  id, account_id, assessment_id, playbook_version, job_spec_json, status,
+  available_at, priority, normalized_target_key, attempts, max_attempts,
+  fencing_token, dedupe_key, created_at
+) ON public.job TO queue_control;
+GRANT INSERT (
+  id, account_id, event_key, aggregate_type, aggregate_id, schema_version,
+  payload_json, status, attempts, max_attempts, available_at, fencing_token,
+  created_at
+) ON public.outbox_event TO queue_control;
+
+CREATE OR REPLACE FUNCTION app_private.queue_enqueue(
+  p_account_id uuid,
+  p_assessment_id uuid,
+  p_normalized_target_key text,
+  p_available_at timestamptz,
+  p_priority integer,
+  p_max_attempts integer
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+DECLARE
+  assessment_playbook_version text;
+  job_id uuid;
+  safe_target_key text;
+  safe_available_at timestamptz;
+BEGIN
+  IF p_account_id IS NULL OR p_assessment_id IS NULL
+     OR p_normalized_target_key IS NULL
+     OR btrim(p_normalized_target_key) = ''
+     OR length(p_normalized_target_key) > 512
+     OR p_priority IS NULL OR p_priority < -100 OR p_priority > 100
+     OR p_max_attempts IS NULL OR p_max_attempts < 1 OR p_max_attempts > 10
+     OR p_available_at IS NULL THEN
+    RETURN NULL;
+  END IF;
+  safe_target_key := btrim(p_normalized_target_key);
+  safe_available_at := p_available_at;
+  SELECT playbook_version
+  INTO assessment_playbook_version
+  FROM public.assessment
+  WHERE id = p_assessment_id AND account_id = p_account_id;
+  IF assessment_playbook_version IS NULL THEN RETURN NULL; END IF;
+
+  job_id := gen_random_uuid();
+  INSERT INTO public.job (
+    id, account_id, assessment_id, playbook_version, job_spec_json, status,
+    available_at, priority, normalized_target_key, attempts, max_attempts,
+    fencing_token, dedupe_key, created_at
+  ) VALUES (
+    job_id, p_account_id, p_assessment_id, assessment_playbook_version,
+    jsonb_build_object(
+      'schemaVersion', 'job.spec@1',
+      'jobId', job_id,
+      'assessmentId', p_assessment_id
+    ),
+    'queued'::public.job_status, safe_available_at, p_priority, safe_target_key,
+    0, p_max_attempts, 0,
+    md5(p_account_id::text || ':' || safe_target_key),
+    clock_timestamp()
+  );
+  INSERT INTO public.outbox_event (
+    id, account_id, event_key, aggregate_type, aggregate_id, schema_version,
+    payload_json, status, attempts, max_attempts, available_at, fencing_token,
+    created_at
+  ) VALUES (
+    gen_random_uuid(), p_account_id, 'job:' || job_id::text, 'job', job_id,
+    'job.event@1',
+    jsonb_build_object('event', 'job_queued', 'jobId', job_id),
+    'pending'::public.outbox_status, 0, 5, safe_available_at, 0, clock_timestamp()
+  );
+  RETURN job_id;
+EXCEPTION
+  WHEN unique_violation THEN
+    RAISE EXCEPTION 'active target conflict' USING ERRCODE = '23505';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.queue_enqueue(
+  p_account_id uuid,
+  p_assessment_id uuid,
+  p_available_at timestamptz,
+  p_priority integer,
+  p_max_attempts integer
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+DECLARE
+  target_key text;
+BEGIN
+  SELECT md5(target_json::text)
+  INTO target_key
+  FROM public.assessment
+  WHERE id = p_assessment_id AND account_id = p_account_id;
+  IF target_key IS NULL THEN RETURN NULL; END IF;
+  RETURN app_private.queue_enqueue(
+    p_account_id, p_assessment_id, target_key,
+    p_available_at, p_priority, p_max_attempts
+  );
+END;
+$$;
+ALTER FUNCTION app_private.queue_enqueue(uuid, uuid, text, timestamptz, integer, integer) OWNER TO queue_control;
+ALTER FUNCTION app_private.queue_enqueue(uuid, uuid, timestamptz, integer, integer) OWNER TO queue_control;
+REVOKE ALL ON FUNCTION app_private.queue_enqueue(uuid, uuid, text, timestamptz, integer, integer) FROM PUBLIC, queue_connector, admin_queue_connector;
+REVOKE ALL ON FUNCTION app_private.queue_enqueue(uuid, uuid, timestamptz, integer, integer) FROM PUBLIC, queue_connector, admin_queue_connector;
+GRANT EXECUTE ON FUNCTION app_private.queue_enqueue(uuid, uuid, text, timestamptz, integer, integer) TO api_rls;
+GRANT EXECUTE ON FUNCTION app_private.queue_enqueue(uuid, uuid, timestamptz, integer, integer) TO api_rls;

@@ -12,20 +12,23 @@ export class QueueUnavailableError extends Error {
  * Closed tenant enqueue boundary. The caller supplies a server-resolved
  * account id and assessment id; validation happens before the fixed-purpose
  * PostgreSQL function is called. No raw SQL or arbitrary table query is
- * exposed. The function is intentionally fail-closed until T082 installs the
- * transactional enqueue implementation.
+ * exposed. The PostgreSQL function inserts the operational job and outbox
+ * intent atomically; worker claims remain behind queue-control.
  */
-export async function enqueueJob(db: RawDbConnection, input: QueueEnqueueRequest): Promise<never> {
+export async function enqueueJob(db: RawDbConnection, input: QueueEnqueueRequest): Promise<string> {
   const request = queueEnqueueRequestSchema.parse(input);
   const availableAt = request.availableAt ? new Date(request.availableAt) : new Date();
-  await db`
+  const [row] = await db`
     select app_private.queue_enqueue(
       ${request.accountId}::uuid,
       ${request.assessmentId}::uuid,
+      ${request.normalizedTargetKey},
       ${availableAt},
       ${request.priority},
       ${request.maxAttempts}
     )
   `;
-  throw new QueueUnavailableError();
+  const jobId = row?.queue_enqueue as string | null | undefined;
+  if (!jobId) throw new QueueUnavailableError();
+  return jobId;
 }
