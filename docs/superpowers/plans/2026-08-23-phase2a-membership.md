@@ -55,21 +55,21 @@ The provider boundary remains Google-only per the approved spec. Provider config
 
 **Files:** modify `packages/db/src/auth-bootstrap.ts`, `packages/db/src/session.ts`, generated auth migration; create `apps/api/test/account-session.test.ts`.
 
-- [ ] Write RED tests for `auth_list_accounts(session_hash)` safe fields, `auth_switch_account(current_hash,target_account_id,new_hash,expiry)` active-membership enforcement, old-token invalidation, `session.account_id` authority, and denial of arbitrary account enumeration.
-- [ ] Run `bun run test:unit -- account-session`; verify failure before changing production code.
-- [ ] Add fixed-search-path, `auth_bootstrap`-owned functions with fixed signatures. Update the typed session store to list/switch by hash, preserve `user.account_id` during expand, and rotate old/new hashes atomically. Do not expose raw SQL or email lookup.
-- [ ] Run focused unit tests, `bun run typecheck`, and the auth bootstrap integration assertions.
-- [ ] Commit `auth: add narrow account list and switch`.
+- [x] Write RED tests for `auth_list_accounts(session_hash)` safe fields, `auth_switch_account(current_hash,target_account_id,new_hash,expiry)` active-membership enforcement, old-token invalidation, `session.account_id` authority, and denial of arbitrary account enumeration.
+- [x] Run `bun run test:unit -- account-session`; verify failure before changing production code.
+- [x] Add fixed-search-path, `auth_bootstrap`-owned functions with fixed signatures. Update the typed session store to list/switch by hash, preserve `user.account_id` during expand, and rotate old/new hashes atomically. Do not expose raw SQL or email lookup.
+- [x] Run focused unit tests, `bun run typecheck`, and the auth bootstrap integration assertions.
+- [x] Commit `auth: add narrow account list and switch`.
 
 ## Task 5 — T075 hashed invitations and explicit acceptance
 
-**Files:** create `packages/db/src/invitations.ts`, `apps/api/src/routes/invitations.ts`, `packages/db/test/invitations.integration.test.ts`; modify membership contracts.
+**Files:** create `packages/db/src/invitations.ts`, `packages/db/migrations/0015_invitations.sql`, `packages/db/test/invitations.unit.test.ts`; the authenticated HTTP route is mounted with the T076 lifecycle API so raw tokens enter only the explicit body boundary.
 
-- [ ] Write RED tests for 32 random bytes, SHA-256-only persistence, no URL token, redaction before access/app logs, expiry/revocation/replay, same-user idempotency, other-user generic invalid result, and equal-email non-linking.
-- [ ] Run the focused invitation integration command and verify failure before implementation.
-- [ ] Implement owner/admin creation and `POST /api/v1/invitations/accept` with `{token}` only in the body. Lock the invitation, validate authenticated `user_id`, expiry/status/hash, insert membership, set `accepted_by_user_id`, rotate `session.account_id`, and append an audit event atomically. Return generic `invalid_invitation` for missing, expired, revoked, mismatched, or other-user tokens; same accepted user replays idempotently.
-- [ ] Run focused integration tests, `bun run typecheck`, and a grep proving token values never enter URLs/logs/audit payloads.
-- [ ] Commit `feat: accept hashed invitations explicitly`.
+- [x] Write RED tests for 32 random bytes, SHA-256-only persistence, no URL token, redaction before access/app logs, expiry/revocation/replay, same-user idempotency, other-user generic invalid result, and equal-email non-linking.
+- [x] Run the focused invitation integration command and verify failure before implementation.
+- [x] Implement owner/admin creation and the fixed auth-bootstrap acceptance function; the `POST /api/v1/invitations/accept` body route is completed in T076. Lock the invitation, validate authenticated `user_id`, expiry/status/hash, insert membership, set `accepted_by_user_id`, rotate `session.account_id`, and append an audit event atomically. Return generic invalid results; same accepted user replays idempotently.
+- [x] Run focused integration tests, `bun run typecheck`, and a grep proving token values never enter URLs/logs/audit payloads.
+- [x] Commit `feat: accept hashed invitations explicitly`.
 
 ## Task 6 — T076 membership lifecycle API
 

@@ -2,9 +2,10 @@
 -- Invitation creation/acceptance accepts only a SHA-256 token hash. The raw
 -- 256-bit value is generated and delivered by the application boundary and is
 -- never passed to PostgreSQL, persisted, logged, or written to audit payloads.
+DROP FUNCTION IF EXISTS public.auth_create_invitation(uuid, uuid, citext, public.membership_role, text, timestamptz);
 CREATE OR REPLACE FUNCTION public.auth_create_invitation(
-  p_account_id uuid,
-  p_invited_by_user_id uuid,
+  p_session_hash text,
+  p_target_account_id uuid,
   p_email citext,
   p_proposed_role public.membership_role,
   p_token_hash text,
@@ -15,10 +16,13 @@ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, public
 AS $$
 DECLARE
+  inviter_id uuid;
+  current_account_id uuid;
   inviter_allowed boolean;
   created_id uuid;
 BEGIN
-  IF p_account_id IS NULL OR p_invited_by_user_id IS NULL
+  IF p_session_hash IS NULL OR p_session_hash !~ '^[0-9a-f]{64}$'
+     OR p_target_account_id IS NULL
      OR p_email IS NULL OR p_email::text !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
      OR p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$'
      OR p_expires_at IS NULL OR p_expires_at <= clock_timestamp()
@@ -27,22 +31,36 @@ BEGIN
     RETURN;
   END IF;
   PERFORM set_config('app.auth_bootstrap', '1', true);
-  SELECT true INTO inviter_allowed
-  FROM public.account_membership AS m
-  JOIN public.account AS a ON a.id = m.account_id
-  WHERE m.account_id = p_account_id
-    AND m.user_id = p_invited_by_user_id
-    AND m.status = 'active'::public.membership_status
-    AND m.role IN ('owner'::public.membership_role, 'admin'::public.membership_role)
+  SELECT s.user_id, s.account_id INTO inviter_id, current_account_id
+  FROM public.session AS s
+  JOIN public.account AS a ON a.id = s.account_id
+  JOIN public.account_membership AS current_membership
+    ON current_membership.account_id = s.account_id
+   AND current_membership.user_id = s.user_id
+   AND current_membership.status = 'active'::public.membership_status
+  WHERE s.token_hash = p_session_hash
+    AND s.revoked_at IS NULL
+    AND s.expires_at > clock_timestamp()
     AND a.status = 'active'::public.account_status
     AND a.deleted_at IS NULL
+  FOR UPDATE OF s;
+  IF inviter_id IS NULL THEN RETURN; END IF;
+  SELECT true INTO inviter_allowed
+  FROM public.account_membership AS m
+  JOIN public.account AS target_account ON target_account.id = m.account_id
+  WHERE m.account_id = p_target_account_id
+    AND m.user_id = inviter_id
+    AND m.status = 'active'::public.membership_status
+    AND m.role IN ('owner'::public.membership_role, 'admin'::public.membership_role)
+    AND target_account.status = 'active'::public.account_status
+    AND target_account.deleted_at IS NULL
   FOR SHARE;
   IF inviter_allowed IS DISTINCT FROM true THEN RETURN; END IF;
   INSERT INTO public.account_invitation (
     account_id, token_hash, email, proposed_role, status, expires_at, invited_by_user_id
   ) VALUES (
-    p_account_id, p_token_hash, p_email, p_proposed_role, 'pending'::public.invitation_status,
-    p_expires_at, p_invited_by_user_id
+    p_target_account_id, p_token_hash, p_email, p_proposed_role, 'pending'::public.invitation_status,
+    p_expires_at, inviter_id
   ) RETURNING id INTO created_id;
   invitation_id := created_id;
   RETURN NEXT;
@@ -103,21 +121,30 @@ BEGIN
   JOIN public.account AS a ON a.id = i.account_id
   WHERE i.token_hash = p_token_hash
   FOR UPDATE OF i;
-  IF invitation_account_id IS NULL OR target_account_status <> 'active'::public.account_status
-     OR invitation_expires_at <= clock_timestamp() THEN
+  IF invitation_account_id IS NULL OR target_account_status <> 'active'::public.account_status THEN
     RETURN;
   END IF;
   IF invitation_status_value = 'accepted'::public.invitation_status
      AND accepted_for_user_id = current_user_id THEN
-    NULL;
+    account_id := invitation_account_id;
+    user_id := current_user_id;
+    session_id := found_session_id;
+    RETURN NEXT;
+    RETURN;
   ELSIF invitation_status_value <> 'pending'::public.invitation_status THEN
+    RETURN;
+  ELSIF invitation_expires_at <= clock_timestamp() THEN
     RETURN;
   ELSE
     INSERT INTO public.account_membership (account_id, user_id, role, status)
     VALUES (invitation_account_id, current_user_id, invitation_role, 'active'::public.membership_status)
-    ON CONFLICT ON CONSTRAINT account_membership_account_user_unique DO UPDATE
-      SET role = EXCLUDED.role, status = 'active'::public.membership_status,
-          removed_at = NULL, updated_at = clock_timestamp();
+    ON CONFLICT ON CONSTRAINT account_membership_account_user_unique DO NOTHING;
+    UPDATE public.account_membership AS existing_membership
+    SET role = invitation_role, status = 'active'::public.membership_status,
+        removed_at = NULL, updated_at = clock_timestamp()
+    WHERE existing_membership.account_id = invitation_account_id
+      AND existing_membership.user_id = current_user_id
+      AND existing_membership.status = 'removed'::public.membership_status;
     UPDATE public.account_invitation
     SET status = 'accepted'::public.invitation_status,
         accepted_at = clock_timestamp(), accepted_by_user_id = current_user_id
@@ -144,9 +171,9 @@ BEGIN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.auth_create_invitation(uuid, uuid, citext, public.membership_role, text, timestamptz) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.auth_create_invitation(text, uuid, citext, public.membership_role, text, timestamptz) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.auth_accept_invitation(text, text, text, timestamptz) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.auth_create_invitation(uuid, uuid, citext, public.membership_role, text, timestamptz) TO auth_bootstrap;
+GRANT EXECUTE ON FUNCTION public.auth_create_invitation(text, uuid, citext, public.membership_role, text, timestamptz) TO auth_bootstrap;
 GRANT EXECUTE ON FUNCTION public.auth_accept_invitation(text, text, text, timestamptz) TO auth_bootstrap;
-ALTER FUNCTION public.auth_create_invitation(uuid, uuid, citext, public.membership_role, text, timestamptz) OWNER TO CURRENT_USER;
+ALTER FUNCTION public.auth_create_invitation(text, uuid, citext, public.membership_role, text, timestamptz) OWNER TO CURRENT_USER;
 ALTER FUNCTION public.auth_accept_invitation(text, text, text, timestamptz) OWNER TO CURRENT_USER;

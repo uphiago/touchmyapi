@@ -277,6 +277,7 @@ describeDb("Phase 2A membership schema", () => {
     const sessionId = crypto.randomUUID();
     const sessionHash = "f".repeat(64);
     const replacementHash = "e".repeat(64);
+    const inviterSessionHash = "9".repeat(64);
     const tokenHash = "1".repeat(64);
     await db.begin(async (transaction) => {
       await transaction`delete from public.session where user_id in (${inviter}, ${recipient})`;
@@ -288,18 +289,22 @@ describeDb("Phase 2A membership schema", () => {
       await transaction`
         insert into account_membership (account_id, user_id, role, status)
         values (${accountB}, ${recipient}, 'owner', 'active')
-        on conflict (account_id, user_id) do update set status = 'active'
+        on conflict (account_id, user_id) do update set role = 'owner', status = 'active'
       `;
       await transaction`delete from account_invitation where token_hash = ${tokenHash}`;
       await transaction`
         insert into public.session (id, account_id, user_id, token_hash, expires_at)
         values (${sessionId}, ${accountB}, ${recipient}, ${sessionHash}, now() + interval '1 day')
       `;
+      await transaction`
+        insert into public.session (id, account_id, user_id, token_hash, expires_at)
+        values (${crypto.randomUUID()}, ${accountB}, ${inviter}, ${inviterSessionHash}, now() + interval '1 day')
+      `;
     });
 
     const [created] = await db`
       select * from public.auth_create_invitation(
-        ${accountB}, ${inviter}, ${"invitee@example.test"}, 'viewer', ${tokenHash}, now() + interval '1 day'
+        ${inviterSessionHash}, ${accountB}, ${"invitee@example.test"}, 'viewer', ${tokenHash}, now() + interval '1 day'
       )
     `;
     expect(created?.invitation_id).toMatch(/^[0-9a-f-]{36}$/u);
@@ -328,11 +333,15 @@ describeDb("Phase 2A membership schema", () => {
       select role, status from account_membership
       where account_id = ${accountB} and user_id = ${recipient}
     `;
-    expect(membership).toEqual({ role: "viewer", status: "active" });
+    expect(membership).toEqual({ role: "owner", status: "active" });
     expect(
       await db`select * from public.auth_accept_invitation(
       ${replacementHash}, ${tokenHash}, ${"d".repeat(64)}, now() + interval '1 day'
     )`,
     ).toHaveLength(1);
+    const [replayedSession] = await db`
+      select token_hash from public.session where id = ${sessionId}
+    `;
+    expect(replayedSession?.token_hash).toBe(replacementHash);
   });
 });
