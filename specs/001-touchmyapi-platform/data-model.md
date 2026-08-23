@@ -166,6 +166,18 @@ Signed dispatch unit for the runner.
 
 At most one active job exists for `(account_id, normalized_target_key)` through a partial unique index covering `queued`, `stale_recovered`, and `running`. Claims may select `queued` or `stale_recovered`; a claim sets `running` and increments `fencing_token`. Reaping changes expired `running` to `stale_recovered`, sets `available_at` with bounded backoff, and never resets the fencing token. Tenant fairness is represented by `queue_tenant_state`.
 
+### queue_global_state
+
+Singleton global capacity row locked in every claim transaction before any tenant or job row. Row locks are the only coordination mechanism: no advisory hash locks and no `SERIALIZABLE` retry ambiguity.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | text pk | fixed value `global` |
+| running_count / concurrency_limit | int | atomically maintained global capacity |
+| updated_at | timestamptz | reconciler/audit timestamp |
+
+The singleton is inserted by migration/backfill and upserted by queue bootstrap. Claim lock order is global `FOR UPDATE` → eligible tenant `FOR UPDATE SKIP LOCKED` → eligible job `FOR UPDATE SKIP LOCKED`. A successful claim increments both global and tenant `running_count`; terminal completion and reaper recovery decrement both. The reconciler repairs missing singleton/counter drift and fails closed without dropping or stranding queued jobs.
+
 ### queue_tenant_state
 
 One row per active account used by the fair scheduler. Account creation transactionally upserts the row; migration backfill and the reconciler create missing rows for every active account.
@@ -177,7 +189,7 @@ One row per active account used by the fair scheduler. Account creation transact
 | running_count / concurrency_limit | int | atomically maintained and policy-capped |
 | updated_at | timestamptz | reconciler/audit timestamp |
 
-Claim locks an eligible tenant with `FOR UPDATE SKIP LOCKED`, orders by `last_dispatched_at NULLS FIRST, account_id`, checks `running_count < concurrency_limit` and global capacity, then locks the tenant's highest-priority eligible job ordered by `priority DESC, available_at, created_at, id`. It increments `running_count` and updates `last_dispatched_at` atomically. Terminal completion and reaper recovery decrement the counter; a reconciler repairs drift and creates missing state. If state is missing or inconsistent, enqueue/claim fails closed, raises an operational signal, and leaves the job queued for reconciliation rather than stranding or dropping it.
+After locking `queue_global_state` with `FOR UPDATE`, claim locks an eligible tenant with `FOR UPDATE SKIP LOCKED`, orders by `last_dispatched_at NULLS FIRST, account_id`, checks both global and tenant capacity, then locks the tenant's highest-priority eligible job ordered by `priority DESC, available_at, created_at, id`. It increments global and tenant `running_count` and updates `last_dispatched_at` atomically. Terminal completion and reaper recovery decrement both counters; a reconciler repairs drift and creates missing state. If global or tenant state is missing or inconsistent, enqueue/claim fails closed, raises an operational signal, and leaves the job queued for reconciliation rather than stranding or dropping it.
 
 ### outbox_event
 
@@ -195,10 +207,12 @@ Transactional account-scoped delivery intent.
 | lease_owner / lease_expires_at | text / timestamptz | short delivery lease |
 | fencing_token | bigint | monotonic outbox claim token |
 | heartbeat_at | timestamptz | processing liveness |
-| attempts / available_at | int / timestamptz | at-least-once delivery |
-| processed_at / created_at | timestamptz | |
+| attempts / max_attempts | int | bounded delivery attempts |
+| available_at | timestamptz | retry eligibility |
+| last_error | text | redacted failure/lease reason |
+| failed_at / processed_at / created_at | timestamptz | terminal failure, success, and creation times |
 
-Rows commit with their state mutation. Outbox claim uses `FOR UPDATE SKIP LOCKED`, increments `fencing_token`, and requires the current token for acknowledgement. Expired `processing` leases return to `pending` with bounded backoff; `LISTEN/NOTIFY` is only a wake-up hint and polling/reaping is mandatory.
+Rows commit with their state mutation. Outbox claim uses `FOR UPDATE SKIP LOCKED`, increments `fencing_token`, and requires the current token for acknowledgement. `pending` claims become `processing`; current-token acknowledgement becomes `processed`; current-token failure records redacted `last_error`, increments `attempts`, and becomes `pending` with bounded backoff until `max_attempts`, then becomes terminal `failed` with `failed_at`, alert, and audit event. Expired `processing` leases follow the same retry/exhaustion transition and clear the lease. `LISTEN/NOTIFY` is only a wake-up hint and polling/reaping is mandatory.
 
 ### runner_execution
 
@@ -377,19 +391,22 @@ Just-in-time, tenant-scoped staff capability.
 | reason / ticket_reference | text | mandatory |
 | requested_at / approved_at / expires_at | timestamptz | bounded TTL |
 | approver_staff_identity_id | uuid fk | approval actor |
+| **unique** | `(account_id, id)` | composite reference target |
 | status | enum | `requested` / `approved` / `expired` / `revoked` / `denied` |
 
 No support grant permits owner/BYPASSRLS, arbitrary SQL, impersonation, secret/raw-evidence access, or billing mutation.
 
 ### support_access_approval
 
-Approval record for a support grant. `break_glass` requires two distinct staff identities and a bounded TTL.
+Approval record for a support grant. `break_glass` requires two distinct staff identities and a bounded TTL. `(account_id,grant_id)` references the same-account `(account_id,id)` key on `support_access_grant`; accountless system audit events cannot reference an approval.
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | id | uuid pk | |
 | grant_id | uuid fk → support_access_grant | |
 | approver_staff_identity_id | uuid fk | unique per grant/approver |
+| account_id | uuid fk → account | must match the grant tenant |
+| **unique** | `(account_id, id)` | composite reference target |
 | approved_at | timestamptz | |
 
 ### admin_audit_event
@@ -402,19 +419,19 @@ Separate append-only staff action chain. Each tenant has its own hash chain; sys
 | account_id | uuid fk → account | nullable only for system/bootstrap boundary |
 | staff_identity_id | uuid fk → staff_identity | nullable only for system event |
 | staff_session_id | uuid fk → staff_session | nullable for out-of-band bootstrap |
-| grant_id | uuid fk → support_access_grant | nullable operation grant |
-| approval_id | uuid fk → support_access_approval | nullable approval decision |
+| grant_id | uuid fk → support_access_grant | nullable; composite `(account_id,grant_id)` must match |
+| approval_id | uuid fk → support_access_approval | nullable; composite `(account_id,approval_id)` must match |
 | request_id | text | correlation identifier |
 | action | text/enum | closed admin operation vocabulary |
 | subject_type / subject_id | text / uuid | safe target reference, never raw evidence |
 | ticket_reference / reason | text | required for support operations |
 | outcome | text/enum | `allowed` / `denied` / `error` |
 | payload_json | jsonb | redacted safe metadata only |
-| prev_event_hash | text | previous event hash in the same account/system chain |
+| prev_event_hash | text nullable | previous event hash; NULL for the first event in an account/system chain |
 | event_hash | text unique | hash of canonical event fields plus `prev_event_hash` |
 | created_at | timestamptz | immutable event time |
 
-The application enforces append-only semantics, canonical hashing, and chain continuity; security-sensitive admin mutations fail closed if this event cannot be committed.
+The application enforces append-only semantics, canonical hashing, chain continuity, and tenant integrity: when `account_id IS NULL`, grant/approval/session tenant references must also be NULL; otherwise composite FKs bind grant and approval to the same account. Security-sensitive admin mutations fail closed if this event cannot be committed.
 
 ### audit_event
 

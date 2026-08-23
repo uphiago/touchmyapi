@@ -92,8 +92,10 @@ Admin uses a separate origin/API and cookies; login/callback/recovery/MFA routes
 | GET | `/admin/accounts/:accountId/queue` | policy-aware queue metadata/status |
 | POST | `/admin/accounts/:accountId/jobs/:jobId/cancel` | policy-aware cancellation only |
 | POST | `/admin/accounts/:accountId/jobs/:jobId/requeue` | policy-aware stale/failed requeue |
-| POST | `/admin/reaper/run` | trigger bounded lease recovery |
+| POST | `/admin/accounts/:accountId/reaper/run` | trigger bounded lease recovery for the granted account |
 | GET | `/admin/billing/:accountId` | read-only billing/entitlement state |
+
+The account-scoped reaper accepts only `{ "maxJobs": 100 }` with `1 <= maxJobs <= 100` and requires an unexpired `queue_reaper` support grant for the same `accountId`; there is no system-wide reaper route.
 
 Admin has no impersonation, owner/BYPASSRLS, arbitrary SQL, secret/raw-evidence, credit-grant, or entitlement-write endpoint.
 

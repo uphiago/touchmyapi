@@ -6,7 +6,7 @@ The admin app/API has a separate origin, API base path, cookies, CSRF policy, an
 
 Staff sessions require MFA. A `support_access_grant` contains `staffIdentityId`, `accountId`, a closed capability, `reason`, `ticketReference`, `requestedAt`, `approvedAt`, `expiresAt`, and status; approvals are separate `support_access_approval` rows. A normal grant requires one distinct approver; `break_glass` requires two distinct approvals and a short TTL. Grants are deny-by-default and expire automatically.
 
-Allowed queue capabilities are policy-aware metadata/status actions: inspect queue metadata, cancel a job, requeue a failed/stale job, and trigger reaper processing. Admin cannot change target/scope, dispatch arbitrary actions, execute a runner, or bypass the policy engine.
+Allowed queue capabilities are policy-aware metadata/status actions: inspect queue metadata, cancel a job, requeue a failed/stale job, and trigger a bounded reaper batch for one account. Reaper requires a non-expired support grant with the account-bound `queue_reaper` capability and never runs globally. Admin cannot change target/scope, dispatch arbitrary actions, execute a runner, or bypass the policy engine.
 
 ## Endpoints
 
@@ -28,11 +28,13 @@ Allowed queue capabilities are policy-aware metadata/status actions: inspect que
 | GET | `/admin/accounts/:accountId/queue` | policy-permitted queue metadata/status only |
 | POST | `/admin/accounts/:accountId/jobs/:jobId/cancel` | policy-permitted cancellation with active grant |
 | POST | `/admin/accounts/:accountId/jobs/:jobId/requeue` | policy-permitted requeue with reason; clears lease but never resets fencing |
-| POST | `/admin/reaper/run` | trigger bounded stale-lease recovery |
+| POST | `/admin/accounts/:accountId/reaper/run` | trigger a bounded stale-lease recovery batch for the granted account |
 | GET | `/admin/billing/:accountId` | read-only entitlement/billing event status |
+
+`POST /admin/accounts/:accountId/reaper/run` accepts `{ "maxJobs": 100 }` with `1 <= maxJobs <= 100`; the active `queue_reaper` support grant must target the same `accountId`, and the operation never scans or recovers another account.
 
 ## Mandatory denials
 
 There is no impersonation endpoint, owner/BYPASSRLS role, arbitrary SQL endpoint, secret/raw-evidence endpoint, billing mutation, credit grant, entitlement override, or unbounded queue operation. Missing MFA, grant, approval, ticket, reason, TTL, membership/account policy, or fencing token returns `403` and appends a redacted admin audit event. Admin audit is append-only and includes staff actor, account, grant, ticket, reason, operation, outcome, and request ID.
 
-`admin_audit_event` stores `id`, nullable `account_id` (NULL only for the system/bootstrap boundary), nullable `staff_identity_id`, nullable `staff_session_id`, nullable `grant_id`, nullable `approval_id`, `request_id`, closed `action`, safe subject type/id, ticket/reference and reason, outcome, redacted payload, `prev_event_hash`, `event_hash`, and `created_at`. Foreign keys point to the named staff/session/grant/approval tables; each account and the system boundary has an independent canonical hash chain. Runtime roles may insert through the audit writer but cannot update/delete, cross-link tenant chains, or bypass RLS. An audit write failure fails closed for security-sensitive admin mutations.
+`admin_audit_event` stores `id`, nullable `account_id` (NULL only for the system/bootstrap boundary), nullable `staff_identity_id`, nullable `staff_session_id`, nullable `grant_id`, nullable `approval_id`, `request_id`, closed `action`, safe subject type/id, ticket/reference and reason, outcome, redacted payload, nullable `prev_event_hash` (NULL for the first event), `event_hash`, and `created_at`. Foreign keys point to the named staff/session tables; composite `(account_id,grant_id)` and `(account_id,approval_id)` FKs bind tenant grants/approvals to the audit account, while accountless events must leave those references NULL. Each account and the system boundary has an independent canonical hash chain. Runtime roles may insert through the audit writer but cannot update/delete, cross-link tenant chains, or bypass RLS. An audit write failure fails closed for security-sensitive admin mutations.
