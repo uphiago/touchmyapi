@@ -1,0 +1,21 @@
+docs/superpowers/plans/2026-08-22-t017-audit-chain.md
+  s_bc54431df54bf2::t_ac866c52e1b0aa 17,19-20,27,29,258
+docs/superpowers/specs/2026-08-22-audit-chain-design.md
+  s_bc54431df54bf2::t_ac866c52e1b0aa 8,10-16,21-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "35528ac47e40a4e9dcb68199a4bedce38d6cce96",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
