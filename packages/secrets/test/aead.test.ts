@@ -39,7 +39,7 @@ describe("credential AEAD", () => {
     const one = await encryptCredential(provider, "k1", plaintext, context);
     const two = await encryptCredential(provider, "k1", plaintext, context);
 
-    expect(one).toMatchObject({ version: 1, algorithm: "AES-256-GCM", keyId: "k1" });
+    expect(one).toMatchObject({ version: 2, algorithm: "AES-256-GCM", keyId: "k1" });
     expect(one.nonce).not.toBe(two.nonce);
     expect(one.ciphertext).not.toBe(plaintext);
     expect(await decryptCredential(provider, one, context)).toBe(plaintext);
@@ -68,7 +68,7 @@ describe("credential AEAD", () => {
     const envelope = await encryptCredential(provider, "k1", "secret-value", context);
     const tamperBase64 = (value: string) => `${value[0] === "A" ? "B" : "A"}${value.slice(1)}`;
     const tampered: Array<CredentialEnvelope | Record<string, unknown>> = [
-      { ...envelope, version: 2 },
+      { ...envelope, version: 3 },
       { ...envelope, algorithm: "AES-128-GCM" },
       { ...envelope, keyId: "unknown-key" },
       { ...envelope, nonce: tamperBase64(envelope.nonce) },
@@ -82,6 +82,19 @@ describe("credential AEAD", () => {
         "k1",
       );
     }
+  });
+
+  it("rejects the legacy version explicitly", async () => {
+    const envelope = await encryptCredential(provider, "k1", "secret-value", context);
+    await expectStableError(
+      decryptCredential(
+        provider,
+        { ...envelope, version: 1 } as unknown as CredentialEnvelope,
+        context,
+      ),
+      "secret-value",
+      "k1",
+    );
   });
 
   it("authenticates the key ID even when an alias resolves to the same key", async () => {
@@ -173,6 +186,28 @@ describe("credential AEAD", () => {
         purpose: null as unknown as string,
       }),
       "secret-value",
+    );
+  });
+
+  it("rejects oversized key IDs, context fields, and plaintext", async () => {
+    for (const field of ["accountId", "assessmentId", "credentialId", "purpose"] as const) {
+      await expectStableError(
+        encryptCredential(provider, "k1", "", { ...context, [field]: "é".repeat(129) }),
+      );
+    }
+    await expectStableError(encryptCredential(provider, "é".repeat(129), "", context));
+    await expectStableError(
+      encryptCredential(provider, "k1", "x".repeat(1024 * 1024 + 1), context),
+    );
+  });
+
+  it("rejects oversized encoded nonce and ciphertext before decoding", async () => {
+    const envelope = await encryptCredential(provider, "k1", "secret-value", context);
+    await expectStableError(
+      decryptCredential(provider, { ...envelope, nonce: "A".repeat(10_000) }, context),
+    );
+    await expectStableError(
+      decryptCredential(provider, { ...envelope, ciphertext: "A".repeat(10_000) }, context),
     );
   });
 });
