@@ -1,0 +1,27 @@
+packages/db/src/queue-control.ts
+  s_bc54431df54bf2::t_9344dea0af4658 96-109
+packages/db/src/index.ts
+  s_bc54431df54bf2::t_40ab826d460742 9
+  s_bc54431df54bf2::t_68339509f2e3a0 10-15
+packages/db/test/queue-recovery.integration.test.ts
+  s_bc54431df54bf2::t_9b8813308a476d 11-14,59,79-81
+  s_bc54431df54bf2::t_44a48eeb139e85 1-10,15-58,60-78,82-85
+packages/db/migrations/0018_queue_schema.sql
+  s_bc54431df54bf2::t_3d1176dbfa2aa8 626-709
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "4e592c23d1620201b609d89294bd26109ed78cd2",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
