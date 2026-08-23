@@ -5,6 +5,7 @@ export * from "./assessment";
 export * from "./verification";
 export * from "./catalog";
 export * from "./execution";
+export * from "./queue";
 export * from "./billing";
 export * from "./reporting";
 export * from "./audit";

@@ -52,6 +52,7 @@
       "name": "@touchmyapi/db",
       "version": "0.1.0",
       "dependencies": {
+        "@touchmyapi/contracts": "workspace:*",
         "drizzle-orm": "^0.45.2",
         "postgres": "^3.4.4",
       },

@@ -13,6 +13,7 @@
     "db:migrate": "bun scripts/migrate.ts"
   },
   "dependencies": {
+    "@touchmyapi/contracts": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.4"
   },

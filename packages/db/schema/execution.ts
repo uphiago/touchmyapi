@@ -9,6 +9,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { account } from "./identity";
@@ -24,14 +25,20 @@ export const job = pgTable(
     playbookVersion: text("playbook_version").notNull(),
     jobSpecJson: jsonb("job_spec_json").notNull(),
     status: jobStatus("status").default("queued").notNull(),
+    availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(),
+    priority: integer("priority").default(0).notNull(),
+    normalizedTargetKey: text("normalized_target_key").notNull(),
     leaseOwner: text("lease_owner"),
     leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
     attempts: integer("attempts").default(0).notNull(),
     maxAttempts: integer("max_attempts").default(3).notNull(),
+    fencingToken: integer("fencing_token").default(0).notNull(),
     dedupeKey: text("dedupe_key").notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     stopRequestedAt: timestamp("stop_requested_at", { withTimezone: true }),
+    failureReason: text("failure_reason"),
+    createdAt: createdAt(),
   },
   (table) => [
     unique("job_dedupe_key_unique").on(table.dedupeKey),
@@ -48,6 +55,10 @@ export const job = pgTable(
     }),
     check("job_attempts_nonnegative", sql`${table.attempts} >= 0`),
     check("job_max_attempts_positive", sql`${table.maxAttempts} > 0`),
+    check("job_fencing_nonnegative", sql`${table.fencingToken} >= 0`),
+    uniqueIndex("job_active_target_unique")
+      .on(table.accountId, table.normalizedTargetKey)
+      .where(sql`${table.status} in ('queued', 'stale_recovered', 'running')`),
   ],
 );
 
