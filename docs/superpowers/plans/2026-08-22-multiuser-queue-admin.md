@@ -12,7 +12,7 @@
 
 ## Execution gate, conventions, and file map
 
-T071–T080 are the membership gate and MUST run after T021 is green. T081–T086 are queue/outbox infrastructure and T087 is the US1 integration gate; together T071–T087 MUST complete before existing T022 proceeds. T088–T094 are the separate admin stream and run only after queue primitives and billing read surfaces (T045) are available. Do not change T010–T021 completion checkboxes. Do not add a migration number by guess: run Drizzle generation, inspect the current journal/highest migration after T021, and use the next generated path.
+T071–T080 are the membership gate and MUST run after T021 is green. T081–T086 are queue/outbox infrastructure and T087 is the US1 integration gate; together T071–T087 MUST complete before existing T022 proceeds. T088–T094 are the separate admin stream and run only after queue primitives and billing read surfaces (T045) are available. This future plan does not determine T010–T021 acceptance; use `tasks.md` and the foundation checkpoint review, which currently leave T016–T021 open. Do not add a migration number by guess: run Drizzle generation, inspect the current journal/highest migration after T021, and use the next generated path.
 
 Every task is TDD: write a failing test, run the exact red command, implement the smallest change, run the exact green command, then commit only that task's paths. Database commands always use PostgreSQL 16, `RUN_DB_TESTS=1`, an explicit local test URL, and `--maxWorkers=1` when state/order assumptions exist:
 

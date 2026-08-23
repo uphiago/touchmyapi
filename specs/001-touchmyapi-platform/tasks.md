@@ -39,20 +39,20 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 
 **⚠️ CRITICAL**: No user story work begins until this phase is complete.
 
-- [x] T009 [P] Implement zod contract schemas in `packages/contracts/types.ts` for: assessment state machine, target categories, playbook contract, job spec, artifact manifest, export JSON, billing event, audit event (mirror `specs/001-.../contracts/`)
-- [ ] T010 [P] Implement `packages/policy/scope.ts`: target normalization (external URL/domain/API spec → normalized descriptor), inclusion/exclusion matching, private/local/metadata-IP blocklist rules (per research R8)
-- [ ] T011 [P] Implement `packages/policy/entitlement.ts`: plan rights matrix (free_unverified/free_verified/pro/lifetime) → allowed result visibility, playbook slice, credit caps (spec FR-005)
-- [ ] T012 [P] Implement `packages/policy/limits.ts`: rate/duration/concurrency/credit cap reducer; browser/model/runner inputs can only reduce, never increase playbook limits (spec FR-014)
-- [ ] T013 [P] Implement `packages/policy/engine.ts`: `authorize(action, scope, entitlement, limits) -> { allowed, blocked[], reason }`; policy-block testable via `tests/isolation/policy.test.ts`
-- [ ] T014 [P] Implement the Foundation Phase 2 tables from `data-model.md` (account, existing global user, session, assessment, authorization_attestation, verification, playbook, job, runner_execution, credential, finding, report, credit_entry, billing_event, entitlement, agent, audit_event, notification) with `account_id` + enum types; Phase 2A membership, queue/outbox, and admin tables are additive in T072, T081, and T088
-- [ ] T015 [P] Implement RLS bootstrap in `packages/db/migrations/*.sql` using Drizzle `pgPolicy`/`pgRole`: runtime roles `api_rls`/`worker_rls`/`reporting_rls`, tenant from `current_setting('app.tenant')`, default deny (spec FR-003, data-model RLS)
-- [ ] T016 [P] Implement `packages/db/session.ts`: transaction wrapper that sets `app.tenant` + `set local role` per query; expose typed query client per role
-- [ ] T017 [P] Implement `packages/contracts/audit.ts`: chained append-only audit event writer hitting `audit_event` with redaction helper (spec FR-018)
-- [ ] T018 [P] Implement `packages/secrets/aead.ts`: envelope AEAD encrypt/decrypt for external credentials at rest (key per `key_id`, rotation hooks) (spec FR-010)
-- [ ] T019 [P] Implement `packages/playbooks/index.ts`: playbook schema validation + `surface-public-posture@1.0.0` passive contract (actions: dns.records, tls.cert, http.headers, robots.txt, sitemap.xml, endpoint.minimal), per playbook contract doc
+- [x] T009 [P] Implement Zod contract schemas in `packages/contracts/src/*.ts` for assessment state/target, playbook, job, artifact manifest, export JSON, billing event, audit event, health/error, and redaction (mirror `contracts/`)
+- [x] T010 [P] Implement `packages/policy/src/scope.ts`: target normalization (external URL/domain/API spec → normalized descriptor), inclusion/exclusion matching, private/local/metadata-IP blocklist rules (per research R8)
+- [x] T011 [P] Implement `packages/policy/src/entitlement.ts`: plan rights matrix (free_unverified/free_verified/pro/lifetime) → allowed result visibility, playbook slice, credit caps (spec FR-005)
+- [x] T012 [P] Implement `packages/policy/src/limits.ts`: rate/duration/concurrency/credit cap reducer; browser/model/runner inputs can only reduce, never increase playbook limits (spec FR-014)
+- [x] T013 [P] Implement `packages/policy/src/engine.ts`: `authorize(action, scope, entitlement, limits) -> { allowed, blocked[], reason }`; policy-block testable via `tests/isolation/policy.test.ts`
+- [x] T014 [P] Implement the Foundation Phase 2 tables in `packages/db/schema/*.ts` plus generated migrations (account, existing global user, session, assessment, authorization_attestation, verification, playbook, job, runner_execution, credential, finding, report, credit_entry, billing_event, entitlement, agent, audit_event, notification) with `account_id` + enum types; Phase 2A membership, queue/outbox, and admin tables are additive in T072, T081, and T088
+- [x] T015 [P] Implement RLS bootstrap in `packages/db/migrations/*.sql`: runtime roles `api_rls`/`worker_rls`/`reporting_rls`, tenant from `current_setting('app.tenant')`, forced default deny, exact grants, and narrow auth bootstrap (spec FR-003, data-model RLS)
+- [ ] T016 [P] Replace the provisional `packages/db/src/tenant-session.ts` arbitrary `unsafe(string)` surface with closed typed repository/capability operations while preserving reserved-backend `app.tenant` + `SET LOCAL ROLE`, rollback/cleanup, exact role validation, and adversarial isolation. Current implementation/tests are green but quality review is blocked by a privileged live-grant race; see `docs/reviews/2026-08-22-foundation-checkpoint.md`.
+- [ ] T017 [P] Implement `packages/db/src/audit.ts`: chained append-only audit event writer hitting `audit_event` with recursive redaction and a narrow transaction-owned chain-lock capability (spec FR-018)
+- [ ] T018 [P] Implement `packages/secrets/src/aead.ts`: envelope AEAD encrypt/decrypt for external credentials at rest (key per `key_id`, rotation hooks) (spec FR-010)
+- [ ] T019 [P] Implement `packages/playbooks/src/index.ts`: playbook schema validation + `surface-public-posture@1.0.0` passive contract (actions: dns.records, tls.cert, http.headers, robots.txt, sitemap.xml, endpoint.minimal), per playbook contract doc
 - [ ] T020 Implement `apps/api/src/server.ts`: Hono app skeleton with cookie session middleware, zod validation, error envelope `{error:{code,message}}`, centralized audit logging
 - [ ] T021 Implement `apps/api/src/auth/google.ts`: Google OAuth PKCE via `openid-client` (login/callback/logout), HttpOnly Secure SameSite session cookies, rotation + revocation (spec FR-001/FR-002); GitHub/X remain model-disabled
-- **Checkpoint**: Foundation ready - `bun run test:isolation` has RLS isolation test green (spec SC-002). User stories can begin.
+- **Checkpoint (not yet reached)**: Foundation is ready only when T010–T021 are checked and all required DB/API/OAuth gates are green. Current pause is T010–T015 accepted, T016 review-blocked, and T017–T021 pending; user stories must not begin.
 
 ---
 
