@@ -1,0 +1,96 @@
+packages/contracts/src/index.ts
+  s_bc54431df54bf2::t_ba4efc08ad356c 28,35-37,43,51,56-57,59,62
+  s_bc54431df54bf2::t_d31360cebc31f6 38,60
+apps/api/test/memberships.test.ts
+  s_bc54431df54bf2::t_80f41788612786 1-31,33-65,67-83,85-91,94-105,111,116-182,184-195,198,207-211,213-219,221-237,245-251,253-268
+  s_bc54431df54bf2::t_cff84789dcc57b 66,84
+  s_bc54431df54bf2::t_25b8373e4fb3e7 92,112-115,183,212,220,238-241,252
+  s_bc54431df54bf2::t_1ec4ebebcca624 93,199-205,242-244
+  s_bc54431df54bf2::t_bef7439ed448fa 196-197
+  s_bc54431df54bf2::t_d0843f26e757bc 206
+  s_bc54431df54bf2::t_0eef3054e22036 32,106-110
+apps/api/src/app.ts
+  s_bc54431df54bf2::t_08b058b8c777fa 8,29,106-108
+packages/db/test/tenant-session.integration.test.ts
+  s_bc54431df54bf2::t_fffc866db5c6e5 123-126
+packages/db/migrations/0016_membership_lifecycle.sql
+  s_bc54431df54bf2::t_f0b5b93f698232 1-2,162-185,321-347,349-359,362-383,389-419,423-424,428-464
+  s_bc54431df54bf2::t_de4acaa568433e 420-422
+  s_bc54431df54bf2::t_0b1b1af8800d3d 186-320
+  s_bc54431df54bf2::t_02f99ad447a3ab 348,360-361,384-388
+  s_bc54431df54bf2::t_e53b7c8f1ea66b 65,427
+  s_bc54431df54bf2::t_0f4ca7e9162a38 3-62,66-88
+  s_bc54431df54bf2::t_d130c9cac26f4e 63-64,425-426
+  s_bc54431df54bf2::t_f34b99fa501fa2 89-161
+apps/api/src/auth.ts
+  s_bc54431df54bf2::t_aacaa98eac13ba 303
+  s_bc54431df54bf2::t_e49f33182fb16d 6,49
+  s_bc54431df54bf2::t_a96c7f38d5ee39 533
+  s_bc54431df54bf2::t_2d4950c45a4209 269,525-532
+apps/api/src/memberships.ts
+  s_bc54431df54bf2::t_4b7838c62550c2 104-110
+  s_bc54431df54bf2::t_073553c9721c49 199,233,235,238,244-245,263,265-268,272,276
+  s_bc54431df54bf2::t_0a99ff0cd51be6 6,148-153
+  s_bc54431df54bf2::t_020864128e09de 100,103,111-112,258-261,292-295
+  s_bc54431df54bf2::t_ab0f8bda809b21 202,236,273
+  s_bc54431df54bf2::t_6d108f109931a2 214-219,246-251,280-285
+  s_bc54431df54bf2::t_6e85ab64f8d60e 226
+  s_bc54431df54bf2::t_1d637be99145f2 56-60,63,66-72,135,147,176,182,201
+  s_bc54431df54bf2::t_63ebdfeb9cfa1b 16,28,142-146
+  s_bc54431df54bf2::t_f6e55dc8b4349e 1-5,8-15,17-27,29-41,46-52,55,64-65,73-99,101-102,113-134,136-141,154-167,174-175,177-181,183-198,200,203-213,220-225,227-232,234,237,239-243,252-257,262,264,269-271,274-275,277-279,286-291,296-298
+  s_bc54431df54bf2::t_a698717f9ea4d1 7
+  s_bc54431df54bf2::t_0b8e829c16c384 42,44,53,61
+  s_bc54431df54bf2::t_55b1e71e83b919 43,45,54,62,168-173
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_dd8f877c03bf5c 116-122,125
+docs/superpowers/plans/2026-08-23-phase2a-membership.md
+  s_bc54431df54bf2::t_1f88f92eb6d060 93
+  s_bc54431df54bf2::t_55a1cbf9c9c24e 76,84-92
+packages/db/test/membership-schema.integration.test.ts
+  s_bc54431df54bf2::t_9efc917b565971 387,395-397,404,424-428
+  s_bc54431df54bf2::t_e119ccab682b21 339
+  s_bc54431df54bf2::t_7f7c8542550f68 283-288
+  s_bc54431df54bf2::t_0b1b1af8800d3d 338,340-350
+  s_bc54431df54bf2::t_0693be97263bc2 384-386,388-394,401-403,405-423,429-442
+  s_bc54431df54bf2::t_33732d09ea2ae6 398-400
+docs/reviews/2026-08-23-multiuser-membership-foundation.md
+  s_bc54431df54bf2::t_55a1cbf9c9c24e 3-4,6-8,33-48,55-57,71-75
+packages/contracts/test/membership.test.ts
+  s_bc54431df54bf2::t_06a84d0e3f76f4 82-83
+  s_bc54431df54bf2::t_d89ac5797248ce 7,9-10,12,14,55-74,80-81
+  s_bc54431df54bf2::t_02831051bd34ec 16,75-79
+  s_bc54431df54bf2::t_072787997d6675 98-112
+packages/contracts/src/membership.ts
+  s_bc54431df54bf2::t_3972272d6a2be5 119
+  s_bc54431df54bf2::t_040565b1d90f27 65-76
+  s_bc54431df54bf2::t_fc14d970d23527 31-38,49-64,77-84
+  s_bc54431df54bf2::t_4eb3f20288b0f1 112-118
+README.md
+  s_bc54431df54bf2::t_55a1cbf9c9c24e 7
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_07ff0769f435b7 192
+packages/db/test/audit.integration.test.ts
+  s_bc54431df54bf2::t_110154ee286bb9 531-532
+  s_bc54431df54bf2::t_c389b02e3c766a 110-112,275-277,530
+packages/db/test/roles.isolation.test.ts
+  s_bc54431df54bf2::t_a8cce60ccff009 33-37
+  s_bc54431df54bf2::t_1c62559577c1cd 750
+apps/api/test/auth.test.ts
+  s_bc54431df54bf2::t_e22552c22ab1c9 68,98,118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f255fc5c2e65924d21af47bd7caa1c87f978ca1e",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": null
+    }
+  }
+}
