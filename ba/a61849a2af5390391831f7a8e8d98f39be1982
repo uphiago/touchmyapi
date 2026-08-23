@@ -1,0 +1,33 @@
+docs/superpowers/plans/2026-08-22-t017-audit-chain.md
+  s_bc54431df54bf2::t_6a18b03417582c 17,20,183,252
+packages/db/test/schema.integration.test.ts
+  s_bc54431df54bf2::t_a5838c7f9c6369 398-404
+  s_bc54431df54bf2::t_7a9d21c37240ed 405-406
+packages/db/test/audit.integration.test.ts
+  s_bc54431df54bf2::t_a5838c7f9c6369 193-212,214-232,236,244-245,353-373
+  s_bc54431df54bf2::t_5e3cf6bb70559c 213
+  s_bc54431df54bf2::t_0bba14eb807983 168
+  s_bc54431df54bf2::t_d5064ea4090440 57,233-235,237-243
+  s_bc54431df54bf2::t_8bbb1399e38b48 374
+packages/db/src/audit.ts
+  s_bc54431df54bf2::t_fdd3fd5b3fd162 88,121-136,147,151-153
+docs/superpowers/specs/2026-08-22-audit-chain-design.md
+  s_bc54431df54bf2::t_6a18b03417582c 10-16,19-25
+  s_bc54431df54bf2::t_1dcb66fbcc49de 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "baa61849a2af5390391831f7a8e8d98f39be1982",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
