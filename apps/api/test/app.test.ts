@@ -61,6 +61,27 @@ describe("API boundary", () => {
     expect(disallowed.headers.get("access-control-allow-origin")).toBeNull();
   });
 
+  it("audits auth CORS preflight exactly once", async () => {
+    const records: AuditRecord[] = [];
+    const app = createTestApp({
+      record: async (record) => {
+        records.push(record);
+      },
+    });
+    const response = await app.request("http://localhost/api/v1/auth/future", {
+      method: "OPTIONS",
+      headers: {
+        Origin: config.corsOrigin,
+        "Access-Control-Request-Method": "GET",
+      },
+    });
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe(config.corsOrigin);
+    expect(records).toHaveLength(1);
+    expect(records[0]?.payload).toEqual({ method: "OPTIONS", route: "api.v1" });
+  });
+
   it("audits API requests with a redaction-safe payload", async () => {
     const records: AuditRecord[] = [];
     const app = createTestApp({

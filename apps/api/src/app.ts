@@ -74,6 +74,7 @@ export function createApp(dependencies: ApiDependencies): App {
       origin: dependencies.config.corsOrigin,
     }),
   );
+  api.use("/api/v1/*", auditMiddleware(dependencies));
   api.use(
     "/api/v1/auth/*",
     cors({
@@ -81,7 +82,6 @@ export function createApp(dependencies: ApiDependencies): App {
       credentials: true,
     }),
   );
-  api.use("/api/v1/*", auditMiddleware(dependencies));
 
   api.get("/health", (context) => {
     return context.json(healthResponseSchema.parse({ status: "ok" }));
