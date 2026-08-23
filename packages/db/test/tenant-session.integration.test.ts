@@ -535,6 +535,112 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
     }
   });
 
+  it("denies every large-object function without creating persistent objects", async () => {
+    const largeObjectCalls = [
+      "lo_creat(-1)",
+      "lo_create(0)",
+      "lo_from_bytea(0, decode('01', 'hex'))",
+      "lo_get(0)",
+      "lo_put(0, 0, decode('01', 'hex'))",
+      "lo_open(0, 262144)",
+      "lo_close(0)",
+      "lo_lseek(0, 0, 0)",
+      "lo_tell(0)",
+      "lo_truncate(0, 0)",
+      "lo_truncate64(0, 0)",
+      "loread(0, 1)",
+      "lowrite(0, decode('01', 'hex'))",
+      "lo_unlink(0)",
+      "lo_import('/tmp/tma-large-object')",
+      "lo_export(0, '/tmp/tma-large-object')",
+    ];
+    const [before] = await adminDb`select count(*)::int as count from pg_largeobject_metadata`;
+    for (const call of largeObjectCalls) {
+      await expect(
+        withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+          await tenant.unsafe(`select ${call}`);
+        }),
+      ).rejects.toThrow(/blocked|large object|lo_/i);
+    }
+    const [after] = await adminDb`select count(*)::int as count from pg_largeobject_metadata`;
+    expect(after?.count).toBe(before?.count);
+  });
+
+  it("denies advisory locks, including transaction-scoped and try variants", async () => {
+    for (const call of [
+      "pg_advisory_lock(901016)",
+      "pg_advisory_lock_shared(901016)",
+      "pg_try_advisory_lock(901016)",
+      "pg_try_advisory_lock_shared(901016)",
+      "pg_advisory_xact_lock(901016)",
+      "pg_advisory_xact_lock_shared(901016)",
+      "pg_try_advisory_xact_lock(901016)",
+      "pg_try_advisory_xact_lock_shared(901016)",
+      "pg_advisory_unlock(901016)",
+      "pg_advisory_unlock_shared(901016)",
+      "pg_advisory_unlock_all()",
+    ]) {
+      await expect(
+        withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+          await tenant.unsafe(`select ${call}`);
+        }),
+      ).rejects.toThrow(/blocked|advisory|lock/i);
+    }
+  });
+
+  it('allows a quoted "into" column while continuing to deny SELECT INTO', async () => {
+    await withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+      const [row] = await tenant.unsafe<{ into: string }>(
+        'select id as "into" from public.account',
+      );
+      expect(row?.into).toBe(fixture.accountA);
+    });
+    await expect(
+      withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+        await tenant.unsafe('select id as "into" into temp tma_quoted_into from public.account');
+      }),
+    ).rejects.toThrow(/blocked|SELECT INTO|TEMP/i);
+  });
+
+  it("keeps connector grants made after SET ROLE impotent", async () => {
+    let callbackStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      callbackStarted = resolve;
+    });
+    let allowQuery!: () => void;
+    const continueCallback = new Promise<void>((resolve) => {
+      allowQuery = resolve;
+    });
+    const grant = `grant select on public.account to ${quoteIdentifier(connectorRole)}`;
+    const revoke = `revoke select on public.account from ${quoteIdentifier(connectorRole)}`;
+    const operation = withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
+      callbackStarted();
+      await continueCallback;
+      const [account] = await tenant.unsafe<{ id: string }>("select id from public.account");
+      expect(account?.id).toBe(fixture.accountA);
+    });
+    await started;
+    try {
+      await adminDb.unsafe(grant);
+      allowQuery();
+      await operation;
+    } finally {
+      await adminDb.unsafe(revoke);
+    }
+  });
+
+  it("rejects a runtime-role privilege outside its exact allowlist after SET ROLE", async () => {
+    await adminDb.unsafe("grant trigger on public.account to api_rls");
+    try {
+      await expect(
+        withTenant(db, fixture.accountA, "api_rls", async () => "unreachable"),
+      ).rejects.toThrow(/unexpected.*privilege|switched principal/i);
+    } finally {
+      await adminDb.unsafe("revoke trigger on public.account from api_rls");
+    }
+    await expectCleanBorrowedConnection();
+  });
+
   it("allows data-modifying INSERT CTEs without allowing SELECT INTO", async () => {
     const [before] = await adminDb`
       select count(*)::int as count from public.audit_event where account_id = ${fixture.accountA}
@@ -754,6 +860,8 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant", () => {
 
     await expect(
       withTenant(db, fixture.accountA, "reporting_rls", async (tenant) => {
+        const reportingRole: "reporting_rls" = tenant.role;
+        expect(reportingRole).toBe("reporting_rls");
         await tenant.unsafe("update public.finding set title = 'forbidden' where id = $1", [
           fixture.findingA,
         ]);

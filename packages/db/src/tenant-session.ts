@@ -5,7 +5,8 @@ import type { DbConnection } from "./index";
 export type RuntimeRole = "api_rls" | "worker_rls" | "reporting_rls";
 
 /** The callback receives only the tenant-scoped query surface. */
-export type TenantConnection = {
+export type TenantConnection<R extends RuntimeRole = RuntimeRole> = {
+  readonly role: R;
   unsafe<T extends Record<string, unknown>>(query: string, values?: unknown[]): Promise<T[]>;
 };
 
@@ -41,6 +42,96 @@ const TENANT_TABLES = [
   "notification",
 ] as const;
 
+const API_INSERT_TABLES = [
+  "assessment",
+  "authorization_attestation",
+  "verification",
+  "credential",
+  "audit_event",
+  "agent",
+] as const;
+const API_SELECT_TABLES = [
+  "account",
+  "user",
+  "assessment",
+  "authorization_attestation",
+  "verification",
+  "playbook",
+  "credential",
+  "finding",
+  "report",
+  "credit_entry",
+  "entitlement",
+  "agent",
+  "audit_event",
+  "notification",
+] as const;
+const API_UPDATE_TABLES = [
+  "account",
+  "assessment",
+  "verification",
+  "credential",
+  "agent",
+  "notification",
+] as const;
+const API_DELETE_TABLES = ["credential", "agent"] as const;
+const WORKER_INSERT_TABLES = [
+  "job",
+  "runner_execution",
+  "finding",
+  "report",
+  "audit_event",
+  "notification",
+] as const;
+const WORKER_SELECT_TABLES = [
+  "account",
+  "user",
+  "assessment",
+  "authorization_attestation",
+  "verification",
+  "playbook",
+  "job",
+  "runner_execution",
+  "credential",
+  "finding",
+  "report",
+  "credit_entry",
+  "billing_event",
+  "entitlement",
+  "agent",
+  "audit_event",
+  "notification",
+] as const;
+const WORKER_UPDATE_TABLES = [
+  "assessment",
+  "verification",
+  "job",
+  "runner_execution",
+  "finding",
+  "report",
+  "agent",
+  "notification",
+] as const;
+const WORKER_DELETE_TABLES = ["job", "runner_execution", "credential"] as const;
+const REPORTING_SELECT_TABLES = [
+  "account",
+  "user",
+  "assessment",
+  "authorization_attestation",
+  "verification",
+  "playbook",
+  "job",
+  "runner_execution",
+  "finding",
+  "report",
+  "credit_entry",
+  "billing_event",
+  "entitlement",
+  "agent",
+  "audit_event",
+  "notification",
+] as const;
+
 const FORBIDDEN_TOKENS = new Set([
   "alter",
   "analyze",
@@ -62,6 +153,8 @@ const FORBIDDEN_TOKENS = new Set([
   "lo_export",
   "lo_import",
   "lo_unlink",
+  "loread",
+  "lowrite",
   "listen",
   "lock",
   "notify",
@@ -100,16 +193,6 @@ const FORBIDDEN_TOKENS = new Set([
 
 const ALLOWED_ROOT_TOKENS = new Set(["select", "insert", "update", "delete"]);
 const tenantContext = new AsyncLocalStorage<DbConnection>();
-
-const SESSION_ADVISORY_FUNCTIONS = new Set([
-  "pg_advisory_lock",
-  "pg_advisory_lock_shared",
-  "pg_advisory_unlock",
-  "pg_advisory_unlock_all",
-  "pg_advisory_unlock_shared",
-  "pg_try_advisory_lock",
-  "pg_try_advisory_lock_shared",
-]);
 
 const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -249,12 +332,12 @@ function validateTenantQuery(query: string): void {
   for (const token of positionedTokens) {
     if (
       token.kind === "word" &&
-      (FORBIDDEN_TOKENS.has(token.value) || token.value.startsWith("pg_temp_"))
+      (FORBIDDEN_TOKENS.has(token.value) ||
+        token.value.startsWith("pg_temp_") ||
+        token.value.startsWith("lo_") ||
+        /^pg_.*advisory.*lock/.test(token.value))
     ) {
       rejectTenantQuery(`forbidden token ${token.value}`);
-    }
-    if (token.kind === "word" && SESSION_ADVISORY_FUNCTIONS.has(token.value)) {
-      rejectTenantQuery(`session-persistent function ${token.value} is not allowed`);
     }
   }
 
@@ -281,7 +364,7 @@ function validateTenantQuery(query: string): void {
     if (token.kind === "word" && !token.quoted && ALLOWED_ROOT_TOKENS.has(token.value)) {
       commandAtDepth.set(token.depth, token.value);
     }
-    if (token.kind === "word" && token.value === "into") {
+    if (token.kind === "word" && !token.quoted && token.value === "into") {
       if (commandAtDepth.get(token.depth) !== "insert") {
         rejectTenantQuery("SELECT INTO or nested INTO is not allowed");
       }
@@ -309,7 +392,15 @@ type PrincipalRow = {
   unsafe_membership: boolean;
 };
 
-async function assertSafePrincipal(connection: DbConnection, roleName: string): Promise<number> {
+type PrincipalIdentity = {
+  backendPid: number;
+  sessionPrincipal: string;
+};
+
+async function assertSafePrincipal(
+  connection: DbConnection,
+  roleName: string,
+): Promise<PrincipalIdentity> {
   // Production deploys must provision a dedicated login connector with
   // NOINHERIT/NOSUPERUSER/NOBYPASSRLS and only the runtime memberships it
   // needs. The raw migration owner must never be used by application code.
@@ -446,7 +537,185 @@ async function assertSafePrincipal(connection: DbConnection, roleName: string): 
   if (unsafeReasons.length > 0) {
     throw new Error(`tenant connection principal rejected: ${unsafeReasons.join(", ")}`);
   }
-  return principal.backend_pid;
+  return {
+    backendPid: Number(principal.backend_pid),
+    sessionPrincipal: principal.session_principal,
+  };
+}
+
+type SwitchedPrincipalRow = {
+  principal: string;
+  session_principal: string;
+  backend_pid: number;
+  is_superuser: boolean;
+  bypasses_rls: boolean;
+  inherits_roles: boolean;
+  can_create_db: boolean;
+  can_create_role: boolean;
+  can_replicate: boolean;
+  database_owner: boolean;
+  table_owner: boolean;
+  unsafe_membership: boolean;
+  unexpected_table_access: boolean;
+  unexpected_function_access: boolean;
+};
+
+async function assertSwitchedPrincipal(
+  connection: DbConnection,
+  roleName: RuntimeRole,
+  expectedSessionPrincipal: string,
+  expectedBackendPid: number,
+): Promise<void> {
+  const rows = await connection`
+    with recursive reachable_roles(oid, set_allowed) as (
+      select m.roleid, m.set_option
+      from pg_auth_members m
+      join pg_roles member_role on member_role.oid = m.member
+      where member_role.rolname = current_user
+      union
+      select m.roleid, rr.set_allowed and m.set_option
+      from pg_auth_members m
+      join reachable_roles rr on rr.oid = m.member
+    )
+    select
+      current_user::text as principal,
+      session_user::text as session_principal,
+      pg_backend_pid() as backend_pid,
+      r.rolsuper as is_superuser,
+      r.rolbypassrls as bypasses_rls,
+      r.rolinherit as inherits_roles,
+      r.rolcreatedb as can_create_db,
+      r.rolcreaterole as can_create_role,
+      r.rolreplication as can_replicate,
+      exists (
+        select 1 from pg_database d
+        where d.datname = current_database() and d.datdba = r.oid
+      ) as database_owner,
+      exists (
+        select 1 from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm') and c.relowner = r.oid
+      ) as table_owner,
+      exists (
+        select 1
+        from reachable_roles rr
+        join pg_roles reachable on reachable.oid = rr.oid
+        where not rr.set_allowed
+           or reachable.rolname <> all(${Object.values(RUNTIME_ROLE_NAMES)}::text[])
+           or reachable.rolsuper
+           or reachable.rolbypassrls
+           or reachable.rolcreatedb
+           or reachable.rolcreaterole
+           or reachable.rolreplication
+           or exists (
+             select 1 from pg_database d
+             where d.datname = current_database() and d.datdba = reachable.oid
+           )
+           or exists (
+             select 1 from pg_class c
+             join pg_namespace n on n.oid = c.relnamespace
+             where n.nspname = 'public'
+               and c.relkind in ('r', 'p', 'v', 'm')
+               and c.relowner = reachable.oid
+           )
+           or exists (
+             select 1 from pg_proc p
+             join pg_namespace n on n.oid = p.pronamespace
+             where n.nspname not in ('pg_catalog', 'information_schema') and p.proowner = reachable.oid
+           )
+           or exists (
+             select 1
+             from pg_proc p
+             join pg_namespace n on n.oid = p.pronamespace
+             cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+             where n.nspname not in ('pg_catalog', 'information_schema')
+               and acl.grantee = reachable.oid
+               and acl.privilege_type = 'EXECUTE'
+               and p.prosecdef
+           )
+      ) as unsafe_membership,
+      exists (
+        select 1
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+        cross join lateral aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl
+        where n.nspname = 'public'
+          and acl.grantee = r.oid
+          and (
+            (r.rolname = 'api_rls' and (
+              (acl.privilege_type = 'SELECT' and c.relname <> all(${API_SELECT_TABLES}::text[]))
+              or (acl.privilege_type = 'INSERT' and c.relname <> all(${API_INSERT_TABLES}::text[]))
+              or (acl.privilege_type = 'UPDATE' and c.relname <> all(${API_UPDATE_TABLES}::text[]))
+              or (acl.privilege_type = 'DELETE' and c.relname <> all(${API_DELETE_TABLES}::text[]))
+              or acl.privilege_type not in ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
+            ))
+            or (r.rolname = 'worker_rls' and (
+              (acl.privilege_type = 'SELECT' and c.relname <> all(${WORKER_SELECT_TABLES}::text[]))
+              or (acl.privilege_type = 'INSERT' and c.relname <> all(${WORKER_INSERT_TABLES}::text[]))
+              or (acl.privilege_type = 'UPDATE' and c.relname <> all(${WORKER_UPDATE_TABLES}::text[]))
+              or (acl.privilege_type = 'DELETE' and c.relname <> all(${WORKER_DELETE_TABLES}::text[]))
+              or acl.privilege_type not in ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
+            ))
+            or (r.rolname = 'reporting_rls' and (
+              acl.privilege_type <> 'SELECT'
+              or c.relname <> all(${REPORTING_SELECT_TABLES}::text[])
+            ))
+          )
+      ) as unexpected_table_access,
+      exists (
+        select 1
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+        where n.nspname not in ('pg_catalog', 'information_schema')
+          and acl.grantee = r.oid
+          and acl.privilege_type = 'EXECUTE'
+          and not (
+            n.nspname = 'public'
+            and (
+              (
+                p.proname = 'rls_tenant_matches'
+                and oidvectortypes(p.proargtypes) = 'uuid'
+                and not p.prosecdef
+              )
+              or (
+                p.proname = 'rls_bootstrap_context'
+                and oidvectortypes(p.proargtypes) = ''
+                and not p.prosecdef
+              )
+            )
+          )
+      ) as unexpected_function_access
+    from pg_roles r
+    where r.rolname = current_user
+  `;
+  const principal = rows[0] as SwitchedPrincipalRow | undefined;
+  if (!principal) throw new Error("tenant switched principal could not be inspected");
+  const unsafeReasons: string[] = [];
+  if (principal.principal !== roleName) unsafeReasons.push(`current role is not ${roleName}`);
+  if (principal.session_principal !== expectedSessionPrincipal) {
+    unsafeReasons.push("session principal changed");
+  }
+  if (Number(principal.backend_pid) !== expectedBackendPid) {
+    unsafeReasons.push("tenant transaction backend changed");
+  }
+  if (principal.is_superuser) unsafeReasons.push("switched role is superuser");
+  if (principal.bypasses_rls) unsafeReasons.push("switched role has BYPASSRLS");
+  if (principal.inherits_roles) unsafeReasons.push("switched role inherits memberships");
+  if (principal.can_create_db || principal.can_create_role || principal.can_replicate) {
+    unsafeReasons.push("switched role has elevated capabilities");
+  }
+  if (principal.database_owner) unsafeReasons.push("switched role owns database");
+  if (principal.table_owner) unsafeReasons.push("switched role owns public table");
+  if (principal.unsafe_membership) unsafeReasons.push("switched role has unsafe memberships");
+  if (principal.unexpected_table_access)
+    unsafeReasons.push("switched role has unexpected table privileges");
+  if (principal.unexpected_function_access) {
+    unsafeReasons.push("switched role has unexpected function EXECUTE");
+  }
+  if (unsafeReasons.length > 0) {
+    throw new Error(`tenant switched principal rejected: ${unsafeReasons.join(", ")}`);
+  }
 }
 
 async function abortTransaction(transaction: { unsafe: DbConnection["unsafe"] }): Promise<never> {
@@ -465,15 +734,15 @@ async function abortTransaction(transaction: { unsafe: DbConnection["unsafe"] })
  * borrowed connection only after commit or rollback. The callback cannot retain
  * a usable query surface after the transaction has ended.
  */
-export async function withTenant<T>(
+export async function withTenant<T, R extends RuntimeRole = RuntimeRole>(
   connection: DbConnection,
   accountId: string,
-  role: RuntimeRole,
-  callback: (db: TenantConnection) => Promise<T>,
+  role: R,
+  callback: (db: TenantConnection<R>) => Promise<T>,
 ): Promise<T> {
   const tenantId = canonicalAccountId(accountId);
   const selectedRole = roleSql(role);
-  const selectedRoleName = RUNTIME_ROLE_NAMES[role as RuntimeRole];
+  const selectedRoleName = RUNTIME_ROLE_NAMES[role];
   if (typeof callback !== "function") {
     throw new TypeError("callback must be a function");
   }
@@ -482,30 +751,33 @@ export async function withTenant<T>(
   }
   const reserved = await connection.reserve();
   try {
-    const preflightBackendPid = await assertSafePrincipal(reserved, selectedRoleName);
     const result = await tenantContext.run(connection, async () => {
       let transactionStarted = false;
       try {
+        // BEGIN must precede connector inspection: both preflight and SET ROLE
+        // revalidation then share one reserved backend and one atomic boundary.
         await reserved.unsafe("begin");
         transactionStarted = true;
-        const [transactionState] = await reserved.unsafe<Array<{ backend_pid: number }>>(
-          "select pg_backend_pid() as backend_pid",
-        );
-        if (Number(transactionState?.backend_pid) !== preflightBackendPid) {
-          throw new Error("tenant preflight and transaction used different backends");
-        }
         await reserved.unsafe("set local statement_timeout = '5s'");
         await reserved.unsafe("set local lock_timeout = '1s'");
         await reserved.unsafe("set local idle_in_transaction_session_timeout = '30s'");
         await reserved.unsafe("set local search_path = pg_catalog, public, pg_temp");
+        const connectorIdentity = await assertSafePrincipal(reserved, selectedRoleName);
         await reserved.unsafe("select set_config('app.tenant', $1, true)", [tenantId]);
         await reserved.unsafe(`set local role ${selectedRole}`);
+        await assertSwitchedPrincipal(
+          reserved,
+          role,
+          connectorIdentity.sessionPrincipal,
+          connectorIdentity.backendPid,
+        );
 
         let callbackCompleted = false;
         let active = true;
         let result!: T;
         try {
           result = await callback({
+            role,
             unsafe: async <Row extends Record<string, unknown>>(
               query: string,
               values?: unknown[],
