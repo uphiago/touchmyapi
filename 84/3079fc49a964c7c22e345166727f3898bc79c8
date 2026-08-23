@@ -1,0 +1,27 @@
+docs/reviews/2026-08-23-multiuser-membership-foundation.md
+  s_bc54431df54bf2::t_7216b771631dd7 1-58
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_c6da4ff08b0804 187-191
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_ba7cdfb5af9d35 3,22,26,123
+README.md
+  s_bc54431df54bf2::t_7e4b721155ad03 7,13
+docs/superpowers/plans/2026-08-23-phase2a-membership.md
+  s_bc54431df54bf2::t_6db33124e2c24c 66,70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "843079fc49a964c7c22e345166727f3898bc79c8",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
