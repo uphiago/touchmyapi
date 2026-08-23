@@ -1,0 +1,62 @@
+packages/db/src/index.ts
+  s_bc54431df54bf2::t_735a012e92a821 20
+apps/worker-control/src/outbox-dispatcher.ts
+  s_bc54431df54bf2::t_38aea71c3398c1 1-12
+apps/worker-control/src/reconciler.ts
+  s_bc54431df54bf2::t_6c8978021f0b56 1
+  s_bc54431df54bf2::t_2a59713a3c5b37 2,5,7-11
+  s_bc54431df54bf2::t_ec5721011c8b23 3-4,6
+apps/worker-control/test/fair-scheduler.test.ts
+  s_bc54431df54bf2::t_2a59713a3c5b37 1-33
+packages/db/src/queue.ts
+  s_bc54431df54bf2::t_c8a11bb0eb5882 21-33
+packages/db/src/queue-control.ts
+  s_bc54431df54bf2::t_a6a9ad31ed0052 214-225
+  s_bc54431df54bf2::t_c7f0499a31ba79 226-227
+packages/db/test/queue-fairness.integration.test.ts
+  s_bc54431df54bf2::t_2a59713a3c5b37 1-11,13-75,79-88
+  s_bc54431df54bf2::t_ee80a9172e11f4 12,76-78
+docs/superpowers/plans/2026-08-22-multiuser-queue-admin.md
+  s_bc54431df54bf2::t_1e3e79fac26dbd 231-236
+  s_bc54431df54bf2::t_12caf27144a3a0 194-196
+  s_bc54431df54bf2::t_8a7ed9171ff216 183-185
+  s_bc54431df54bf2::t_63658e7c434543 200-203,215-217
+  s_bc54431df54bf2::t_9804ea7e0ab794 171
+  s_bc54431df54bf2::t_9e67ce907f1bb9 218
+packages/db/migrations/0018_queue_schema.sql
+  s_bc54431df54bf2::t_d80fcf61ec865a 552-556
+  s_bc54431df54bf2::t_e7ec8186ea389c 972,974,997-1011,1013,1015
+  s_bc54431df54bf2::t_a3630588d8643f 960-971,973,975-996,1012,1014,1016-1031
+packages/db/test/queue-schema.integration.test.ts
+  s_bc54431df54bf2::t_c01dfff0b9239b 104-111
+docs/reviews/2026-08-23-queue-schema.md
+  s_bc54431df54bf2::t_734b036a67fe61 3-7,26-39,43-44,49-53,56-60,64-65
+apps/worker-control/src/reaper.ts
+  s_bc54431df54bf2::t_38aea71c3398c1 1-11
+apps/worker-control/src/fair-scheduler.ts
+  s_bc54431df54bf2::t_2a59713a3c5b37 1-41
+  s_bc54431df54bf2::t_8602061bb74fb3 42-43
+apps/worker-control/src/scheduler.ts
+  s_bc54431df54bf2::t_38aea71c3398c1 1-12
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_d47d1b5acc5bbc 201-206
+packages/db/test/queue-reconcile.integration.test.ts
+  s_bc54431df54bf2::t_a787265a49420d 1-57
+  s_bc54431df54bf2::t_f0a0ae78a55675 58-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "40751ae4daf6d75e34b082b086d601c702946000",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
