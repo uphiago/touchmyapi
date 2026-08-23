@@ -1,0 +1,21 @@
+docs/superpowers/specs/2026-08-23-ovh-deployment-design.md
+  s_bc54431df54bf2::t_e35686d8dfa9f8 1-123
+docs/superpowers/specs/2026-08-23-user-admin-console-design.md
+  s_bc54431df54bf2::t_8f4f34d917c01d 1-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "8422b1a836727fd7adc16f7a833c25a574902639",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
