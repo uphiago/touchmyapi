@@ -21,6 +21,6 @@ The foundation gates are complete: pure default-deny policy, PostgreSQL schema/R
 
 ## Final checks
 
-Unit 248/248, contract 29/29, focused auth 8/8, typecheck, lint, format, workspace verification, web build, and diff checks passed. Database suites are explicitly opt-in and were not counted when skipped in the current shell; their prior PostgreSQL 16 `_test` evidence remains recorded in the foundation checkpoint and T016/T017 reviews. The e2e test remains a documented pending placeholder.
+Unit 248/248, contract 29/29, focused auth 8/8, integration 56/56, isolation 22/22, typecheck, lint, format, workspace verification, web build, Compose config, and diff checks passed. Integration/isolation were run sequentially against a freshly migrated PostgreSQL 16 database named `touchmyapi_phase2_final_test`; the older shared `_test` database was intentionally not used because it contained prior fixtures. The e2e test remains a documented pending placeholder. A frozen install was not rerun under the available Bun 1.3 binary because the repository lockfile is Bun 1.4 format; no lockfile change was made.
 
 This acceptance unlocks the documented Phase 2A dependency order only: membership first, then queue/outbox, then admin. It does not unlock assessment execution by itself.
