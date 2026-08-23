@@ -3,6 +3,7 @@ import {
   accountListResponseSchema,
   accountSwitchSchema,
   invitationAcceptSchema,
+  type MembershipStatus,
 } from "@touchmyapi/contracts";
 import type { Context, Hono } from "hono";
 import type { ApiRequestEnv } from "./request-id";
@@ -45,6 +46,7 @@ export type AuthSession = Readonly<{
   accountId: string;
   email: string;
   role: string;
+  membershipStatus: MembershipStatus;
   plan: string;
   iaEnabled: boolean;
 }>;
@@ -264,7 +266,7 @@ function readCookie(request: Request, name: string): string | undefined {
   return undefined;
 }
 
-function readSessionToken(request: Request, name: string): string | undefined {
+export function readSessionToken(request: Request, name: string): string | undefined {
   const token = readCookie(request, name);
   if (token === undefined) return undefined;
   return /^[A-Za-z0-9_-]{43}$/u.test(token) ? token : undefined;
@@ -298,7 +300,7 @@ export function registerAuthRoutes(
 ): void {
   const secure = !(auth.allowInsecureCookies === true && environment === "development");
   const oauthCookieName = secure ? OAUTH_COOKIE : "tma-oauth";
-  const sessionCookieName = secure ? SESSION_COOKIE : "tma-session";
+  const sessionCookieName = sessionCookieNameFor(environment, auth.allowInsecureCookies);
   api.get("/api/v1/auth/login", async (context) => {
     if ((context.req.query("provider") ?? "google") !== "google") {
       throw new ApiError(400, "unsupported_provider", "Unsupported provider");
@@ -519,5 +521,14 @@ async function hashInvitationBody(token: string): Promise<string> {
 }
 
 export const mountAuthRoutes = registerAuthRoutes;
+
+export function sessionCookieNameFor(
+  environment: ApiEnvironment,
+  allowInsecureCookies?: boolean,
+): string {
+  return allowInsecureCookies === true && environment === "development"
+    ? "tma-session"
+    : SESSION_COOKIE;
+}
 
 export { OAUTH_COOKIE, SESSION_COOKIE };

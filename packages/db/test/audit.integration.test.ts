@@ -107,6 +107,9 @@ describeDb("closed audit append capabilities", () => {
         await tx.unsafe("delete from public.session where account_id = $1::uuid", [
           fixture.accountId,
         ]);
+        await tx.unsafe("delete from public.account_membership where account_id = $1::uuid", [
+          fixture.accountId,
+        ]);
         await tx.unsafe('delete from public."user" where account_id = $1::uuid', [
           fixture.accountId,
         ]);
@@ -267,6 +270,9 @@ describeDb("closed audit append capabilities", () => {
         login.account_id,
       ]);
       await owner.unsafe("delete from public.session where account_id = $1::uuid", [
+        login.account_id,
+      ]);
+      await owner.unsafe("delete from public.account_membership where account_id = $1::uuid", [
         login.account_id,
       ]);
       await owner.unsafe('delete from public."user" where account_id = $1::uuid', [
@@ -519,6 +525,9 @@ describeDb("closed audit append capabilities", () => {
         other.account_id,
       ]);
       await owner.unsafe("delete from public.session where account_id = $1::uuid", [
+        other.account_id,
+      ]);
+      await owner.unsafe("delete from public.account_membership where account_id = $1::uuid", [
         other.account_id,
       ]);
       await owner.unsafe('delete from public."user" where account_id = $1::uuid', [

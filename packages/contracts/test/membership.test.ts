@@ -4,10 +4,16 @@ import {
   accountSwitchSchema,
   invitationAcceptSchema,
   invitationCreateSchema,
+  invitationCreateResponseSchema,
   membershipErrorCodeSchema,
+  membershipListResponseSchema,
+  membershipMutationResponseSchema,
   membershipRoleSchema,
+  membershipRoleUpdateSchema,
   membershipSchema,
+  membershipStatusUpdateSchema,
   membershipStatusSchema,
+  membershipUpdateSchema,
 } from "../src/membership";
 
 const accountId = "00000000-0000-4000-8000-000000000001";
@@ -46,6 +52,35 @@ describe("membership contracts", () => {
     expect(() => membershipSchema.parse({ ...membership, accountId: "not-a-uuid" })).toThrow();
   });
 
+  it("keeps lifecycle request and response shapes strict", () => {
+    const membership = membershipSchema.parse({
+      id: membershipId,
+      accountId,
+      userId,
+      role: "owner",
+      status: "active",
+      createdAt,
+      updatedAt: createdAt,
+      removedAt: null,
+      invitedByUserId: null,
+    });
+    expect(membershipListResponseSchema.parse({ memberships: [membership] })).toEqual({
+      memberships: [membership],
+    });
+    expect(membershipMutationResponseSchema.parse({ membership })).toEqual({ membership });
+    expect(membershipRoleUpdateSchema.parse({ role: "admin" })).toEqual({ role: "admin" });
+    expect(membershipStatusUpdateSchema.parse({ status: "suspended" })).toEqual({
+      status: "suspended",
+    });
+    expect(membershipUpdateSchema.parse({ role: "admin", status: "active" })).toEqual({
+      role: "admin",
+      status: "active",
+    });
+    expect(() => membershipUpdateSchema.parse({})).toThrow();
+    expect(() => membershipRoleUpdateSchema.parse({ role: "owner", status: "active" })).toThrow();
+    expect(() => membershipStatusUpdateSchema.parse({ status: "removed", extra: true })).toThrow();
+  });
+
   it("keeps invitation creation account-bound and strict", () => {
     const invitation = invitationCreateSchema.parse({
       email: "person@example.test",
@@ -60,6 +95,21 @@ describe("membership contracts", () => {
     expect(() => invitationCreateSchema.parse({ ...invitation, accountId })).toThrow();
     expect(() => invitationCreateSchema.parse({ ...invitation, role: "member" })).toThrow();
     expect(() => invitationCreateSchema.parse({ ...invitation, email: "not-an-email" })).toThrow();
+    const record = {
+      id: membershipId,
+      accountId,
+      email: invitation.email,
+      proposedRole: invitation.role,
+      status: "pending" as const,
+      expiresAt: invitation.expiresAt,
+      acceptedAt: null,
+      createdAt,
+      invitedByUserId: userId,
+      acceptedByUserId: null,
+    };
+    expect(invitationCreateResponseSchema.parse({ invitation: record })).toEqual({
+      invitation: record,
+    });
   });
 
   it("accepts only a redaction-bound bearer token body", () => {

@@ -120,6 +120,10 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant closed capability boundary", () => {
               fixture.accountA,
               fixture.accountB,
             ]);
+            await tx.unsafe("delete from public.account_membership where account_id in ($1, $2)", [
+              fixture.accountA,
+              fixture.accountB,
+            ]);
             await tx.unsafe('delete from public."user" where account_id in ($1, $2)', [
               fixture.accountA,
               fixture.accountB,

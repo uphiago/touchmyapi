@@ -30,6 +30,11 @@ const AUTH_FUNCTIONS = [
   ["auth_resolve_session", "text"],
   ["auth_rotate_session", "text,text,timestamp with time zone"],
   ["auth_revoke_session", "text"],
+  ["auth_list_accounts", "text"],
+  ["auth_switch_account", "text,uuid,text,timestamp with time zone"],
+  ["auth_create_invitation", "text,uuid,citext,membership_role,text,timestamp with time zone"],
+  ["auth_accept_invitation", "text,text,text,timestamp with time zone"],
+  ["auth_update_membership", "text,uuid,uuid,membership_role,membership_status"],
 ] as const;
 const RUNTIME_ROLES = ["api_rls", "worker_rls", "reporting_rls"] as const;
 const PRIVILEGES = ["select", "insert", "update", "delete"] as const;
@@ -742,6 +747,7 @@ describeDb("PostgreSQL least-privilege roles", () => {
           await tx.unsafe("reset role");
           await tx`delete from public.session where account_id = ${cleanupAccountId}`;
           await tx`delete from public.audit_event where account_id = ${cleanupAccountId}`;
+          await tx`delete from public.account_membership where account_id = ${cleanupAccountId}`;
           await tx`delete from public."user" where account_id = ${cleanupAccountId}`;
           await tx`delete from public.account where id = ${cleanupAccountId}`;
         });

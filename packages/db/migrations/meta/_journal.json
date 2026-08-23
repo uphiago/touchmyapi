@@ -113,6 +113,13 @@
       "when": 1787508053403,
       "tag": "0015_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1787509000000,
+      "tag": "0016_membership_lifecycle",
+      "breakpoints": true
     }
   ]
 }

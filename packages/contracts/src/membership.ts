@@ -28,6 +28,14 @@ export const membershipSchema = z
 
 export type Membership = z.infer<typeof membershipSchema>;
 
+export const membershipListResponseSchema = z
+  .object({
+    memberships: z.array(membershipSchema).max(1000),
+  })
+  .strict();
+
+export type MembershipListResponse = z.infer<typeof membershipListResponseSchema>;
+
 export const invitationCreateSchema = z
   .object({
     email: emailSchema,
@@ -37,6 +45,42 @@ export const invitationCreateSchema = z
   .strict();
 
 export type InvitationCreate = z.infer<typeof invitationCreateSchema>;
+
+export const membershipRoleUpdateSchema = z
+  .object({
+    role: membershipRoleSchema,
+  })
+  .strict();
+
+export type MembershipRoleUpdate = z.infer<typeof membershipRoleUpdateSchema>;
+
+export const membershipStatusUpdateSchema = z
+  .object({
+    status: membershipStatusSchema,
+  })
+  .strict();
+
+export type MembershipStatusUpdate = z.infer<typeof membershipStatusUpdateSchema>;
+
+export const membershipUpdateSchema = z
+  .object({
+    role: membershipRoleSchema.optional(),
+    status: membershipStatusSchema.optional(),
+  })
+  .strict()
+  .refine((value) => value.role !== undefined || value.status !== undefined, {
+    message: "role or status is required",
+  });
+
+export type MembershipUpdate = z.infer<typeof membershipUpdateSchema>;
+
+export const membershipMutationResponseSchema = z
+  .object({
+    membership: membershipSchema,
+  })
+  .strict();
+
+export type MembershipMutationResponse = z.infer<typeof membershipMutationResponseSchema>;
 
 /** The raw bearer token is accepted only in this explicit JSON body. */
 export const invitationAcceptSchema = z
@@ -64,6 +108,14 @@ export const invitationSchema = z
   .strict();
 
 export type Invitation = z.infer<typeof invitationSchema>;
+
+export const invitationCreateResponseSchema = z
+  .object({
+    invitation: invitationSchema,
+  })
+  .strict();
+
+export type InvitationCreateResponse = z.infer<typeof invitationCreateResponseSchema>;
 
 export const accountSummarySchema = z
   .object({

@@ -73,13 +73,23 @@ The provider boundary remains Google-only per the approved spec. Provider config
 
 ## Task 6 — T076 membership lifecycle API
 
-**Files:** create `apps/api/src/routes/memberships.ts`, `apps/api/src/routes/account.ts`, `apps/api/test/memberships-api.test.ts`; modify policy engine and future assessment route seams only where the existing code has those modules.
+**Files:** create `apps/api/src/memberships.ts`, `apps/api/test/memberships.test.ts`, `packages/db/migrations/0016_membership_lifecycle.sql`; modify `apps/api/src/app.ts`, `apps/api/src/auth.ts`, and membership contracts/tests.
 
 - [ ] Write RED tests for list/invite/accept/role/status/remove/switch, membership-required errors, path-account mismatch, suspended membership, active role capabilities, and last-owner transactional protection.
 - [ ] Run `bun run test:unit -- memberships-api`; verify failure before implementation.
 - [ ] Mount routes behind the existing API audit/CORS/error boundary. Resolve the active account only from the server session, require active membership and policy capability, audit mutations, and reject URL account IDs that differ from `session.account_id`. Support multiple owners and deny only the last active-owner removal/demotion. Account deletion must revoke sessions/agents and retain audit history.
 - [ ] Run focused API tests, full unit tests, typecheck, and web build if route contracts change.
 - [ ] Commit `api: enforce membership lifecycle`.
+
+**Current checkpoint:** the API boundary slice is implemented and tested. It
+uses canonical list/invite/patch/remove routes, validates the session account
+and active membership, rejects suspended sessions, protects owner transitions,
+and passes redacted audit metadata plus a one-time delivery token into an
+atomic store/outbox boundary. The PostgreSQL functions now append invitation
+creation, invitation acceptance, and membership mutations to the locked audit
+chain; removal revokes target sessions in the same transaction. A production
+store adapter, account deletion workflow, and browser UI remain part of T076–
+T080 and are intentionally not marked complete yet.
 
 ## Task 7 — T077 membership RLS and session/attestation composite references
 

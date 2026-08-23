@@ -65,6 +65,7 @@ function createAuthFixture(
         accountId: "account-1",
         email: input.email,
         role: "owner",
+        membershipStatus: "active",
         plan: "free_unverified",
         iaEnabled: true,
       };
@@ -94,6 +95,7 @@ function createAuthFixture(
         accountId: "account-2",
         email: "user@example.test",
         role: "viewer",
+        membershipStatus: "active",
         plan: "free_unverified",
         iaEnabled: true,
       };
@@ -113,6 +115,7 @@ function createAuthFixture(
       accountId: "account-2",
       email: "user@example.test",
       role: "viewer",
+      membershipStatus: "active",
       plan: "free_unverified",
       iaEnabled: true,
     }),

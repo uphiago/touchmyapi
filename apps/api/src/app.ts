@@ -5,6 +5,7 @@ import { loadConfig, type ApiConfig } from "./config";
 import { ApiError, errorEnvelope } from "./error";
 import { getRequestId, requestIdMiddleware, type ApiRequestEnv } from "./request-id";
 import { mountAuthRoutes, type AuthDependencies } from "./auth";
+import { registerMembershipRoutes, type MembershipDependencies } from "./memberships";
 
 export type AuditRecord = Readonly<{
   action: "request";
@@ -25,6 +26,7 @@ export type ApiDependencies = Readonly<{
   logger: ApiLogger;
   auditSink: AuditSink;
   auth?: AuthDependencies;
+  membership?: MembershipDependencies;
 }>;
 
 type App = Hono<ApiRequestEnv>;
@@ -101,6 +103,9 @@ export function createApp(dependencies: ApiDependencies): App {
   api.use("/api/v1/accounts/*", accountCors);
   if (dependencies.auth) {
     mountAuthRoutes(api, dependencies.auth, dependencies.config.environment);
+    if (dependencies.membership) {
+      registerMembershipRoutes(api, dependencies.membership, dependencies.config.environment);
+    }
   } else {
     api.all("/api/v1/auth/*", () => {
       throw new ApiError(503, "auth_unavailable", "Service Unavailable");

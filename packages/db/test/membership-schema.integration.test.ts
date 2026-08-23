@@ -280,6 +280,12 @@ describeDb("Phase 2A membership schema", () => {
     const inviterSessionHash = "9".repeat(64);
     const tokenHash = "1".repeat(64);
     await db.begin(async (transaction) => {
+      await transaction`delete from public.audit_event where account_id = ${accountB}`;
+      await transaction`
+        insert into public.audit_account_state (account_id)
+        values (${accountB})
+        on conflict (account_id) do nothing
+      `;
       await transaction`delete from public.session where user_id in (${inviter}, ${recipient})`;
       await transaction`
         update account_membership
@@ -329,6 +335,19 @@ describeDb("Phase 2A membership schema", () => {
       from account_invitation where token_hash = ${tokenHash}
     `;
     expect(invitation).toEqual({ status: "accepted", accepted_by_user_id: recipient });
+    const auditChain = await db`
+      select id, action, payload_json->>'event' as event, prev_event_id, chain_seq
+      from public.audit_event
+      where account_id = ${accountB}
+      order by chain_seq asc
+    `;
+    expect(auditChain.map((event) => event.event)).toEqual([
+      "invitation_created",
+      "invitation_accepted",
+    ]);
+    expect(auditChain[1]?.prev_event_id).toBeTruthy();
+    expect(auditChain[1]?.prev_event_id).toBe(auditChain[0]?.id);
+    expect(Number(auditChain[1]?.chain_seq)).toBe(Number(auditChain[0]?.chain_seq) + 1);
     const [membership] = await db`
       select role, status from account_membership
       where account_id = ${accountB} and user_id = ${recipient}
@@ -361,5 +380,64 @@ describeDb("Phase 2A membership schema", () => {
         ${replacementHash}, ${"2".repeat(64)}, ${"3".repeat(64)}, now() + interval '1 day'
       )`,
     ).toEqual([]);
+  });
+
+  it("revokes removed-user sessions and rejects them at session resolution", async () => {
+    const accountId = "00000000-0000-4000-8000-000000000103";
+    const legacyTargetAccountId = "00000000-0000-4000-8000-000000000104";
+    const actorId = "00000000-0000-4000-8000-000000000203";
+    const targetId = "00000000-0000-4000-8000-000000000204";
+    const actorHash = "6".repeat(64);
+    const targetHash = "7".repeat(64);
+    await db
+      .begin(async (transaction) => {
+        await transaction`
+          insert into public.account (id) values (${accountId}), (${legacyTargetAccountId})
+        `;
+        await transaction`
+          insert into public.audit_account_state (account_id) values (${accountId}), (${legacyTargetAccountId})
+        `;
+        await transaction`
+          insert into public."user" (id, account_id, provider, provider_subject, email)
+          values
+            (${actorId}, ${accountId}, 'google', 'membership-lifecycle-actor', 'actor@example.test'),
+            (${targetId}, ${legacyTargetAccountId}, 'google', 'membership-lifecycle-target', 'target@example.test')
+        `;
+        await transaction`
+          insert into public.account_membership (account_id, user_id, role, status)
+          values
+            (${accountId}, ${actorId}, 'owner', 'active'),
+            (${accountId}, ${targetId}, 'viewer', 'active')
+        `;
+        await transaction`
+          insert into public.session (account_id, user_id, token_hash, expires_at)
+          values
+            (${accountId}, ${actorId}, ${actorHash}, now() + interval '1 day'),
+            (${accountId}, ${targetId}, ${targetHash}, now() + interval '1 day')
+        `;
+
+        const [removed] = await transaction`
+          select * from public.auth_update_membership(
+            ${actorHash}, ${accountId}, ${targetId}, null, 'removed'
+          )
+        `;
+        expect(removed).toMatchObject({
+          account_id: accountId,
+          user_id: targetId,
+          status: "removed",
+        });
+        const [revoked] = await transaction`
+          select revoked_at is not null as revoked
+          from public.session where token_hash = ${targetHash}
+        `;
+        expect(revoked?.revoked).toBe(true);
+        expect(await transaction`select * from public.auth_resolve_session(${targetHash})`).toEqual(
+          [],
+        );
+        throw new Error("rollback lifecycle session fixture");
+      })
+      .catch((error) => {
+        expect(error.message).toBe("rollback lifecycle session fixture");
+      });
   });
 });
