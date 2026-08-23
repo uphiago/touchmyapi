@@ -386,6 +386,24 @@ describeDb("PostgreSQL least-privilege roles", () => {
       delete: false,
     });
 
+    for (const role of ["api_rls", "worker_rls", "audit_system"] as const) {
+      const [sequence] = await db`
+        select has_sequence_privilege(${role}, 'public.audit_event_chain_seq', 'USAGE') as usage,
+               has_sequence_privilege(${role}, 'public.audit_event_chain_seq', 'SELECT') as select,
+               has_sequence_privilege(${role}, 'public.audit_event_chain_seq', 'UPDATE') as update
+      `;
+      expect(sequence, `${role}/audit_event_chain_seq`).toEqual({
+        usage: true,
+        select: true,
+        update: false,
+      });
+    }
+    const [reportingSequence] = await db`
+      select has_sequence_privilege('reporting_rls', 'public.audit_event_chain_seq', 'USAGE') as usage,
+             has_sequence_privilege('reporting_rls', 'public.audit_event_chain_seq', 'SELECT') as select
+    `;
+    expect(reportingSequence).toEqual({ usage: false, select: false });
+
     for (const table of TENANT_TABLES) {
       const reporting = await db`
         select has_table_privilege('reporting_rls', ${table}, 'select') as select,
@@ -397,6 +415,26 @@ describeDb("PostgreSQL least-privilege roles", () => {
       expect(reporting[0]?.insert).toBe(false);
       expect(reporting[0]?.update).toBe(false);
       expect(reporting[0]?.delete).toBe(false);
+    }
+  });
+
+  it("allows the SECURITY DEFINER migration owner to evaluate bootstrap audit policies", async () => {
+    const [owner] = await db`select current_user::text as role`;
+    const [helper] = await db`
+      select has_function_privilege(${owner?.role}, 'public.rls_bootstrap_context()', 'execute') as allowed
+    `;
+    expect(helper?.allowed).toBe(true);
+    const policies = await db`
+      select c.relname, p.polname,
+             array(select r.rolname from pg_roles r where r.oid = any(p.polroles) order by r.rolname) as roles
+      from pg_policy p
+      join pg_class c on c.oid = p.polrelid
+      where p.polname in ('audit_event_bootstrap', 'audit_account_state_bootstrap')
+      order by p.polname
+    `;
+    expect(policies).toHaveLength(2);
+    for (const policy of policies) {
+      expect(policy.roles).toEqual(expect.arrayContaining(["auth_bootstrap", owner?.role]));
     }
   });
 

@@ -15,6 +15,18 @@ role receives an account-table UPDATE grant or a mutable state field. This
 keeps append support available to both runtime producers without making the
 business account relation a worker lock primitive.
 
+Each audit row receives a global monotonic `chain_seq` from the migration-owner-
+owned `audit_event_chain_seq` sequence. Tenant and system tails order by this
+sequence rather than transaction-start timestamps, so a transaction that began
+before waiting on the account lock cannot move the chain backward. Runtime
+roles receive only the sequence privileges required by their fixed inserts.
+
+The login/bootstrap SECURITY DEFINER path evaluates its FORCE-RLS bootstrap
+policies as the migration owner, locks the account-state row before selecting
+the tail, and writes a linked audit event. The bootstrap policies include only
+`auth_bootstrap` and that exact migration owner; runtime and system roles are
+excluded.
+
 Accountless system events use a separate opaque `SystemAuditDatabase` and `withSystemAudit` capability. A migration adds the singleton `audit_system_state(id='system')`; fixed system append code locks that row, reads only the `account_id IS NULL` tail, and inserts the next system event. A dedicated `audit_system` `NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT` role and `audit_system_connector` login are limited by FORCE RLS to this singleton and accountless audit rows. Neither role has business-table privileges or a generic execution API.
 
 PostgreSQL requires a narrow `UPDATE` ACL and matching FORCE-RLS policy for a

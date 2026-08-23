@@ -162,6 +162,23 @@ schemaDescribe("PostgreSQL foundation schema", () => {
     expect(byColumn.get("account.created_at")?.data_type).toBe("timestamp with time zone");
   });
 
+  it("installs the monotonic audit chain sequence", async () => {
+    const [sequence] = await db`
+      select sequence_name, data_type
+      from information_schema.sequences
+      where sequence_schema = 'public' and sequence_name = 'audit_event_chain_seq'
+    `;
+    expect(sequence).toEqual({ sequence_name: "audit_event_chain_seq", data_type: "bigint" });
+    const [column] = await db`
+      select data_type, is_nullable, column_default
+      from information_schema.columns
+      where table_schema = 'public' and table_name = 'audit_event' and column_name = 'chain_seq'
+    `;
+    expect(column?.data_type).toBe("bigint");
+    expect(column?.is_nullable).toBe("NO");
+    expect(String(column?.column_default)).toContain("nextval");
+  });
+
   it("enforces tenant ownership columns and required unique constraints", async () => {
     const accountColumns = await db`
       select table_name, is_nullable

@@ -653,6 +653,7 @@ async function assertSwitchedPrincipal(
         join pg_namespace n on n.oid = c.relnamespace
         cross join lateral aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl
         where n.nspname = 'public'
+          and c.relkind in ('r', 'p', 'v', 'm')
           and acl.grantee = r.oid
           and (
             (r.rolname = 'api_rls' and (

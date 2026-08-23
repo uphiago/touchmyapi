@@ -186,6 +186,152 @@ describeDb("closed audit append capabilities", () => {
     expect(rows.filter((row) => row.prev_event_id !== null)).toHaveLength(1);
   });
 
+  it("uses append sequence order when an older transaction inserts after a waiter", async () => {
+    await owner.unsafe("delete from public.audit_event where account_id = $1::uuid", [
+      fixture.accountId,
+    ]);
+    const connector = getRawTenantDatabase(fixture.connector);
+    const waiting = await connector.reserve();
+    let waitingDone = false;
+    try {
+      await waiting.unsafe("begin");
+      await waiting.unsafe("set local role api_rls");
+      await waiting.unsafe("select set_config('app.tenant', $1, true)", [fixture.accountId]);
+      await waiting.unsafe(
+        "select id from public.account where id = $1::uuid and status = 'active' and deleted_at is null",
+        [fixture.accountId],
+      );
+      const winner = await withTenant(
+        fixture.connector,
+        fixture.accountId,
+        "worker_rls",
+        (context) =>
+          appendAuditEvent(context, {
+            actor: "worker:sequence-winner",
+            action: "runner",
+            payload: {},
+          }),
+      );
+      await waiting.unsafe(
+        "select account_id from public.audit_account_state where account_id = $1::uuid for update",
+        [fixture.accountId],
+      );
+      const [waitingEvent] = await waiting.unsafe(
+        "insert into public.audit_event (account_id, actor, action, prev_event_id, payload_json) select $1::uuid, 'api:sequence-waiter', 'request'::audit_action, id, '{}'::jsonb from public.audit_event where account_id = $1::uuid order by chain_seq desc limit 1 returning id, chain_seq, prev_event_id",
+        [fixture.accountId],
+      );
+      await waiting.unsafe("commit");
+      waitingDone = true;
+      expect(waitingEvent?.prev_event_id).toBe(winner.id);
+      const rows = await owner`
+        select actor, chain_seq, prev_event_id
+        from public.audit_event
+        where account_id = ${fixture.accountId}
+        order by chain_seq
+      `;
+      expect(rows.map((row) => row.actor)).toEqual([
+        "worker:sequence-winner",
+        "api:sequence-waiter",
+      ]);
+      expect(Number(rows[1]?.chain_seq)).toBeGreaterThan(Number(rows[0]?.chain_seq));
+    } finally {
+      if (!waitingDone) await waiting.unsafe("rollback").catch(() => undefined);
+      waiting.release();
+    }
+  });
+
+  it("links a bootstrap login audit event to an existing tenant chain", async () => {
+    await owner.unsafe("delete from public.audit_event where account_id = $1::uuid", [
+      fixture.accountId,
+    ]);
+    const [login] = await owner.begin(async (tx) => {
+      await tx.unsafe("set local role auth_bootstrap");
+      return tx`select * from public.auth_complete_google_login(
+        ${`t017-login-${randomUUID()}`}, ${`login-${randomUUID()}@example.test`}::citext,
+        ${randomUUID().replaceAll("-", "") + "a".repeat(32)}, now() + interval '1 hour', null, null
+      )`;
+    });
+    if (!login) throw new Error("login fixture missing");
+    const [event] = await owner`
+      select chain_seq, prev_event_id from public.audit_event where account_id = ${login.account_id}
+    `;
+    expect(event?.chain_seq).toBeDefined();
+    expect(event?.prev_event_id).toBeNull();
+    const appended = await withTenant(fixture.connector, login.account_id, "api_rls", (context) =>
+      appendAuditEvent(context, { actor: "api:after-login", action: "request", payload: {} }),
+    );
+    expect(appended.prevEventId).toBeDefined();
+    await owner.unsafe("delete from public.audit_event where account_id = $1::uuid", [
+      login.account_id,
+    ]);
+    await owner.unsafe("delete from public.session where account_id = $1::uuid", [
+      login.account_id,
+    ]);
+    await owner.unsafe('delete from public."user" where account_id = $1::uuid', [login.account_id]);
+    await owner.unsafe("delete from public.account where id = $1::uuid", [login.account_id]);
+  });
+
+  it("serializes concurrent bootstrap login and tenant append on the state lock", async () => {
+    await owner.unsafe("delete from public.audit_event where account_id = $1::uuid", [
+      fixture.accountId,
+    ]);
+    const [identity] = await owner`
+      select provider_subject from public."user" where account_id = ${fixture.accountId}
+    `;
+    if (!identity) throw new Error("login identity fixture missing");
+    const connector = getRawTenantDatabase(fixture.connector);
+    const held = await connector.reserve();
+    let released = false;
+    try {
+      await held.unsafe("begin");
+      await held.unsafe("set local role api_rls");
+      await held.unsafe("select set_config('app.tenant', $1, true)", [fixture.accountId]);
+      await held.unsafe(
+        "select account_id from public.audit_account_state where account_id = $1::uuid for update",
+        [fixture.accountId],
+      );
+      const loginPromise = owner.begin(async (tx) => {
+        await tx.unsafe("set local role auth_bootstrap");
+        const [result] = await tx`select * from public.auth_complete_google_login(
+          ${identity.provider_subject}, ${`race-${randomUUID()}@example.test`}::citext,
+          ${randomUUID().replaceAll("-", "") + "a".repeat(32)}, now() + interval '1 hour', null, null
+        )`;
+        return result;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const appendPromise = withTenant(
+        fixture.connector,
+        fixture.accountId,
+        "worker_rls",
+        (context) =>
+          appendAuditEvent(context, {
+            actor: "worker:during-login",
+            action: "runner",
+            payload: {},
+          }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      await held.unsafe("commit");
+      released = true;
+      const [login, appended] = await Promise.all([loginPromise, appendPromise]);
+      if (!login) throw new Error("concurrent login fixture missing");
+      const rows = await owner`
+        select id, actor, prev_event_id
+        from public.audit_event
+        where account_id = ${fixture.accountId}
+        order by chain_seq
+      `;
+      expect(rows).toHaveLength(2);
+      expect(rows.filter((row) => row.prev_event_id === null)).toHaveLength(1);
+      expect(rows.filter((row) => row.prev_event_id !== null)).toHaveLength(1);
+      expect(rows[0]?.actor).toBe("google_oauth");
+      expect(appended.prevEventId).toBe(rows[0]?.id);
+    } finally {
+      if (!released) await held.unsafe("rollback").catch(() => undefined);
+      held.release();
+    }
+  });
+
   it("expires captured tenant and system contexts", async () => {
     let tenantContext!: TenantContext<"api_rls">;
     await withTenant(fixture.connector, fixture.accountId, "api_rls", async (context) => {

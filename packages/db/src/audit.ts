@@ -163,7 +163,7 @@ export async function appendAuditEvent(
   );
   if (stateRows.length === 0) throw new Error("audit account state unavailable");
   const tailRows = await executor.backend.unsafe(
-    "select id from public.audit_event where account_id = $1::uuid order by created_at desc, id desc limit 1",
+    "select id from public.audit_event where account_id = $1::uuid order by chain_seq desc limit 1",
     [executor.accountId],
   );
   const id = randomUUID();
@@ -198,7 +198,7 @@ export async function appendSystemAuditEvent(
   );
   if (stateRows.length === 0) throw new Error("system audit state unavailable");
   const tailRows = await backend.unsafe(
-    "select id from public.audit_event where account_id is null order by created_at desc, id desc limit 1",
+    "select id from public.audit_event where account_id is null order by chain_seq desc limit 1",
   );
   const rows = await backend.unsafe(
     "insert into public.audit_event (id, account_id, assessment_id, job_id, actor, action, prev_event_id, payload_json) values ($1::uuid, null, null, null, $2, $3::audit_action, $4::uuid, $5::jsonb) returning id, account_id, prev_event_id, created_at",
