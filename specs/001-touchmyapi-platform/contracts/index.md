@@ -1,8 +1,8 @@
 # TouchMyAPI Interface Contracts
 
-**Phase 1 output** | **Date**: 2026-08-17
+**Contract index** | **Updated**: 2026-08-22
 
-Implemented, schema-validated definitions live in `packages/contracts` (zod). The current foundation implements assessment states, target categories, health, and error envelopes only. Job, playbook, export, webhook, and audit documents in this directory are versioned design references until their later implementation tasks are complete. Breaking changes bump the version and require migration handling.
+Implemented, schema-validated definitions live in `packages/contracts/src` (Zod): assessment state/target, health/error, playbook, job, artifact manifest, export, billing event, audit event, and recursive redaction shapes. Their persistence/execution surfaces are separate milestones: the PostgreSQL schema exists, while the audit writer, passive playbook runtime, webhooks, queue, reports, and runner remain pending. Membership, queue, and admin contracts are approved Phase 2A design references (T071–T094), not implemented endpoints or tables. Breaking changes bump the contract version and require migration handling.
 
 Table of contents:
 

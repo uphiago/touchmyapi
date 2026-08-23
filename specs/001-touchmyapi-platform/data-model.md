@@ -191,6 +191,26 @@ One row per active account used by the fair scheduler. Account creation transact
 
 After locking `queue_global_state` with `FOR UPDATE`, claim locks an eligible tenant with `FOR UPDATE SKIP LOCKED`, orders by `last_dispatched_at NULLS FIRST, account_id`, checks both global and tenant capacity, then locks the tenant's highest-priority eligible job ordered by `priority DESC, available_at, created_at, id`. It increments global and tenant `running_count` and updates `last_dispatched_at` atomically. Terminal completion and reaper recovery decrement both counters; a reconciler repairs drift and creates missing state. If global or tenant state is missing or inconsistent, enqueue/claim fails closed, raises an operational signal, and leaves the job queued for reconciliation rather than stranding or dropping it.
 
+### queue control boundary
+
+Queue execution is isolated from customer/business access. The migration creates `queue_control` with `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, and `NOINHERIT`, and a separate `queue_connector` service role with no table grants. Fixed-signature `SECURITY DEFINER` functions are owned by `queue_control`, live in `app_private`, and set `search_path = pg_catalog, app_private`:
+
+| Function | Fixed signature | Lock/order rule |
+| --- | --- | --- |
+| `queue_enqueue` | `(uuid, uuid, timestamptz, integer, integer)` | global state, tenant, job; inserts safe outbox intent |
+| `queue_claim` | `(text, integer, timestamptz)` | global `FOR UPDATE`, tenant/job `FOR UPDATE SKIP LOCKED` |
+| `queue_heartbeat` | `(uuid, uuid, text, bigint, integer, timestamptz)` | global, identified tenant, identified job |
+| `queue_complete` | `(uuid, uuid, text, bigint, jsonb)` | global, identified tenant, identified job |
+| `queue_fail` | `(uuid, uuid, text, bigint, text)` | global, identified tenant, identified job |
+| `queue_cancel` | `(uuid, uuid, text, bigint, text)` | global, identified tenant, identified job |
+| `queue_requeue` | `(uuid, uuid, text)` | global, identified tenant, identified job |
+| `queue_reap` | `(integer, timestamptz)` | global; tenants `ORDER BY account_id`; jobs `ORDER BY id` |
+| `queue_reconcile` | `(integer, timestamptz)` | global; tenants `ORDER BY account_id`; jobs `ORDER BY id` |
+
+`queue_connector` receives only `EXECUTE` on these functions and cannot select, insert, update, or delete a table. The application uses only the typed postgres.js API at `packages/db/src/queue-control.ts`; it never exposes unsafe SQL. Function inputs enforce account/job equality, current membership/policy-reduced limits, bounded batches, safe metadata/reasons, and fencing predicates. Direct privileges and RLS policies are limited to `queue_global_state`, `queue_tenant_state`, and operational metadata/state columns of `job` and `outbox_event`; job specifications, scopes, credentials, evidence, reports, billing, membership, and all other business data are not readable. Cross-account scheduling is permitted only inside these bounded functions; no owner, `BYPASSRLS`, or arbitrary SQL path exists.
+
+All completion, heartbeat, failure, cancellation, requeue, reaper, and reconciliation counter changes occur in one transaction under global→tenant→job locks. Batch tenants are locked by `account_id` and jobs by `id`. A stale fencing token affects zero rows and is a no-op, including no counter decrement.
+
 ### outbox_event
 
 Transactional account-scoped delivery intent.
@@ -481,7 +501,7 @@ Transitions validated and idempotent in backend; cancellation sets stop signal o
 
 ## RLS model (summary)
 
-- Runtime roles: `api_rls` (web/API mutations), `worker_rls` (control worker + scheduler), `reporting_rls` (read for report generation), and a separate least-privilege admin runtime role. None is owner, none has `BYPASSRLS`.
+- Runtime roles: `api_rls` (web/API mutations), `worker_rls` (non-queue control paths), `reporting_rls` (read for report generation), `queue_connector` (function `EXECUTE` only), `queue_control` (`NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT` definer owner with queue operational grants only), and a separate least-privilege admin runtime role. None is owner of business tables, none has `BYPASSRLS`, and the queue connector has zero table grants.
 - Tables carry policy: `FOR ALL TO <role> USING (account_id = current_setting('app.tenant', true)::uuid)` with explicit deny when tenant is absent or malformed; default deny applies to membership, invitation, queue, outbox, and capability grants as well as assessment data.
 - Global `user` is reachable only through fixed-purpose bootstrap functions. Playbook catalog is read-only; audit/admin audit are append-only; no runtime role gets arbitrary SQL or history deletion.
 - Queue claims use `FOR UPDATE SKIP LOCKED` and compare `account_id` plus `fencing_token` on all lease/result writes. App sets `set_config('app.tenant', $1)` and `set local role` per transaction. `LISTEN/NOTIFY` never replaces polling/outbox persistence.

@@ -8,7 +8,7 @@
 
 ## Summary
 
-TouchMyAPI is an authorized security-assessment platform. Users authenticate with Google, select an account/workspace through explicit membership, create assessments against clearly scoped external targets (and, later, internal environments via a private agent), and run versioned playbooks with hard limits enforced by a policy engine. A durable PostgreSQL queue drives isolated runner sandboxes; claims lock singleton `queue_global_state` then `queue_tenant_state` then jobs, use `SKIP LOCKED`, exact fairness, leases, monotonic fencing, heartbeat, retry/backoff, reaper, tenant/global limits, and a transactional at-least-once outbox with terminal failed/alert/audit behavior. Plan gating controls what results, evidence, PDFs, and JSON the user may see; Stripe webhooks are the only source of truth for entitlement; DeepSeek and Codex act as non-executor AI (planner/triage and report drafting, respectively). A separate MFA-protected admin control plane provides policy-aware account-scoped queue operations through JIT grants without impersonation, RLS bypass, arbitrary SQL, secret/raw-evidence access, or billing writes. The build order is: foundation T010–T021, membership T071–T080, queue/outbox T081–T087, admin T088–T094, then existing assessment state tests T022 and later Stripe/playbook/verification/report/agent increments.
+TouchMyAPI is an authorized security-assessment platform. Users authenticate with Google, select an account/workspace through explicit membership, create assessments against clearly scoped external targets (and, later, internal environments via a private agent), and run versioned playbooks with hard limits enforced by a policy engine. A durable PostgreSQL queue drives isolated runner sandboxes; claims lock singleton `queue_global_state` then `queue_tenant_state` then jobs, use `SKIP LOCKED`, exact fairness, leases, monotonic fencing, heartbeat, retry/backoff, reaper, tenant/global limits, and a transactional at-least-once outbox with terminal failed/alert/audit behavior. Queue operations are exposed only through typed `packages/db/src/queue-control.ts` calls to fixed-signature definer functions; the connector has only `EXECUTE` and zero table grants. Plan gating controls what results, evidence, PDFs, and JSON the user may see; Stripe webhooks are the only source of truth for entitlement; DeepSeek and Codex act as non-executor AI (planner/triage and report drafting, respectively). A separate MFA-protected admin control plane provides policy-aware account-scoped queue operations through JIT grants without impersonation, RLS bypass, arbitrary SQL, secret/raw-evidence access, or billing writes. The build order is: foundation T010–T021, membership T071–T080, queue/outbox T081–T087, admin T088–T094, then existing assessment state tests T022 and later Stripe/playbook/verification/report/agent increments.
 
 ## Technical Context
 
@@ -26,7 +26,7 @@ TouchMyAPI is an authorized security-assessment platform. Users authenticate wit
 
 **Performance Goals**: single active execution per target/account, conservative global worker limits (small initial fleet), queue SDK-style durability (leased jobs survive worker restarts); no latency SLA beyond interactive dashboard
 
-**Constraints**: policy engine is final authority; browser/model/runner cannot escalate limits; RLS default-deny; credentials never in logs/reports/models/frontend; webhook-only entitlement changes; AI non-executor; no bucket public; one run per target/account
+**Constraints**: policy engine is final authority; browser/model/runner cannot escalate limits; RLS default-deny; queue connector has only function `EXECUTE` and queue-control direct access is limited to operational queue state; credentials never in logs/reports/models/frontend; webhook-only entitlement changes; AI non-executor; no bucket public; one run per target/account
 
 **Scale/Scope**: account/workspace tenants with explicit membership; Brazil/BRL, small curated playbook set; existing ~18 foundation tables plus membership, invitation, outbox, and admin tables; 1 customer API, 1 separate admin API/app, 1 control worker, 1 sandbox abstraction, 1 web app
 
@@ -40,7 +40,7 @@ TouchMyAPI is an authorized security-assessment platform. Users authenticate wit
 - **IV. Least Privilege for Runners and Credentials**: PASS - spec FR-009/FR-010/FR-012, signed TTL'd jobs, digest-pinned image, secret channel, private storage, `SandboxProvider`.
 - **V. AI as Non-Executor**: PASS - spec FR-015/FR-016, DeepSeek/Codex output treated as untrusted data re-checked by policy engine; disable per account.
 - **VI. Financial State Changes Only by Verified Webhook**: PASS - spec FR-006, idempotent signature-verified webhook; catalog server-side.
-- **Phase 2A account isolation and queue/admin amendment**: PASS - spec FR-022–FR-027, constitution v1.1.1, explicit membership/RLS, PostgreSQL fencing/outbox, and separate MFA admin origin with no bypass capabilities.
+- **Phase 2A account isolation and queue/admin amendment**: PASS - spec FR-022–FR-027, constitution v1.1.2, explicit membership/RLS, least-privilege PostgreSQL queue-control boundary, fencing/outbox, and separate MFA admin origin with no bypass capabilities.
 
 ## Project Structure
 
@@ -58,7 +58,7 @@ specs/001-touchmyapi-platform/
 
 ### Target Source Code (repository root)
 
-This is the intended product structure. The foundation scaffold currently contains only `apps/api`, `apps/web`, `packages/contracts`, `packages/db`, and local PostgreSQL Compose infrastructure; later phases add the remaining paths.
+This is the intended product structure. The current checkpoint contains `apps/api`, `apps/web`, `packages/contracts`, `packages/policy`, `packages/db`, the foundation schema/RLS migrations, and local PostgreSQL Compose infrastructure. The remaining paths are planned, not implemented.
 
 ```text
 apps/

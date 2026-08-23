@@ -6,6 +6,8 @@
 
 **Architecture:** `packages/contracts` define os formatos compartilhados; `packages/policy`, `packages/secrets` e `packages/playbooks` são bibliotecas puras que não executam alvos. `packages/db` mantém migrações, funções bootstrap e transações tenant-scoped usando roles PostgreSQL sem privilégios de proprietário; `apps/api` apenas coordena adaptadores validados e expõe saúde e autenticação. A implementação é entregue em cinco gates, sem assessment, fila, runner, billing, relatório, scanner, target fetch ou agente privado.
 
+**Checkpoint 2026-08-22:** os passos de Task 1–9 foram executados. T010–T015 estão aceitas; T016 permanece review-blocked apesar dos testes verdes porque `TenantConnection.unsafe(string)` ainda admite ampliação por um grant privilegiado concorrente após a validação. T017–T021 não foram iniciadas. Consulte `docs/reviews/2026-08-22-foundation-checkpoint.md`. Os checkboxes abaixo registram execução dos passos; `specs/001-touchmyapi-platform/tasks.md` registra aceite.
+
 **Tech Stack:** Bun 1.4.0, TypeScript strict, Vitest, Hono, Zod, Drizzle ORM/drizzle-kit, PostgreSQL 16, `postgres`, `openid-client`, Web Crypto/Node `crypto`, Docker Compose, GitHub Actions, React/Vite existente.
 
 ---
@@ -44,7 +46,7 @@
 - Create: `tests/isolation/no-execution-surface.test.ts`
 - Test: `scripts/verify-workspace.ts`
 
-- [ ] **Step 1: Escrever o teste de topologia que falha**
+- [x] **Step 1: Escrever o teste de topologia que falha**
 
 Crie `tests/unit/test-topology.test.ts` e verifique que cada arquivo existente pertence ao projeto correto e que o suite e2e fica explicitamente skipped:
 
@@ -64,7 +66,7 @@ describe("foundation test topology", () => {
 
 Execute `bun run test:contract`; resultado esperado antes da correção: falha com `No test files found`.
 
-- [ ] **Step 2: Corrigir scripts, include strict e projetos Vitest**
+- [x] **Step 2: Corrigir scripts, include strict e projetos Vitest**
 
 No `package.json`, acrescente scripts determinísticos e fixe o runtime:
 
@@ -151,7 +153,7 @@ fi
 bunx lint-staged
 ```
 
-- [ ] **Step 3: Adicionar CI obrigatório**
+- [x] **Step 3: Adicionar CI obrigatório**
 
 Crie `.github/workflows/ci.yml` com Bun fixado, Postgres 16 real e todos os gates:
 
@@ -200,11 +202,11 @@ jobs:
 
 O job deve falhar se migrations ou RLS tests forem pulados; o único suite explicitamente pending é e2e.
 
-- [ ] **Step 4: Verificar RED/GREEN**
+- [x] **Step 4: Verificar RED/GREEN**
 
 Execute `bun run test:contract`, `bun run test:integration`, `bun run test:isolation`, `bun run typecheck`; resultado esperado GREEN (integration pode depender do Postgres local somente fora CI, e CI define `RUN_DB_TESTS=1`). Execute `bun run test:e2e`; resultado esperado `1 skipped`, exit 0. Execute `bun run lint` e `bun run format`; ambos devem sair 0.
 
-- [ ] **Step 5: Commitar**
+- [x] **Step 5: Commitar**
 
 ```bash
 git add package.json tsconfig.json vitest.config.ts .gitignore .husky/pre-commit .github/workflows/ci.yml tests/unit/test-topology.test.ts tests/e2e/pending.test.ts tests/isolation/no-execution-surface.test.ts apps/api/test packages/contracts/test packages/db/test
@@ -224,7 +226,7 @@ git commit -m "ci: make foundation test gates reproducible"
 - Modify: `specs/001-touchmyapi-platform/quickstart.md`
 - Test: `tests/contract/foundation-config.test.ts`
 
-- [ ] **Step 1: Escrever testes negativos**
+- [x] **Step 1: Escrever testes negativos**
 
 Crie o teste que falha enquanto os artefatos antigos persistirem:
 
@@ -248,7 +250,7 @@ describe("foundation configuration", () => {
 
 Execute `bun run test:contract -- foundation-config`; resultado esperado RED no estado atual.
 
-- [ ] **Step 2: Corrigir artefato e configuração**
+- [x] **Step 2: Corrigir artefato e configuração**
 
 No atlas, remova a frase que enumera DNS-TXT como prova de controle e deixe somente a regra HTTP-file. Em `drizzle.config.ts`, substitua a configuração de credenciais por:
 
@@ -288,11 +290,11 @@ No Compose, mantenha Postgres 16 loopback e fixe a lista multi-arch oficial do M
 
 Atualize README/quickstart para dizer que `bun run db:migrate` requer URL explícita, CI é obrigatório e `docker compose -f infra/docker/compose.yml config` deve passar. Não marque T007/T008/T010–T021 como concluídos enquanto não houver evidência.
 
-- [ ] **Step 3: Verificar GREEN e configuração Docker**
+- [x] **Step 3: Verificar GREEN e configuração Docker**
 
 Execute `bun run test:contract -- foundation-config`; esperado PASS. Execute `env -u DATABASE_URL bun run db:migrate`; esperado exit 1 com `DATABASE_URL is required for migrations`. Execute `docker compose -f infra/docker/compose.yml config`; esperado configuração válida, sem bind público e sem tag `latest`.
 
-- [ ] **Step 4: Commitar**
+- [x] **Step 4: Commitar**
 
 ```bash
 git add specs/001-touchmyapi-platform/atlas.html drizzle.config.ts packages/db/scripts/migrate.ts .env.example infra/docker/compose.yml infra/docker/postgres/init/002_test_database.sql README.md specs/001-touchmyapi-platform/quickstart.md tests/contract/foundation-config.test.ts
@@ -310,7 +312,7 @@ git commit -m "fix: close foundation configuration contradictions"
 - Create: `packages/policy/test/scope.test.ts`
 - Create: `tests/isolation/policy.test.ts`
 
-- [ ] **Step 1: Escrever testes RED table-driven**
+- [x] **Step 1: Escrever testes RED table-driven**
 
 Em `packages/policy/test/scope.test.ts`, cubra URLs HTTP/HTTPS, rejeição de userinfo/fragmento, lower-case/IDN/trailing dot/default port/path, domínio versus URL, todos os ranges proibidos, metadata host, IPv4-mapped IPv6, wildcard somente no label esquerdo, inclusão/exclusão e endereço resolvido obrigatório. O corpo mínimo dos casos deve ser:
 
@@ -349,7 +351,7 @@ describe("scope normalization", () => {
 
 `tests/isolation/policy.test.ts` deve também afirmar que string de domínio que resolva futuramente não autoriza network capability sem `resolvedAddresses` não vazio e que qualquer endereço proibido nega o conjunto inteiro. Execute `bun run test:unit -- scope` e `bun run test:isolation -- policy`; esperado RED.
 
-- [ ] **Step 2: Implementar os tipos e funções puras**
+- [x] **Step 2: Implementar os tipos e funções puras**
 
 Adicione `packages/policy/package.json` com `@touchmyapi/contracts` workspace e dependência `zod`; o módulo não pode importar `dns`, filesystem, HTTP ou `process.env`. A API pública deve ser:
 
@@ -367,11 +369,11 @@ export function matchesScope(scope: CompiledScope, candidate: string): boolean;
 
 Use `URL` para canonicalização, `net.isIP` para IP literal, parser numérico para IPv4/IPv6 e regras explícitas para unspecified, loopback, RFC1918, link-local, CGNAT, documentação/teste, benchmark, multicast, reservado, ULA, IPv4-mapped e `169.254.169.254`; rejeite `metadata.google.internal`, `metadata`, `instance-data` e equivalentes sem fazer resolução. Só aceite wildcard quando o primeiro label completo for `*`; nunca use regex livre. `compileScope` canonicaliza regra e `matchesScope` testa exclusão primeiro.
 
-- [ ] **Step 3: Rodar GREEN e typecheck**
+- [x] **Step 3: Rodar GREEN e typecheck**
 
 Execute `bun run test:unit -- scope`, `bun run test:isolation -- policy` e `bun run typecheck`; esperado PASS. Confirme por busca que `packages/policy/src` não contém `fetch(`, `Bun.env`, `process.env`, `dns`, `fs` ou imports de `apps`.
 
-- [ ] **Step 4: Commitar**
+- [x] **Step 4: Commitar**
 
 ```bash
 git add packages/policy tests/isolation/policy.test.ts
@@ -387,7 +389,7 @@ git commit -m "feat: add pure external scope policy"
 - Create: `packages/policy/test/limits.test.ts`
 - Modify: `packages/policy/src/index.ts`
 
-- [ ] **Step 1: Escrever RED para matriz e não-escalada**
+- [x] **Step 1: Escrever RED para matriz e não-escalada**
 
 Os testes devem iterar todos os planos e afirmar exatamente: `free_unverified` só aggregate/passive; `free_verified` título/categoria/severity e introductory; `pro`/`lifetime` details, reports, scheduling, history; caps de crédito 1/1/10/10. Limites ausentes negam; input menor reduz; input maior não aumenta; arrays de egress nunca ampliam default-deny.
 
@@ -412,11 +414,11 @@ describe("entitlements and limit reduction", () => {
 });
 ```
 
-- [ ] **Step 2: Implementar contratos fechados**
+- [x] **Step 2: Implementar contratos fechados**
 
 Defina `Plan`, `Visibility`, `Rights`, `LimitInput`, `EffectiveLimits` e `LimitResult`; aceite somente inteiros positivos, use `Math.min` apenas entre ceilings presentes e clone egress fixo como `readonly ["scope_target"]`. Nunca trate preço, saldo ou quota comercial como direito de policy.
 
-- [ ] **Step 3: Rodar GREEN e commit**
+- [x] **Step 3: Rodar GREEN e commit**
 
 Execute `bun run test:unit -- entitlement limits` e `bun run typecheck`; esperado PASS.
 
@@ -433,7 +435,7 @@ git commit -m "feat: add plan rights and non-escalating limits"
 - Modify: `tests/isolation/policy.test.ts`
 - Modify: `packages/policy/src/index.ts`
 
-- [ ] **Step 1: Escrever RED do decision contract**
+- [x] **Step 1: Escrever RED do decision contract**
 
 Cubra ações desconhecidas, portas/capabilities/planos/categorias desconhecidos, target forbidden, scope mismatch, limite ausente, DNS-TXT, ausência de attestation e HTTP-file válido. Afirme que todas as verificações aplicáveis aparecem em `blocked`, mas qualquer bloqueio retorna `allowed:false`, `actions:[]` e limites nulos.
 
@@ -458,11 +460,11 @@ describe("policy authority", () => {
 });
 ```
 
-- [ ] **Step 2: Implementar decisão discriminada**
+- [x] **Step 2: Implementar decisão discriminada**
 
 Exporte `ActionRequest`, `PolicyDecision`, `BlockCode` e `authorize`. Execute checks em ordem estável: action/category/plan vocabulary, scope, target classification, attestation, verification method/status, playbook action subset, limits e egress. O reason deve ser seguro para usuário; códigos são estáveis. Só `http_file + verified + attestation version + active external` permite e somente com ações do playbook. Faça deep-freeze do resultado antes de retornar.
 
-- [ ] **Step 3: Rodar GREEN e gate review**
+- [x] **Step 3: Rodar GREEN e gate review**
 
 Execute `bun run test:unit -- engine`, `bun run test:isolation -- policy`, `bun run typecheck`, `bun run lint`, `bun run format`, `git diff --check`. Esperado: PASS; revisão manual deve confirmar ausência de I/O e que nenhum caller fornece actions além do playbook. Faça commit:
 
@@ -485,11 +487,11 @@ git commit -m "feat: enforce default-deny policy decisions"
 - Create: `tests/isolation/rls.test.ts`
 - Modify: `packages/db/package.json`
 
-- [ ] **Step 1: Preparar fixture PostgreSQL 16**
+- [x] **Step 1: Preparar fixture PostgreSQL 16**
 
 Os testes devem usar `DATABASE_URL` obrigatório e recusar qualquer URL cujo database não termine em `_test` quando uma operação destrutiva de fixture for solicitada. A prova normal não derruba schema: conecta como migration owner a um PostgreSQL 16 recém-criado pelo CI/Compose, roda migration uma vez e reroda. Quando `RUN_DB_TESTS` não for `1`, o teste deve usar `describe.skip` com motivo explícito; CI sempre define `RUN_DB_TESTS=1` e usa `touchmyapi_test`.
 
-- [ ] **Step 2: Escrever as asserções RED**
+- [x] **Step 2: Escrever as asserções RED**
 
 Verifique as 18 tabelas `account,user,session,assessment,authorization_attestation,verification,playbook,job,runner_execution,credential,finding,report,credit_entry,billing_event,entitlement,agent,audit_event,notification`; enums e `timestamptz`; `account_id` direto em cada tabela tenant-owned; FK compostas impedem referências cruzadas; rerun é idempotente.
 
@@ -509,7 +511,7 @@ describe.runIf(process.env.RUN_DB_TESTS === "1")("PostgreSQL 16 foundation", () 
 
 Execute `RUN_DB_TESTS=1 bun run test:integration -- schema`; esperado RED.
 
-- [ ] **Step 3: Registrar RED sem commit intermediário**
+- [x] **Step 3: Registrar RED sem commit intermediário**
 
 Capture a falha esperada no relatório do implementer e prossiga imediatamente para Task 7. Não faça commit com a suíte de branch quebrada; os testes entram no commit GREEN da Task 7.
 
@@ -527,7 +529,7 @@ Capture a falha esperada no relatório do implementer e prossiga imediatamente p
 - Create: `packages/db/migrations/0000_foundation.sql`
 - Modify: `packages/db/src/index.ts`
 
-- [ ] **Step 1: Implementar enums e helpers sem shortcuts**
+- [x] **Step 1: Implementar enums e helpers sem shortcuts**
 
 Use `pgEnum` para todos os vocabulários de `data-model.md`, `timestamptz` para timestamps, `gen_random_uuid()` após `pgcrypto`, `citext` no email, `jsonb` para snapshots e `bytea` para AEAD. Cada tabela tenant-owned possui `accountId` `notNull`; `session` também o possui. `playbook` é catálogo explicitamente separado. A tabela `audit_event` aceita `account_id null` somente para system chain.
 
@@ -556,15 +558,15 @@ export * from "./audit";
 
 Toda tabela tenant-owned referenciável deve declarar unique `(account_id, id)`; referências entre duas entidades tenant-owned usam somente FK composta `(account_id, foreign_id) -> (account_id, id)`, impedindo vínculo cruzado. Referências a catálogo global usam FK simples. Inclua unique `(provider, provider_subject)`, `billing_event.stripe_event_id`, `job.dedupe_key` e `agent.token_hash`; não invente outras unicidades ausentes do modelo.
 
-- [ ] **Step 2: Gerar e revisar migration**
+- [x] **Step 2: Gerar e revisar migration**
 
 Execute `DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bunx drizzle-kit generate --config=drizzle.config.ts --name foundation`; esperado `0000_foundation.sql` e journal correspondentes, sem acesso a alvo externo. Revise SQL para garantir `CREATE EXTENSION IF NOT EXISTS pgcrypto`, `CREATE EXTENSION IF NOT EXISTS citext`, enums, tabelas e constraints. Se o generator não emitir as extensões, acrescente-as no início do arquivo gerado. Roles/policies/functions ficam na migration custom da Task 8; não substitua RLS por configuração ORM.
 
-- [ ] **Step 3: Rodar schema GREEN**
+- [x] **Step 3: Rodar schema GREEN**
 
 Execute `docker compose -f infra/docker/compose.yml --profile local up -d postgres`. Em volume novo, `002_test_database.sql` cria `touchmyapi_test`; em volume preexistente, consulte `docker compose -f infra/docker/compose.yml exec -T postgres psql -U touchmyapi_dev -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='touchmyapi_test'"` e, somente se não retornar `1`, execute `docker compose -f infra/docker/compose.yml exec -T postgres createdb -U touchmyapi_dev touchmyapi_test`. Rode `DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run db:migrate`, repita o mesmo comando e execute `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration -- schema`. Esperado: migration inicial e rerun 0, todas as tabelas detectadas, nenhum dado de assessment criado. Nunca derrube ou limpe o database de desenvolvimento `touchmyapi`.
 
-- [ ] **Step 4: Commitar**
+- [x] **Step 4: Commitar**
 
 ```bash
 git add packages/db/schema packages/db/migrations packages/db/src/index.ts packages/db/test packages/db/package.json tests/isolation/rls.test.ts
@@ -579,11 +581,11 @@ git commit -m "feat: add complete postgres foundation schema"
 - Create: `packages/db/test/roles.isolation.test.ts`
 - Modify: `tests/isolation/rls.test.ts`
 
-- [ ] **Step 1: Escrever RED para roles e políticas**
+- [x] **Step 1: Escrever RED para roles e políticas**
 
 O teste deve consultar `pg_roles` e afirmar `api_rls`, `worker_rls`, `reporting_rls`, `auth_bootstrap` como `rolsuper=false`, `rolbypassrls=false`, `rolinherit=false`, não owners; `auth_bootstrap` sem `SELECT/INSERT/UPDATE/DELETE` direto. Para cada tabela tenant-owned, sem `app.tenant`, `SELECT`, `INSERT`, `UPDATE` e `DELETE` devem falhar ou retornar zero. `playbook` é read-only ao runtime; `audit_event` não permite update/delete.
 
-- [ ] **Step 2: Implementar SQL de roles e policies**
+- [x] **Step 2: Implementar SQL de roles e policies**
 
 Crie a migration journaled com `bunx drizzle-kit generate --custom --config=drizzle.config.ts --name rls_roles` e preencha `0001_rls_roles.sql`. Ela deve ser executável por migration owner e idempotente. Use roles sem senha geridas fora do repositório:
 
@@ -606,11 +608,11 @@ Para cada tabela tenant-owned, use `ENABLE ROW LEVEL SECURITY; FORCE ROW LEVEL S
 
 As funções `SECURITY DEFINER` devem ter `SET search_path = pg_catalog, public`, owner migration, `REVOKE EXECUTE FROM PUBLIC`, e `GRANT EXECUTE` apenas em `auth_complete_google_login(text,citext,text,timestamptz,inet,text)`, `auth_resolve_session(text)`, `auth_rotate_session(text,text,timestamptz)` e `auth_revoke_session(text)` para `auth_bootstrap`. Elas aceitam somente parâmetros tipados para concluir um login Google por `provider_subject`, criar identidade/account quando necessário, persistir somente o hash da sessão e auditar tudo atomicamente; resolver um hash de sessão válida; rotacionar hash; e revogar hash. Nunca procuram por email e nunca expõem payload arbitrário.
 
-- [ ] **Step 3: Verificar RED/GREEN**
+- [x] **Step 3: Verificar RED/GREEN**
 
 Execute `DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run db:migrate`, `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:isolation -- roles`; esperado PASS. Execute uma consulta como `SET ROLE api_rls; SELECT * FROM account;` sem tenant; esperado erro/zero. Confirme que não existe role Supabase service-role no SQL.
 
-- [ ] **Step 4: Commitar**
+- [x] **Step 4: Commitar**
 
 ```bash
 git add packages/db/migrations packages/db/test/roles.isolation.test.ts tests/isolation/rls.test.ts
@@ -625,11 +627,11 @@ git commit -m "feat: enforce least-privilege postgres rls roles"
 - Modify: `packages/db/src/index.ts`
 - Modify: `tests/isolation/rls.test.ts`
 
-- [ ] **Step 1: Escrever RED da API e vazamento de estado**
+- [x] **Step 1: Escrever RED da API e vazamento de estado**
 
 Teste dois accounts: A pode selecionar/inserir/atualizar seus rows; A não pode selecionar, inserir, atualizar, deletar, referenciar ou inferir rows B em account, session, assessment, credential, finding e audit. Depois de uma transação A, uma nova conexão borrowed sem tenant não pode herdar `app.tenant` ou role.
 
-- [ ] **Step 2: Implementar wrapper fechado**
+- [x] **Step 2: Implementar wrapper fechado**
 
 Exporte exatamente:
 
@@ -642,11 +644,11 @@ export async function withTenant<T>(connection: DbConnection, accountId: string,
 
 Receba a conexão explicitamente; o módulo não lê `DATABASE_URL` ou `process.env`. Valide UUID, escolha role por mapa literal, abra transaction, execute `select set_config('app.tenant', $1, true)`, `set local role "api_rls"`/role literal do mapa, rode callback, commit; em qualquer erro rollback e sempre devolva conexão com `RESET ROLE`/fim de transaction. Nunca concatene request text em SQL para role. Nenhuma query de account-owned table pode ser exposta fora desse wrapper.
 
-- [ ] **Step 3: Rodar GREEN**
+- [x] **Step 3: Rodar GREEN**
 
 Execute `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration -- tenant-session` e `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:isolation`; esperado PASS, inclusive contexto ausente e role inválida.
 
-- [ ] **Step 4: Commitar**
+- [x] **Step 4: Commitar**
 
 ```bash
 git add packages/db/src/tenant-session.ts packages/db/src/index.ts packages/db/test/tenant-session.integration.test.ts tests/isolation/rls.test.ts

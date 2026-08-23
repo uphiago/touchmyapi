@@ -1,10 +1,10 @@
 # TouchMyAPI
 
-TouchMyAPI is a platform for authorized security assessments. This repository is currently the executable foundation scaffold: a Bun monorepo, shared Zod contracts, a Hono health endpoint, a React/Vite shell, a PostgreSQL connection boundary, and loopback-only local PostgreSQL Compose infrastructure.
+TouchMyAPI is a platform for authorized security assessments. The executable foundation currently includes the Bun monorepo, shared Zod contracts, the pure default-deny policy engine (T010–T013), the PostgreSQL 16 domain schema (T014), least-privilege runtime roles with forced RLS and narrow auth bootstrap functions (T015), a Hono health endpoint, a React/Vite shell, and loopback-only local PostgreSQL infrastructure.
 
 ## Current security boundary
 
-The scaffold does **not** execute assessments or contact external targets. Authentication, PostgreSQL RLS, the policy engine, durable queue, Stripe webhooks, sandboxed runners, reports, AI orchestration, and the private agent are future phases. No scanner or active route may be added before the authorization, isolation, and policy controls required by the [constitution](.specify/memory/constitution.md) are implemented and tested.
+The foundation does **not** execute assessments or contact external targets. Google OAuth, durable queue/outbox, Stripe webhooks, sandboxed runners, reports, AI orchestration, and the private agent remain unimplemented. The tenant transaction wrapper for T016 exists and passes its focused tests, but remains unchecked because adversarial review found that its exported `unsafe(string)` surface cannot fail closed against a privileged ACL/function grant made after role validation. The next implementation session must replace that arbitrary SQL surface with closed repository/capability operations before T016 is accepted. See the [checkpoint review](docs/reviews/2026-08-22-foundation-checkpoint.md).
 
 ## Prerequisites
 
@@ -28,7 +28,7 @@ docker compose --profile local -f infra/docker/compose.yml config
 
 The foundation plan records the older Bun spelling `bun --cwd apps/web run build`. Bun 1.4.0 uses `bun run --cwd apps/web build`, shown above. CI must run this full validation sequence (including the Compose config check) before accepting changes.
 
-Expected results: workspace verification succeeds, four or more unit tests pass, the PostgreSQL integration test is skipped unless explicitly enabled, TypeScript strict checking succeeds, Vite writes ignored output to `apps/web/dist`, and Compose reports a valid configuration. None of these commands starts an assessment or contacts an external target.
+Expected results: workspace verification, unit/contract tests, TypeScript strict checking, lint/format checks, the web build, and Compose validation succeed. PostgreSQL integration/isolation suites are opt-in and are not counted as green when skipped. None of these commands starts an assessment or contacts an external target.
 
 ## Environment
 
@@ -46,13 +46,21 @@ Database migrations require an explicit URL and fail closed when it is absent:
 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@localhost:5433/touchmyapi bun run db:migrate
 ```
 
-The Compose service binds PostgreSQL to `127.0.0.1:5433`. Start it, then optionally run the database smoke test:
+The Compose service binds PostgreSQL to `127.0.0.1:5433`. Start it, migrate a dedicated `_test` database, then run database gates sequentially:
 
 ```bash
 docker compose --profile local -f infra/docker/compose.yml up -d postgres
-DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@localhost:5433/touchmyapi_test \
-  RUN_DB_TESTS=1 bun test packages/db/test/connection.integration.test.ts
+DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test \
+  bun run db:migrate
+RUN_DB_TESTS=1 \
+  DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test \
+  bun run test:integration --maxWorkers=1
+RUN_DB_TESTS=1 \
+  DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test \
+  bun run test:isolation --maxWorkers=1
 ```
+
+Do not run DB suites concurrently against the same database: some catalog/auth fixtures intentionally inspect database-wide state. Give each parallel process its own migrated `_test` database.
 
 The fresh-volume init scripts create both `touchmyapi` and `touchmyapi_test`; the test database is created only when PostgreSQL initializes a new volume. For an existing volume, the idempotent init SQL can be applied safely without deleting data:
 

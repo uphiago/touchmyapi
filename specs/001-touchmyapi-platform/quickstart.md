@@ -7,13 +7,16 @@ This guide validates the code that exists today. It does not claim that the full
 ## Implemented scope
 
 - Bun workspace with TypeScript strict mode
-- Shared Zod contracts for assessment states, target categories, health, and errors
+- Shared Zod contracts for assessment, playbook, job, artifact, export, billing, audit, health, errors, and redaction shapes
+- Pure policy package: scope normalization/blocklists, entitlement rights, non-escalating limits, and default-deny authorization (T010–T013)
 - Hono `GET /health` API with a JSON 404 envelope
 - React/Vite shell that validates the health response
-- Explicit PostgreSQL connection factory with an opt-in integration smoke test
+- PostgreSQL foundation schema/migrations, composite tenant references, session hashes/families, and exact enum/check/default constraints (T014)
+- `api_rls`, `worker_rls`, and `reporting_rls` least-privilege roles, forced default-deny RLS, and fixed-purpose auth bootstrap functions (T015)
+- Explicit PostgreSQL connection factory and opt-in integration/isolation suites
 - PostgreSQL 16 Compose service bound to loopback only
 
-No assessment execution, external target access, authentication, RLS schema, queue, billing mutation, AI execution, or runner exists in this foundation.
+No assessment execution, external target access, Google authentication routes, queue, billing mutation, AI execution, report generation, or runner exists in this checkpoint. T016 has an implemented/tested tenant wrapper, but it is not accepted: adversarial review requires replacing its exported arbitrary `unsafe(string)` query surface with closed repository/capability operations so a live privileged ACL change cannot widen a request after validation. T017–T021 remain pending.
 
 The historical Foundation Phase 2 remains intentionally limited to T010–T021 and does not implement organizations, invitations, roles, or admin operations. The approved Phase 2A extension is documented separately and is scheduled after T021: account/workspace membership first, then the fenced PostgreSQL queue/outbox, followed by the separate admin control plane. SSO and SCIM remain out of scope.
 
@@ -59,8 +62,8 @@ DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@localhost:5433/touchmyapi 
 Expected:
 
 - workspace manifests are present;
-- contract, API, and DB boundary unit tests pass;
-- the live DB smoke test is skipped unless `RUN_DB_TESTS=1`;
+- policy, contract, API, and DB-boundary unit tests pass;
+- live DB integration/isolation tests are skipped unless `RUN_DB_TESTS=1` and must not be reported as green when skipped;
 - TypeScript strict checking exits successfully;
 - Vite creates ignored files under `apps/web/dist`;
 - Compose resolves a PostgreSQL 16 service exposed only on `127.0.0.1:5433`.
@@ -89,13 +92,21 @@ bun run dev:web
 
 Open `http://localhost:5173`. The shell reports `API online` only after validating the response against the shared Zod schema.
 
-## Optional PostgreSQL integration smoke test
+## PostgreSQL integration and isolation gates
 
 ```bash
 docker compose --profile local -f infra/docker/compose.yml up -d postgres
-DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@localhost:5433/touchmyapi_test \
-  RUN_DB_TESTS=1 bun test packages/db/test/connection.integration.test.ts
+DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test \
+  bun run db:migrate
+RUN_DB_TESTS=1 \
+  DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test \
+  bun run test:integration --maxWorkers=1
+RUN_DB_TESTS=1 \
+  DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test \
+  bun run test:isolation --maxWorkers=1
 ```
+
+Run those DB suites sequentially against a given database. Parallel processes need separately migrated `_test` databases because catalog/auth tests intentionally assert database-wide state. Tests refuse non-loopback hosts and database names without the `_test` suffix.
 
 On a fresh PostgreSQL volume, the init scripts create the separate `touchmyapi_test` database. Init scripts run only during first volume initialization. For an existing volume, apply the idempotent init SQL safely without deleting data:
 
@@ -104,23 +115,22 @@ docker compose --profile local -f infra/docker/compose.yml exec -T postgres psql
   < infra/docker/postgres/init/002_test_database.sql
 ```
 
-The current DB package only proves an explicit connection boundary. Schema migrations, runtime roles, tenant transaction setup, default-deny RLS policies, and cross-account isolation tests remain blocking work before user data is stored.
+The current DB package proves schema shape, runtime-role privileges, auth-bootstrap isolation, and cross-account RLS behavior. It must still close T016's arbitrary-query review finding and then implement the atomic audit writer (T017) before the database foundation gate is accepted.
 
 ## Next validation milestones
 
 The end-to-end scenarios formerly listed here are not runnable yet. Implement them in the order defined by [tasks.md](./tasks.md):
 
-1. Google OAuth sessions, schema migrations, runtime roles, and RLS isolation tests.
-2. Assessment state machine, policy engine, durable PostgreSQL queue, and passive visualization.
-3. Webhook-only Stripe entitlement and server-side catalog gating.
-4. HTTP-file verification and SSRF-safe fetching before any active external assessment.
-5. Least-privilege sandbox runner, redacted evidence, private reports, and signed downloads.
-6. AI as a non-executor and, later, the outbound-only private agent.
+1. Close T016 by replacing arbitrary tenant SQL with closed typed repositories/capabilities; keep DB gates serialized or on isolated databases.
+2. Implement the atomic redacted audit chain (T017), credential AEAD (T018), and the passive playbook contract/runtime (T019).
+3. Implement the Hono security boundary and Google OAuth sessions (T020–T021).
+4. Only then implement membership and the PostgreSQL queue/outbox before assessment state/UI work.
+5. Add webhook-only Stripe entitlement, HTTP-file verification, SSRF-safe fetching, sandboxed execution, evidence/reports, and the private agent in task order.
 
 The multi-user extension is validated after T021 with these additional milestones:
 
 7. The existing global Google `user` identity, explicit `account_membership(account_id,user_id)`, token-hash invitations, role matrix, active-account session rotation, and membership RLS isolation (T071–T080).
-8. PostgreSQL `SKIP LOCKED` claim, lease/fencing token, heartbeat, retry/backoff, reaper, exact fair scheduling, tenant/global limits, and transactional outbox; `LISTEN/NOTIFY` is only a hint (T081–T087).
+8. PostgreSQL function-only queue control (`queue_connector` has `EXECUTE` and zero table grants), `SKIP LOCKED` claim, global→tenant→job ordering for claim/terminal/reaper/reconcile, lease/fencing token, heartbeat, retry/backoff, exact fair scheduling, tenant/global limits, and transactional outbox; `LISTEN/NOTIFY` is only a hint (T081–T087).
 9. Separate admin app/API/origin, `staff_identity` and related staff tables, mandatory MFA, JIT reason/ticket/TTL/approval, dual break-glass, policy-aware queue operations, and read-only billing with no secrets/raw evidence/arbitrary SQL/impersonation (T088–T094).
 
 The authoritative design references are the [constitution](../../.specify/memory/constitution.md), [data model](./data-model.md), [research](./research.md), and [contracts](./contracts/index.md). Drift from those documents is a bug; when they conflict, the constitution wins.

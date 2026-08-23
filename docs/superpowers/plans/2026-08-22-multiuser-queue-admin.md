@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add explicit account membership, a fenced PostgreSQL queue/outbox, and an isolated staff admin plane while preserving the existing `user` identity authority and Constitution 1.1.1.
+**Goal:** Add explicit account membership, a fenced PostgreSQL queue/outbox, and an isolated staff admin plane while preserving the existing `user` identity authority and Constitution 1.1.2.
 
-**Architecture:** The existing `user` table remains the single global Google identity authority. `account_membership(account_id,user_id)` is the tenant authorization boundary; `session.account_id` is the one active account and switches rotate the session. PostgreSQL is queue source of truth with singleton `queue_global_state` capacity locking, exact tenant fairness, global→tenant→job `FOR UPDATE` lock order, `SKIP LOCKED`, leases, monotonic fencing, reaper/backoff, and a transactional at-least-once outbox. Admin has separate staff identity/OIDC, WebAuthn MFA, cookies, JIT support grants, and dual approval.
+**Architecture:** The existing `user` table remains the single global Google identity authority. `account_membership(account_id,user_id)` is the tenant authorization boundary; `session.account_id` is the one active account and switches rotate the session. PostgreSQL is queue source of truth with singleton `queue_global_state` capacity locking, exact tenant fairness, global→tenant→job `FOR UPDATE` lock order for every mutation, `SKIP LOCKED`, leases, monotonic fencing, reaper/backoff, and a least-privilege `queue_control` function boundary. The typed `packages/db/src/queue-control.ts` API is the only app surface; its dedicated connector has only `EXECUTE` on fixed-signature functions and zero table grants. Admin has separate staff identity/OIDC, WebAuthn MFA, cookies, JIT support grants, and dual approval.
 
 **Tech Stack:** Bun 1.4.0, TypeScript strict, Hono, PostgreSQL 16, Drizzle, `postgres` (postgres.js), Zod, Vitest, Web Crypto, WebAuthn, existing RLS runtime roles, Stripe webhook boundary.
 
@@ -20,13 +20,13 @@ Every task is TDD: write a failing test, run the exact red command, implement th
 RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- <pattern>
 ```
 
-`LISTEN/NOTIFY` is only a wake-up hint. Never use Redis/Kafka, a second customer identity table, email auto-linking, URL bearer tokens, owner/BYPASSRLS runtime access, impersonation, arbitrary SQL, secret/raw-evidence admin access, or billing writes.
+`LISTEN/NOTIFY` is only a wake-up hint. Never use Redis/Kafka, a second customer identity table, email auto-linking, URL bearer tokens, owner/BYPASSRLS runtime access, impersonation, arbitrary SQL, secret/raw-evidence admin access, or billing writes. Queue application code never uses unsafe SQL or direct queue table grants.
 
 | Area | Files | Responsibility |
 | --- | --- | --- |
 | Membership | Existing `packages/db/schema/identity.ts` (`user` only) plus `packages/db/schema/membership.ts`, `packages/db/src/{membership,invitations}.ts`, `apps/api/src/{auth,account-context}.ts`, `apps/api/src/routes/memberships.ts` | Existing `user` global identity, membership/invitation, session account binding, narrow auth functions; no second identity table |
-| Queue/outbox | `packages/db/schema/{queue,execution}.ts`, `packages/db/src/{queue,outbox}.ts`, `apps/worker-control/src/{scheduler,reaper,outbox-dispatcher}.ts` | Global singleton capacity, global→tenant→job claim, lease, fencing, heartbeat, recovery, exact fairness, transactional outbox |
-| Admin | `packages/db/schema/admin.ts`, `packages/db/src/admin.ts`, `apps/admin/src`, `apps/api/src/routes/admin.ts` | Staff bootstrap/OIDC/WebAuthn/recovery, grants/approvals, safe queue/billing read API |
+| Queue/outbox | `packages/db/schema/{queue,execution}.ts`, `packages/db/src/{queue-bootstrap,queue-control}.ts`, `apps/worker-control/src/{scheduler,reaper,outbox-dispatcher}.ts` | Least-privilege queue bootstrap/function boundary, global singleton capacity, global→tenant→job operations, lease, fencing, heartbeat, recovery, exact fairness, transactional outbox |
+| Admin | `packages/db/schema/admin.ts`, `packages/db/src/admin-grants.ts`, `apps/api/src/routes/admin-{grants,support,billing,queue}.ts`, `apps/admin/src` | Staff bootstrap/OIDC/WebAuthn/recovery, grants/approvals, safe queue/billing read API |
 | Contracts | `packages/contracts/src/{membership,queue,admin}.ts`, `specs/001-touchmyapi-platform/contracts/{membership,queue,admin}.md` | Closed schemas and stable errors |
 | Verification | `tests/{contract,integration,isolation,e2e}`, `specs/001-touchmyapi-platform/quickstart.md`, `docs/reviews/2026-08-22-multiuser-queue-admin.md` | Acceptance, cutover, isolation, and runbook evidence |
 
@@ -158,48 +158,50 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 **Files:**
 - Create: `packages/contracts/src/queue.ts`
 - Create: `packages/db/schema/queue.ts`
+- Create: `packages/db/src/queue-bootstrap.ts`
 - Modify: `packages/db/schema/execution.ts`
 - Modify: `apps/api/src/routes/account.ts` (transactional account-create state upsert)
 - Modify: `packages/db/src/auth-bootstrap.ts` (first-account/bootstrap state upsert)
 - Modify: `packages/contracts/src/index.ts`
-- Create: next generated migration after journal inspection
-- Test: `packages/contracts/test/queue.test.ts`, `packages/db/test/queue-schema.integration.test.ts`
+- Create: next generated migration after journal inspection (`packages/db/migrations/*.sql`, no guessed number)
+- Test: `packages/contracts/test/queue.test.ts`, `packages/db/test/queue-schema.integration.test.ts`, `packages/db/test/queue-bootstrap.integration.test.ts`
 
-- [ ] **RED:** Test closed queue/outbox schemas, singleton `queue_global_state`, `queue_tenant_state`, global/tenant counters, statuses, fencing, outbox lease/heartbeat, max attempts, and partial active index statuses. Run `bun run test:contract -- queue && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-schema`; expected `FAIL`.
-- [ ] **GREEN:** Define singleton `queue_global_state(id='global',running_count,concurrency_limit)`, `queue_tenant_state(account_id,last_dispatched_at,running_count,concurrency_limit)`, job fields, outbox `lease_owner/lease_expires_at/fencing_token/heartbeat_at/max_attempts/last_error/failed_at`, and partial unique `(account_id,normalized_target_key)` for `queued/stale_recovered/running`. Generate and inspect the next migration, backfill the singleton plus one tenant row for every active account, upsert the singleton in queue bootstrap and the tenant row in `apps/api/src/routes/account.ts` and `packages/db/src/auth-bootstrap.ts`, and avoid advisory locks/`SERIALIZABLE` retries. Run `bun run test:contract -- queue && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-schema && bun run typecheck`; expected `PASS`.
-- [ ] **Commit:** `git add packages/contracts packages/db/schema packages/db/migrations packages/contracts/test/queue.test.ts packages/db/test/queue-schema.integration.test.ts apps/api/src/routes/account.ts packages/db/src/auth-bootstrap.ts && git commit -m "queue: define fenced postgres schema"`.
+- [ ] **RED:** Test closed queue/outbox schemas, singleton `queue_global_state`, `queue_tenant_state`, global/tenant counters, statuses, fencing, outbox lease/heartbeat, max attempts, partial active index statuses, `queue_control` role attributes, fixed function signatures, queue-connector zero table grants, and bootstrap upserts. Run `bun run test:contract -- queue && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-schema`; expected `FAIL`.
+- [ ] **GREEN:** Define singleton `queue_global_state(id='global',running_count,concurrency_limit)`, `queue_tenant_state(account_id,last_dispatched_at,running_count,concurrency_limit)`, job/outbox operational fields, and partial unique `(account_id,normalized_target_key)` for `queued/stale_recovered/running`. Generate and inspect the next migration, create `queue_control` as `NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT`, create `queue_connector` with only function `EXECUTE`, grant direct/RLS access only to queue state and required job/outbox metadata/state, create `packages/db/src/queue-bootstrap.ts` to upsert the singleton, and backfill the singleton plus one tenant row for every active account. Upsert the tenant row in `apps/api/src/routes/account.ts` and `packages/db/src/auth-bootstrap.ts`; avoid advisory locks/`SERIALIZABLE` retries. Run `bun run test:contract -- queue && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-schema && bun run typecheck`; expected `PASS`.
+- [ ] **Commit:** `git add packages/contracts packages/db/schema packages/db/migrations packages/db/src/queue-bootstrap.ts packages/contracts/test/queue.test.ts packages/db/test/queue-schema.integration.test.ts packages/db/test/queue-bootstrap.integration.test.ts apps/api/src/routes/account.ts packages/db/src/auth-bootstrap.ts && git commit -m "queue: define least privilege bootstrap boundary"`.
 
 ### Task T082: Enqueue and exact fair claim (INFRA)
 
 **Files:**
-- Create: `packages/db/src/queue.ts`
-- Create: `packages/db/test/queue-claim.integration.test.ts`
+- Create: `packages/db/src/queue-control.ts` (typed calls only; no unsafe SQL)
+- Create: `packages/db/test/queue-control.integration.test.ts`
+- Create: `tests/isolation/queue-control-boundary.test.ts`
 - Modify: `apps/worker-control/src/scheduler.ts`
 
-- [ ] **RED:** Concurrently enqueue/claim jobs and assert singleton global row lock first, then tenant lock order `last_dispatched_at NULLS FIRST, account_id`, then job order `priority DESC, available_at, created_at, id`; global/tenant capacity holds, no advisory hash or `SERIALIZABLE` retry path, and no duplicate claim occurs. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-claim`; expected `FAIL`.
-- [ ] **GREEN:** Implement one transaction: lock `queue_global_state` with `FOR UPDATE`, then eligible tenant with `FOR UPDATE SKIP LOCKED`, then its job with `FOR UPDATE SKIP LOCKED`; check global/tenant limits; increment `fencing_token`; set `running`, lease, owner, started time; increment both counters/update timestamp; commit before dispatch. Use the current `postgres` (postgres.js) driver boundary. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-claim && bun run typecheck`; expected `PASS`.
-- [ ] **Commit:** `git add packages/db/src/queue.ts packages/db/test/queue-claim.integration.test.ts apps/worker-control/src/scheduler.ts && git commit -m "queue: claim jobs with exact tenant fairness"`.
+- [ ] **RED:** Concurrently enqueue/claim jobs and assert the dedicated connector cannot select queue tables, can call only fixed-signature functions, and sees no business payload/evidence; assert singleton global row lock first, tenant order `last_dispatched_at NULLS FIRST, account_id`, job order `priority DESC, available_at, created_at, id`, global/tenant capacity, no advisory hash or `SERIALIZABLE` retry path, and no duplicate claim. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-control && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:isolation --maxWorkers=1 -- queue-control-boundary`; expected `FAIL`.
+- [ ] **GREEN:** Implement the typed `packages/db/src/queue-control.ts` API over fixed-signature `SECURITY DEFINER` functions owned by `queue_control`, with fixed search path and input/policy checks; no unsafe SQL or direct table grants. Claim locks `queue_global_state` with `FOR UPDATE`, then eligible tenant with `FOR UPDATE SKIP LOCKED`, then its job with `FOR UPDATE SKIP LOCKED`; check global/tenant limits, increment `fencing_token`, set `running`/lease, increment both counters/update timestamp, and commit before dispatch. Use the current `postgres` (postgres.js) driver boundary. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-control && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:isolation --maxWorkers=1 -- queue-control-boundary && bun run typecheck`; expected `PASS`.
+- [ ] **Commit:** `git add packages/db/src/queue-control.ts packages/db/test/queue-control.integration.test.ts tests/isolation/queue-control-boundary.test.ts apps/worker-control/src/scheduler.ts && git commit -m "queue: claim through least privilege control functions"`.
 
 ### Task T083: Heartbeat, acknowledge, failure, cancel (INFRA)
 
 **Files:**
-- Modify: `packages/db/src/queue.ts`
+- Modify: `packages/db/src/queue-control.ts`
 - Create: `packages/db/test/queue-fencing.integration.test.ts`
 
 - [ ] **RED:** Test heartbeat before half lease, completion/failure/cancel with matching account/lease owner/fencing, stale no-op, terminal counter decrement, and monotonic token after admin-style lease clearing. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-fencing`; expected `FAIL`.
-- [ ] **GREEN:** Implement `heartbeat`, `complete`, `fail`, and `requestCancel` with fencing predicates; never reset token. Clear lease fields only for explicit requeue while leaving token unchanged. Require runner cleanup before terminal result. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-fencing && bun run typecheck`; expected `PASS`.
-- [ ] **Commit:** `git add packages/db/src/queue.ts packages/db/test/queue-fencing.integration.test.ts && git commit -m "queue: fence heartbeat and terminal writes"`.
+- [ ] **GREEN:** Implement typed `heartbeat`, `complete`, `fail`, and `requestCancel` calls with fixed-signature function checks; every transaction locks global→tenant→job, compares account/lease-owner/fencing, and makes a stale-fence mismatch a no-op. Never reset the token; clear lease fields only for explicit requeue while leaving it unchanged; require runner cleanup before terminal result. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-fencing && bun run typecheck`; expected `PASS`.
+- [ ] **Commit:** `git add packages/db/src/queue-control.ts packages/db/test/queue-fencing.integration.test.ts && git commit -m "queue: fence heartbeat and terminal writes"`.
 
 ### Task T084: Reaper and stale retry recovery (INFRA)
 
 **Files:**
 - Create: `apps/worker-control/src/reaper.ts`
-- Modify: `packages/db/src/queue.ts`
+- Modify: `packages/db/src/queue-control.ts`
 - Create: `packages/db/test/queue-recovery.integration.test.ts`
 
 - [ ] **RED:** Test expired `running`→`stale_recovered`, attempts increment, backoff/available_at, counter decrement, next claim stale→running with incremented fencing, exhausted attempts→failed, timeout/cancel cleanup, and preserved safe reason. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-recovery`; expected `FAIL`.
-- [ ] **GREEN:** Implement atomic reaper and bounded retry/jitter; never widen scope/policy or reset fencing. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-recovery && bun run typecheck`; expected `PASS`.
-- [ ] **Commit:** `git add apps/worker-control/src/reaper.ts packages/db/src/queue.ts packages/db/test/queue-recovery.integration.test.ts && git commit -m "queue: recover stale leases with backoff"`.
+- [ ] **GREEN:** Implement atomic reaper and bounded retry/jitter through `queue_control`: lock global first, then tenants `ORDER BY account_id FOR UPDATE SKIP LOCKED`, then jobs `ORDER BY id FOR UPDATE SKIP LOCKED`; decrement both counters, apply stale recovery/backoff or exhausted failure, and never widen scope/policy or reset fencing. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-recovery && bun run typecheck`; expected `PASS`.
+- [ ] **Commit:** `git add apps/worker-control/src/reaper.ts packages/db/src/queue-control.ts packages/db/test/queue-recovery.integration.test.ts && git commit -m "queue: recover stale leases with backoff"`.
 
 ### Task T085: Reconciler and exact fairness proof (INFRA)
 
@@ -210,19 +212,19 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: `packages/db/test/queue-reconcile.integration.test.ts`
 
 - [ ] **RED:** Test one noisy and three quiet accounts, null timestamp ordering, running counter increments/decrements, drift repair, tenant/global cap, missing-state fail-closed behavior, active-account state backfill, and the absence of an alternate fairness-score/deficit algorithm. Run `bun run test:unit -- fair-scheduler` and `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-reconcile`; expected `FAIL`.
-- [ ] **GREEN:** Implement the global singleton plus `queue_tenant_state` lock/order algorithm and reconciler: derive global and tenant `running_count` from running jobs, create missing global/active-account rows, repair both drifts, fail closed without discarding queued jobs, and verify account-create/auth-bootstrap upserts. Run `bun run test:unit -- fair-scheduler && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-reconcile && bun run typecheck`; expected `PASS`.
-- [ ] **Commit:** `git add apps/worker-control/src apps/worker-control/test packages/db/test/queue-reconcile.integration.test.ts && git commit -m "queue: prove tenant fairness and reconcile counters"`.
+- [ ] **GREEN:** Implement the global singleton plus `queue_tenant_state` reconciler through `queue_control`: lock global first, then tenants `ORDER BY account_id FOR UPDATE SKIP LOCKED`, then jobs `ORDER BY id FOR UPDATE SKIP LOCKED`; derive both running counts, create missing global/active-account rows, repair drift, fail closed without discarding queued jobs, and verify account-create/auth-bootstrap upserts. Run `bun run test:unit -- fair-scheduler && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-reconcile && bun run typecheck`; expected `PASS`.
+- [ ] **Commit:** `git add apps/worker-control/src apps/worker-control/test packages/db/src/queue-control.ts packages/db/test/queue-reconcile.integration.test.ts && git commit -m "queue: prove tenant fairness and reconcile counters"`.
 
 ### Task T086: Transactional outbox and notification hint (INFRA)
 
 **Files:**
-- Create: `packages/db/src/outbox.ts`
+- Modify: `packages/db/src/queue-control.ts`
 - Create: `apps/worker-control/src/outbox-dispatcher.ts`
 - Create: `packages/db/test/outbox.integration.test.ts`
 
 - [ ] **RED:** Test state+outbox atomic commit/rollback, outbox claim `SKIP LOCKED`, short lease/heartbeat/fencing, expired `processing`→`pending` recovery, redacted `last_error`, `max_attempts` exhaustion to terminal `failed` with `failed_at`, alert/audit, at-least-once duplicate delivery, idempotent `event_key`, and missed `NOTIFY` polling. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- outbox`; expected `FAIL`.
-- [ ] **GREEN:** Implement exact outbox transitions `pending`→`processing`→`processed`, current-token failure/backoff until `max_attempts`, terminal `failed` with redacted `last_error`/`failed_at`, alert and audit, and expired-processing reaper using the same exhaustion path; keep `pg_notify` optional and never authoritative. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- outbox && bun run typecheck`; expected `PASS`.
-- [ ] **Commit:** `git add packages/db/src/outbox.ts apps/worker-control/src/outbox-dispatcher.ts packages/db/test/outbox.integration.test.ts && git commit -m "queue: add fenced transactional outbox"`.
+- [ ] **GREEN:** Implement typed outbox function calls through `queue_control` with the same global→tenant→job order when a job aggregate is involved, exact transitions `pending`→`processing`→`processed`, current-token failure/backoff until `max_attempts`, terminal `failed` with redacted `last_error`/`failed_at`, alert and audit, and expired-processing reaper using the same exhaustion path; keep `pg_notify` optional and never authoritative. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- outbox && bun run typecheck`; expected `PASS`.
+- [ ] **Commit:** `git add packages/db/src/queue-control.ts apps/worker-control/src/outbox-dispatcher.ts packages/db/test/outbox.integration.test.ts && git commit -m "queue: add fenced transactional outbox"`.
 
 ### Task T087: US1 integration and queue gate (US1)
 
@@ -233,7 +235,7 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 - Create: `docs/reviews/2026-08-22-queue-integration.md`
 
 - [ ] **RED:** Extend T024 to consume T084 and select `stale_recovered` on recovery; extend T025 to consume the partial active index over `queued/stale_recovered/running`, with distinct accounts allowed. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-recovery && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- assessment-concurrency`; expected `FAIL` until integration is wired.
-- [ ] **GREEN:** Wire existing T027/T029 to the queue module delivered T081–T086; do not duplicate queue semantics in T027/T029. Record FR-024/FR-025/SC-004/SC-014/SC-015 evidence and leave T022 unchecked until this gate. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-recovery && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- assessment-concurrency && bun run test:contract && git diff --check`; expected `PASS`.
+- [ ] **GREEN:** Wire existing T027/T029 to typed queue-control functions delivered by T081–T086; do not duplicate queue semantics in T027/T029. Record FR-024/FR-025/SC-004/SC-014/SC-015 evidence, including global→tenant→job ordering for terminal/reaper/reconcile and stale-fence no-op, and leave T022 unchecked until this gate. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- queue-recovery && RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- assessment-concurrency && bun run test:contract && git diff --check`; expected `PASS`.
 - [ ] **Commit:** `git add tests/integration/queue-recovery.test.ts tests/integration/assessment-concurrency.test.ts specs/001-touchmyapi-platform/tasks.md docs/reviews/2026-08-22-queue-integration.md && git commit -m "docs: accept queue integration gate"`.
 
 ## Phase 2C admin control plane: T088–T094 (after queue and billing read dependencies)
@@ -266,13 +268,13 @@ RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5
 ### Task T090: JIT grants, approvals, break-glass (US6)
 
 **Files:**
-- Create: `packages/db/src/admin.ts`
+- Create: `packages/db/src/admin-grants.ts`
 - Create: `apps/api/src/routes/admin-grants.ts`
 - Create: `packages/db/test/admin-grants.integration.test.ts`
 
 - [ ] **RED:** Test missing MFA/grant/reason/ticket/TTL, normal one-approval, distinct dual break-glass, expiry/revocation, and append-only audit. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- admin-grants`; expected `FAIL`.
 - [ ] **GREEN:** Implement `support_access_grant` plus `support_access_approval`, short TTL, capability enum, distinct approvers, and no customer impersonation. Run `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_multiuser_test bun run test:integration --maxWorkers=1 -- admin-grants && bun run typecheck`; expected `PASS`.
-- [ ] **Commit:** `git add packages/db/src/admin.ts apps/api/src/routes/admin-grants.ts packages/db/test/admin-grants.integration.test.ts && git commit -m "admin: enforce jit support approvals"`.
+- [ ] **Commit:** `git add packages/db/src/admin-grants.ts apps/api/src/routes/admin-grants.ts packages/db/test/admin-grants.integration.test.ts && git commit -m "admin: enforce jit support approvals"`.
 
 ### Task T091: Safe support and read-only billing API (after T045, US6)
 

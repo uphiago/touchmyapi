@@ -4,6 +4,8 @@
 **Status:** Approved for autonomous implementation  
 **Scope:** Foundation remediation plus tasks T010-T021
 
+**Implementation checkpoint (2026-08-22):** T010–T015 accepted; T016 implemented and test-green but adversarial-review blocked on its arbitrary `unsafe(string)` query surface; T017–T021 pending. This remains the target design, not a claim that every section is executable. See `docs/reviews/2026-08-22-foundation-checkpoint.md`.
+
 ## Goal
 
 Build the complete security foundation required before any assessment user story: reproducible quality gates, the default-deny policy engine, PostgreSQL tenant isolation, secure persistence primitives, a passive playbook catalog, and Google OAuth sessions. This increment must not execute assessments, contact targets, expose a scanner, or introduce billing mutations.
