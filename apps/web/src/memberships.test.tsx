@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createApiClient, type Fetcher } from "../../../packages/ui/api-client";
 import { AccountSwitcher } from "./account-switcher";
 import { Memberships } from "./memberships";
+import { Assessments } from "./assessments";
 
 const accountId = "00000000-0000-4000-8000-000000000001";
 const otherAccountId = "00000000-0000-4000-8000-000000000002";
@@ -166,5 +167,33 @@ describe("membership workspace components", () => {
     expect(markup).toContain("suspended");
     expect(markup).not.toContain(token);
     expect(markup).not.toContain("?token=");
+  });
+
+  it("renders assessment state from the server and exposes queue only for drafts", () => {
+    const markup = renderToStaticMarkup(
+      <Assessments
+        assessments={[
+          {
+            id: "00000000-0000-4000-8000-000000000006",
+            accountId,
+            targetCategory: "surface",
+            target: "example.test",
+            scope: [],
+            playbookId: "surface-public-posture",
+            playbookVersion: "1.0.0",
+            status: "draft",
+            jobId: null,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ]}
+        busy={false}
+        onCreate={() => undefined}
+        onQueue={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("example.test");
+    expect(markup).toContain(">Queue</button>");
   });
 });
