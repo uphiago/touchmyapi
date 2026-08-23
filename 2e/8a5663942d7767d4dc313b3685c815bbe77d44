@@ -1,0 +1,36 @@
+packages/db/src/tenant-session.ts
+  s_bc54431df54bf2::t_f0ac015b67051c 528-538,701-713,715-722,724-726
+tests/integration/multiuser-migration.test.ts
+  s_bc54431df54bf2::t_ae1d9e540e4a09 101-102,169-170
+packages/db/test/schema.integration.test.ts
+  s_bc54431df54bf2::t_312ac2660a984f 48-50,203-204,253-254,319-320,440,442-449
+  s_bc54431df54bf2::t_7690d1329c540e 406-409,416
+packages/db/test/audit.integration.test.ts
+  s_bc54431df54bf2::t_ae1d9e540e4a09 120-122,288-290,546,548
+  s_bc54431df54bf2::t_a120f9998db88f 590-592,597,604,614,618-620
+  s_bc54431df54bf2::t_61f883043d3fc0 90,102-104,593
+  s_bc54431df54bf2::t_e6fdcdcb581e77 547
+packages/db/test/tenant-session.integration.test.ts
+  s_bc54431df54bf2::t_a6c9639804b73d 167-181
+  s_bc54431df54bf2::t_ae1d9e540e4a09 131-134
+packages/db/test/roles.isolation.test.ts
+  s_bc54431df54bf2::t_a98f838e62c5cc 27,218,494,496-498,595-599,770
+tests/isolation/rls.test.ts
+  s_bc54431df54bf2::t_a98f838e62c5cc 166-167,543-544,583-584
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "2e8a5663942d7767d4dc313b3685c815bbe77d44",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
