@@ -1,0 +1,50 @@
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_f0574d00731494 133
+specs/001-touchmyapi-platform/spec.md
+  s_bc54431df54bf2::t_a1bdca5a80770f 166
+  s_bc54431df54bf2::t_0d98a0da172b4a 87,89
+  s_bc54431df54bf2::t_e075518b402d18 137-138
+specs/001-touchmyapi-platform/data-model.md
+  s_bc54431df54bf2::t_72e1921024a1e6 503
+  s_bc54431df54bf2::t_abb6ee4b19b7dc 504,506
+  s_bc54431df54bf2::t_f1e3237b579377 183,192,196,207,209-211,234
+specs/001-touchmyapi-platform/contracts/job.md
+  s_bc54431df54bf2::t_417711d946e14e 71
+.specify/memory/constitution.md
+  s_bc54431df54bf2::t_9b100f20fe8293 3-5,47,53,57
+docs/superpowers/plans/2026-08-22-multiuser-queue-admin.md
+  s_bc54431df54bf2::t_fa684235ba08f1 5
+  s_bc54431df54bf2::t_ced2605c906074 23,28-29
+  s_bc54431df54bf2::t_7c54edd777a50b 162,170-171,177-178,183-184,191,195,206,218,225,230
+  s_bc54431df54bf2::t_daa9a261c30c13 298,302,304
+  s_bc54431df54bf2::t_5bab60d7ce0991 7,242
+  s_bc54431df54bf2::t_d8fd99610cf267 303
+docs/superpowers/specs/2026-08-22-multiuser-queue-admin-design.md
+  s_bc54431df54bf2::t_e445ff36d9b34b 144,171
+  s_bc54431df54bf2::t_a81320489f59e8 44,56,60,70-74,76,78
+specs/001-touchmyapi-platform/research.md
+  s_bc54431df54bf2::t_a58c7cb0a93468 90,96
+specs/001-touchmyapi-platform/plan.md
+  s_bc54431df54bf2::t_b5b7f489c80901 11,29,43
+specs/001-touchmyapi-platform/contracts/queue.md
+  s_bc54431df54bf2::t_86570e0c26225c 7,18-32
+  s_bc54431df54bf2::t_ade5d0075d8645 40,78
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_f1aa1a4ea2ca39 200-206,214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "56d3724b31c5777790ed2e08818f14a8c4ecfe3d",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
