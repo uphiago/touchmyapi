@@ -707,3 +707,248 @@ $$;
 ALTER FUNCTION app_private.queue_reap(integer, timestamptz) OWNER TO queue_control;
 REVOKE ALL ON FUNCTION app_private.queue_reap(integer, timestamptz) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app_private.queue_reap(integer, timestamptz) TO queue_connector;
+
+CREATE OR REPLACE FUNCTION app_private.outbox_claim(
+  p_lease_owner text,
+  p_batch_size integer,
+  p_now timestamptz
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+DECLARE
+  event_row record;
+  claimed jsonb := '[]'::jsonb;
+  lease_until timestamptz;
+BEGIN
+  IF p_lease_owner IS NULL OR p_lease_owner !~ '^[A-Za-z0-9._:-]{1,128}$'
+     OR p_batch_size IS NULL OR p_batch_size < 1 OR p_batch_size > 100
+     OR p_now IS NULL THEN
+    RETURN claimed;
+  END IF;
+  lease_until := p_now + interval '60 seconds';
+  FOR event_row IN
+    SELECT id, account_id, event_key, aggregate_type, aggregate_id,
+           schema_version, attempts, max_attempts, fencing_token
+    FROM public.outbox_event
+    WHERE status = 'pending'::public.outbox_status
+      AND available_at <= p_now
+    ORDER BY available_at, account_id, id
+    FOR UPDATE SKIP LOCKED
+    LIMIT p_batch_size
+  LOOP
+    UPDATE public.outbox_event
+    SET status = 'processing'::public.outbox_status,
+        lease_owner = p_lease_owner,
+        lease_expires_at = lease_until,
+        heartbeat_at = p_now,
+        fencing_token = fencing_token + 1
+    WHERE id = event_row.id;
+    claimed := claimed || jsonb_build_array(jsonb_build_object(
+      'id', event_row.id,
+      'accountId', event_row.account_id,
+      'eventKey', event_row.event_key,
+      'aggregateType', event_row.aggregate_type,
+      'aggregateId', event_row.aggregate_id,
+      'schemaVersion', event_row.schema_version,
+      'attempts', event_row.attempts,
+      'maxAttempts', event_row.max_attempts,
+      'leaseOwner', p_lease_owner,
+      'leaseExpiresAt', lease_until,
+      'fencingToken', event_row.fencing_token + 1
+    ));
+  END LOOP;
+  RETURN claimed;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.outbox_heartbeat(
+  p_account_id uuid,
+  p_event_id uuid,
+  p_lease_owner text,
+  p_fencing_token bigint,
+  p_now timestamptz
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+DECLARE
+  updated_id uuid;
+  lease_until timestamptz;
+BEGIN
+  IF p_account_id IS NULL OR p_event_id IS NULL OR p_lease_owner IS NULL
+     OR p_lease_owner !~ '^[A-Za-z0-9._:-]{1,128}$'
+     OR p_fencing_token IS NULL OR p_now IS NULL THEN
+    RETURN NULL;
+  END IF;
+  PERFORM 1
+  FROM public.outbox_event
+  WHERE id = p_event_id AND account_id = p_account_id
+    AND status = 'processing'::public.outbox_status
+    AND lease_owner = p_lease_owner
+    AND fencing_token = p_fencing_token
+  FOR UPDATE;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+  lease_until := p_now + interval '60 seconds';
+  UPDATE public.outbox_event
+  SET heartbeat_at = p_now, lease_expires_at = lease_until
+  WHERE id = p_event_id AND account_id = p_account_id
+  RETURNING id INTO updated_id;
+  RETURN jsonb_build_object(
+    'id', updated_id, 'accountId', p_account_id,
+    'leaseOwner', p_lease_owner, 'leaseExpiresAt', lease_until,
+    'fencingToken', p_fencing_token
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.outbox_ack(
+  p_account_id uuid,
+  p_event_id uuid,
+  p_lease_owner text,
+  p_fencing_token bigint,
+  p_now timestamptz
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+BEGIN
+  IF p_account_id IS NULL OR p_event_id IS NULL OR p_lease_owner IS NULL
+     OR p_fencing_token IS NULL OR p_now IS NULL THEN RETURN false; END IF;
+  PERFORM 1
+  FROM public.outbox_event
+  WHERE id = p_event_id AND account_id = p_account_id
+    AND status = 'processing'::public.outbox_status
+    AND lease_owner = p_lease_owner
+    AND fencing_token = p_fencing_token
+  FOR UPDATE;
+  IF NOT FOUND THEN RETURN false; END IF;
+  UPDATE public.outbox_event
+  SET status = 'processed'::public.outbox_status,
+      lease_owner = NULL, lease_expires_at = NULL,
+      processed_at = p_now, heartbeat_at = p_now
+  WHERE id = p_event_id AND account_id = p_account_id;
+  RETURN true;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.outbox_fail(
+  p_account_id uuid,
+  p_event_id uuid,
+  p_lease_owner text,
+  p_fencing_token bigint,
+  p_last_error text,
+  p_now timestamptz
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+DECLARE
+  event_attempts integer;
+  event_max_attempts integer;
+BEGIN
+  IF p_account_id IS NULL OR p_event_id IS NULL OR p_lease_owner IS NULL
+     OR p_fencing_token IS NULL OR p_last_error IS NULL
+     OR length(p_last_error) > 512 OR p_last_error ~ '[\r\n]'
+     OR p_now IS NULL THEN RETURN false; END IF;
+  SELECT attempts, max_attempts
+  INTO event_attempts, event_max_attempts
+  FROM public.outbox_event
+  WHERE id = p_event_id AND account_id = p_account_id
+    AND status = 'processing'::public.outbox_status
+    AND lease_owner = p_lease_owner
+    AND fencing_token = p_fencing_token
+  FOR UPDATE;
+  IF event_attempts IS NULL THEN RETURN false; END IF;
+  IF event_attempts + 1 >= event_max_attempts THEN
+    UPDATE public.outbox_event
+    SET status = 'failed'::public.outbox_status,
+        attempts = event_attempts + 1,
+        lease_owner = NULL, lease_expires_at = NULL,
+        last_error = btrim(p_last_error), failed_at = p_now
+    WHERE id = p_event_id AND account_id = p_account_id;
+  ELSE
+    UPDATE public.outbox_event
+    SET status = 'pending'::public.outbox_status,
+        attempts = event_attempts + 1,
+        available_at = p_now + make_interval(secs => LEAST(300, 5 * (2 ^ LEAST(event_attempts + 1, 6)))),
+        lease_owner = NULL, lease_expires_at = NULL,
+        last_error = btrim(p_last_error)
+    WHERE id = p_event_id AND account_id = p_account_id;
+  END IF;
+  RETURN true;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.outbox_reap(
+  p_batch_size integer,
+  p_now timestamptz
+)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+DECLARE
+  event_row record;
+  recovered_count integer := 0;
+BEGIN
+  IF p_batch_size IS NULL OR p_batch_size < 1 OR p_batch_size > 100 OR p_now IS NULL THEN
+    RETURN 0;
+  END IF;
+  FOR event_row IN
+    SELECT id, account_id, lease_owner, fencing_token, attempts, max_attempts
+    FROM public.outbox_event
+    WHERE status = 'processing'::public.outbox_status
+      AND lease_expires_at <= p_now
+    ORDER BY account_id, id
+    FOR UPDATE SKIP LOCKED
+    LIMIT p_batch_size
+  LOOP
+    IF event_row.attempts + 1 >= event_row.max_attempts THEN
+      UPDATE public.outbox_event
+      SET status = 'failed'::public.outbox_status,
+          attempts = event_row.attempts + 1,
+          lease_owner = NULL, lease_expires_at = NULL,
+          last_error = 'lease_expired', failed_at = p_now
+      WHERE id = event_row.id AND account_id = event_row.account_id;
+    ELSE
+      UPDATE public.outbox_event
+      SET status = 'pending'::public.outbox_status,
+          attempts = event_row.attempts + 1,
+          available_at = p_now + make_interval(secs => LEAST(300, 5 * (2 ^ LEAST(event_row.attempts + 1, 6)))),
+          lease_owner = NULL, lease_expires_at = NULL,
+          last_error = 'lease_expired'
+      WHERE id = event_row.id AND account_id = event_row.account_id;
+    END IF;
+    recovered_count := recovered_count + 1;
+  END LOOP;
+  RETURN recovered_count;
+END;
+$$;
+
+ALTER FUNCTION app_private.outbox_claim(text, integer, timestamptz) OWNER TO queue_control;
+ALTER FUNCTION app_private.outbox_heartbeat(uuid, uuid, text, bigint, timestamptz) OWNER TO queue_control;
+ALTER FUNCTION app_private.outbox_ack(uuid, uuid, text, bigint, timestamptz) OWNER TO queue_control;
+ALTER FUNCTION app_private.outbox_fail(uuid, uuid, text, bigint, text, timestamptz) OWNER TO queue_control;
+ALTER FUNCTION app_private.outbox_reap(integer, timestamptz) OWNER TO queue_control;
+REVOKE ALL ON FUNCTION app_private.outbox_claim(text, integer, timestamptz),
+  app_private.outbox_heartbeat(uuid, uuid, text, bigint, timestamptz),
+  app_private.outbox_ack(uuid, uuid, text, bigint, timestamptz),
+  app_private.outbox_fail(uuid, uuid, text, bigint, text, timestamptz),
+  app_private.outbox_reap(integer, timestamptz)
+  FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_private.outbox_claim(text, integer, timestamptz),
+  app_private.outbox_heartbeat(uuid, uuid, text, bigint, timestamptz),
+  app_private.outbox_ack(uuid, uuid, text, bigint, timestamptz),
+  app_private.outbox_fail(uuid, uuid, text, bigint, text, timestamptz),
+  app_private.outbox_reap(integer, timestamptz)
+  TO queue_connector;

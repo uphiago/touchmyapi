@@ -7,13 +7,18 @@ export { ensureQueueState } from "./queue-bootstrap";
 export type { QueueBootstrapOptions } from "./queue-bootstrap";
 export { enqueueJob, QueueUnavailableError } from "./queue";
 export {
+  ackOutboxEvent,
+  claimOutboxEvents,
   claimQueueJob,
   completeQueueJob,
+  failOutboxEvent,
   failQueueJob,
+  heartbeatOutboxEvent,
   heartbeatQueueJob,
+  reapOutboxEvents,
   reapQueueJobs,
 } from "./queue-control";
-export type { QueueClaim, QueueHeartbeat } from "./queue-control";
+export type { OutboxClaim, QueueClaim, QueueHeartbeat } from "./queue-control";
 
 export { withTenant } from "./tenant-session";
 export type { RuntimeRole, TenantContext } from "./tenant-session";
