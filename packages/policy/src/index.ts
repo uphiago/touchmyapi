@@ -30,6 +30,13 @@ export {
   createPolicyEntitlement,
   fingerprintScope,
 } from "./engine";
+export { canMembershipCapability, evaluateMembership, lastOwnerDecision } from "./membership";
+export type {
+  LastOwnerDecision,
+  MembershipCapability,
+  MembershipEvaluation,
+  MembershipInput,
+} from "./membership";
 export type {
   ActionRequest,
   AuthorizedAction,
