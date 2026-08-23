@@ -665,11 +665,11 @@ git commit -m "feat: scope database transactions by tenant"
 
 - [ ] **Step 1: Escrever RED de redaction, atomicidade e concorrência**
 
-Use o `auditEventSchema` existente como contrato e teste recursivamente `password`, `token`, `authorization`, `cookie`, `secret`, `privateKey`, JWT e PEM removidos antes de INSERT. Insira concorrência para a mesma conta e afirme cadeia sem dois `prev_event_id` iguais indevidos; force erro e afirme que mutation e audit rollbackam juntas; runtime não atualiza/deleta histórico.
+Use o `auditEventSchema` existente como contrato e teste recursivamente `password`, `token`, `authorization`, `cookie`, `secret`, `privateKey`, JWT e PEM removidos antes de INSERT. Insira concorrência para a mesma conta e afirme cadeia sem dois `prev_event_id` iguais indevidos; force erro e afirme que mutation e audit rollbackam juntas; runtime não atualiza/deleta histórico. Teste também a cadeia accountless em `audit_system_state`, a ausência de acesso a dados de negócio pelo conector de sistema e a expiração de ambas as capabilities.
 
 - [ ] **Step 2: Implementar writer transacional**
 
-Exporte `appendAuditEvent(db, input)`. Redija payload antes de persistir, derive lock key estável de `account_id` (ou chave system), execute `pg_advisory_xact_lock`, selecione último evento da cadeia dentro da mesma transação e insira o próximo. Para evento accountless use cadeia system separada. O método deve lançar erro se audit falhar; mutation crítica deve chamar ambos no mesmo callback de `withTenant`.
+Exporte `appendAuditEvent(context, input)`. Redija payload antes de persistir, derive `account_id` somente do contexto ativo, faça `SELECT ... FROM public.account WHERE id=$1 FOR UPDATE`, selecione o último evento da cadeia dentro da mesma transação e insira o próximo. Para evento accountless, use `withSystemAudit` e bloqueie a linha singleton `audit_system_state(id='system')`; o `audit_system`/connector dedicado recebe somente RLS/grants necessários para essa cadeia. O método deve lançar erro se audit falhar; mutation crítica deve chamar ambos no mesmo callback de `withTenant`. Nenhuma superfície de advisory lock ou SQL arbitrário é permitida. Consulte `docs/superpowers/specs/2026-08-22-audit-chain-design.md`.
 
 - [ ] **Step 3: Rodar GREEN e revisar**
 
