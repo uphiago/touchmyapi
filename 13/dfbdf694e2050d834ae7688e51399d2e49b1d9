@@ -1,0 +1,19 @@
+docs/superpowers/specs/2026-08-23-membership-ui-design.md
+  s_bc54431df54bf2::t_8a365490af1711 1-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "13dfbdf694e2050d834ae7688e51399d2e49b1d9",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
