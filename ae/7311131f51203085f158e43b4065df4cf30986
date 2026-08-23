@@ -1,0 +1,55 @@
+tests/isolation/multiuser-rls.test.ts
+  s_bc54431df54bf2::t_01efa4788ecb09 148-151,153-157
+  s_bc54431df54bf2::t_5b388ac59ac9bc 41,46,49,55,59,64,68,75,79,85-88,91-93,96-99,101-104,108-111,116-121
+  s_bc54431df54bf2::t_f04c6b934d7792 43-45,122-136,138
+  s_bc54431df54bf2::t_1afce991fac3b1 1,7-13,18-40,42,47-48,50-54,56-58,60-63,65-67,69-74,76-78,80-84,89,100,105-107,112-115,139-147,152,158-161,163-169,174-181
+  s_bc54431df54bf2::t_e12641b724e195 2-6,162
+  s_bc54431df54bf2::t_308a75bf645c36 14-17,90,94-95,137,170-173
+docs/superpowers/plans/2026-08-23-phase2a-membership.md
+  s_bc54431df54bf2::t_5de3072bf0809b 96,98-102
+README.md
+  s_bc54431df54bf2::t_5de3072bf0809b 7
+packages/db/schema/identity.ts
+  s_bc54431df54bf2::t_049882d5b8940c 2,5
+  s_bc54431df54bf2::t_01efa4788ecb09 4,7,27-31
+  s_bc54431df54bf2::t_5a55a3365af76b 3
+packages/db/schema/assessment.ts
+  s_bc54431df54bf2::t_01efa4788ecb09 14,85,87
+  s_bc54431df54bf2::t_82159065a3d2cf 13
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_308a75bf645c36 123-129
+packages/db/test/roles.isolation.test.ts
+  s_bc54431df54bf2::t_65b592fb111a84 59,258-265
+  s_bc54431df54bf2::t_d01aa9b4923a2b 239,250
+docs/reviews/2026-08-23-multiuser-membership-foundation.md
+  s_bc54431df54bf2::t_5de3072bf0809b 3-5,7-10,60,66-82,92-93
+packages/db/src/tenant-session.ts
+  s_bc54431df54bf2::t_d0a59935b370cd 34,64
+packages/db/schema/identity-base.ts
+  s_bc54431df54bf2::t_82159065a3d2cf 1,10
+  s_bc54431df54bf2::t_01efa4788ecb09 2-9,11-33
+packages/db/migrations/0017_multiuser_rls_references.sql
+  s_bc54431df54bf2::t_308a75bf645c36 1-54
+packages/db/schema/membership.ts
+  s_bc54431df54bf2::t_01efa4788ecb09 13
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_5de3072bf0809b 193
+packages/db/test/schema.integration.test.ts
+  s_bc54431df54bf2::t_5d856d0d1bb1e3 296,315,474
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ae7311131f51203085f158e43b4065df4cf30986",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
