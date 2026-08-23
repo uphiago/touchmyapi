@@ -91,6 +91,14 @@ export function createApp(dependencies: ApiDependencies): App {
       credentials: true,
     }),
   );
+  const accountCors = cors({
+    origin: dependencies.config.corsOrigin,
+    credentials: true,
+  });
+  api.use("/api/v1/account", accountCors);
+  api.use("/api/v1/account/*", accountCors);
+  api.use("/api/v1/accounts", accountCors);
+  api.use("/api/v1/accounts/*", accountCors);
   if (dependencies.auth) {
     mountAuthRoutes(api, dependencies.auth, dependencies.config.environment);
   } else {

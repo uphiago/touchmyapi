@@ -358,8 +358,11 @@ describe("Google OAuth boundary", () => {
 
   it("lists safe account summaries and switches only through the session store", async () => {
     const fixture = createAuthFixture();
-    const response = await fixture.app.request("http://localhost/api/v1/account", {
-      headers: { Cookie: `${sessionCookieName}=${"A".repeat(43)}` },
+    const response = await fixture.app.request("http://localhost/api/v1/accounts", {
+      headers: {
+        Cookie: `${sessionCookieName}=${"A".repeat(43)}`,
+        Origin: "https://console.example.test",
+      },
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
@@ -372,6 +375,9 @@ describe("Google OAuth boundary", () => {
         },
       ],
     });
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "https://console.example.test",
+    );
 
     const switched = await fixture.app.request("http://localhost/api/v1/account/switch", {
       method: "POST",

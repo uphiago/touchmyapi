@@ -4,7 +4,7 @@ import {
   accountSwitchSchema,
   invitationAcceptSchema,
 } from "@touchmyapi/contracts";
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import type { ApiRequestEnv } from "./request-id";
 import type { ApiEnvironment } from "./config";
 
@@ -436,14 +436,16 @@ export function registerAuthRoutes(
     }
   });
 
-  api.get("/api/v1/account", async (context) => {
+  const listAccounts = async (context: Context<ApiRequestEnv>) => {
     const token = readSessionToken(context.req.raw, sessionCookieName);
     if (!token || !auth.store.listAccounts) {
       throw new ApiError(401, "unauthorized", "Authentication required");
     }
     const accounts = await auth.store.listAccounts(await hashSession(token));
     return context.json(accountListResponseSchema.parse({ accounts }));
-  });
+  };
+  api.get("/api/v1/accounts", listAccounts);
+  api.get("/api/v1/account", listAccounts);
 
   api.post("/api/v1/account/switch", async (context) => {
     try {
