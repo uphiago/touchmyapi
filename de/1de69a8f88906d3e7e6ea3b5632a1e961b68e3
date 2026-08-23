@@ -1,0 +1,47 @@
+packages/db/test/roles.isolation.test.ts
+  s_bc54431df54bf2::t_44eb7ee36d58d2 505-509
+  s_bc54431df54bf2::t_9c07d5d7f63a98 26,51,91,104,214,233,244,258,343,362-377,385
+  s_bc54431df54bf2::t_1b78d668e3b919 62-70
+  s_bc54431df54bf2::t_31224a6ef63fa6 378-384,386-388,426-432,444,510-519
+docs/superpowers/plans/2026-08-22-t017-audit-chain.md
+  s_bc54431df54bf2::t_42d00056b0adbd 7
+packages/db/test/schema.integration.test.ts
+  s_bc54431df54bf2::t_2fb4a8a9d8dad2 364-365
+  s_bc54431df54bf2::t_fa098e8d4f2e22 43,184,266,371,412-416
+  s_bc54431df54bf2::t_e622789eaf8e35 417-419
+  s_bc54431df54bf2::t_ce57d34cdfe8e9 420
+packages/db/migrations/0008_audit_account_lock.sql
+  s_bc54431df54bf2::t_e1d8856a65d005 1-123
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_a6727ddf407a1c 60-66
+packages/db/test/audit.integration.test.ts
+  s_bc54431df54bf2::t_466f32c6e3fd64 292,294-300,302,331-333,340-343,348-356
+  s_bc54431df54bf2::t_6f778a5bab0880 270-291
+  s_bc54431df54bf2::t_1962a78ef230e3 266-269
+  s_bc54431df54bf2::t_cdf0039c10efb7 232-265,293,301,303-315,346-347,357-361,363,365-366,370,372
+  s_bc54431df54bf2::t_775be88119eb7a 316-330,334-339,344-345
+  s_bc54431df54bf2::t_9e31e63176b2d9 167-188
+packages/db/schema/audit.ts
+  s_bc54431df54bf2::t_b54bc6cf080892 23-36
+packages/db/src/audit.ts
+  s_bc54431df54bf2::t_76f17e5f864a95 147,151-152,156,160-164
+packages/db/src/tenant-session.ts
+  s_bc54431df54bf2::t_4d2c9958956d7b 124
+  s_bc54431df54bf2::t_1c29c1db8cbc9a 48,74,84,113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "de1de69a8f88906d3e7e6ea3b5632a1e961b68e3",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
