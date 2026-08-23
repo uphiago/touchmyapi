@@ -1,0 +1,23 @@
+scripts/local-smoke.ts
+  s_bc54431df54bf2::t_bf42688560252c 9-44,82-89
+docs/reviews/2026-08-23-queue-integration.md
+  s_bc54431df54bf2::t_4f1714050b299e 23-24
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_68b3bbbb3d2f7d 195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "32b226126c7da0838161e8ca204b82308a250ef0",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
