@@ -1,0 +1,24 @@
+packages/contracts/src/index.ts
+  s_bc54431df54bf2::t_384433598d7f80 22-51
+packages/contracts/test/membership.test.ts
+  s_bc54431df54bf2::t_58abba709c8dbc 1-19,21-26,28-98
+  s_bc54431df54bf2::t_28d2b9ee3f83b2 20,27
+packages/contracts/src/membership.ts
+  s_bc54431df54bf2::t_384433598d7f80 1-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "722915c5b127caf556b51277e86b0e4d718ab2c4",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
