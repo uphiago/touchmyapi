@@ -81,10 +81,20 @@ export function registerAssessmentRoutes(
   environment: ApiEnvironment = "production",
 ): void {
   api.get("/api/v1/accounts/:accountId/assessments", async (context) => {
-    const accountId = accountIdFrom(context);
-    const { sessionHash } = await sessionForAccount(context, dependencies, accountId, environment);
-    const assessments = await dependencies.store.list({ sessionHash, accountId });
-    return context.json(assessmentListResponseSchema.parse({ assessments }));
+    try {
+      const accountId = accountIdFrom(context);
+      const { sessionHash } = await sessionForAccount(
+        context,
+        dependencies,
+        accountId,
+        environment,
+      );
+      const assessments = await dependencies.store.list({ sessionHash, accountId });
+      return context.json(assessmentListResponseSchema.parse({ assessments }));
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(503, "assessment_unavailable", "Assessment service unavailable");
+    }
   });
 
   api.post("/api/v1/accounts/:accountId/assessments", async (context) => {
