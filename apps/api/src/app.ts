@@ -85,7 +85,7 @@ export function createApp(dependencies: ApiDependencies): App {
     }),
   );
   if (dependencies.auth) {
-    mountAuthRoutes(api, dependencies.auth);
+    mountAuthRoutes(api, dependencies.auth, dependencies.config.environment);
   } else {
     api.all("/api/v1/auth/*", () => {
       throw new ApiError(503, "auth_unavailable", "Service Unavailable");

@@ -1,6 +1,7 @@
 import { ApiError } from "./error";
 import type { Hono } from "hono";
 import type { ApiRequestEnv } from "./request-id";
+import type { ApiEnvironment } from "./config";
 
 const GOOGLE_ISSUER = "https://accounts.google.com";
 const OAUTH_COOKIE = "__Host-tma-oauth";
@@ -240,8 +241,12 @@ function validateClaims(claims: GoogleIdentityClaims, adapter: GoogleOidcAdapter
     throw new Error("invalid claims");
 }
 
-export function registerAuthRoutes(api: Hono<ApiRequestEnv>, auth: AuthDependencies): void {
-  const secure = true;
+export function registerAuthRoutes(
+  api: Hono<ApiRequestEnv>,
+  auth: AuthDependencies,
+  environment: ApiEnvironment = "production",
+): void {
+  const secure = !(auth.allowInsecureCookies === true && environment === "development");
   api.get("/api/v1/auth/login", async (context) => {
     if ((context.req.query("provider") ?? "google") !== "google") {
       throw new ApiError(400, "unsupported_provider", "Unsupported provider");
