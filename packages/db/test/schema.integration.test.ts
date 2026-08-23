@@ -312,7 +312,7 @@ schemaDescribe("PostgreSQL foundation schema", () => {
       "notification:notification_assessment_fk:assessment:account_id,assessment_id>account_id,id",
       "report:report_assessment_fk:assessment:account_id,assessment_id>account_id,id",
       "runner_execution:runner_execution_job_fk:job:account_id,job_id>account_id,id",
-      "session:session_account_user_fk:user:account_id,user_id>account_id,id",
+      "session:session_user_fk:user:user_id>id",
       "user:user_account_fk:account:account_id>id",
       "verification:verification_account_fk:account:account_id>id",
     ].sort();

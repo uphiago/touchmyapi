@@ -127,6 +127,7 @@ describeDb("Phase 2A membership schema", () => {
       "account_invitation_reporting_rls_tenant",
       "account_invitation_worker_rls_tenant",
       "account_membership_api_rls_tenant",
+      "account_membership_bootstrap",
       "account_membership_reporting_rls_tenant",
       "account_membership_worker_rls_tenant",
     ]);
@@ -194,5 +195,59 @@ describeDb("Phase 2A membership schema", () => {
     `;
     expect(rawToken?.token_hash).toBe("a".repeat(64));
     expect(rawToken?.has_raw_token).toBe(false);
+  });
+
+  it("lists memberships and atomically switches the active session account", async () => {
+    const accountA = "00000000-0000-4000-8000-000000000101";
+    const accountB = "00000000-0000-4000-8000-000000000102";
+    const userA = "00000000-0000-4000-8000-000000000201";
+    const sessionId = crypto.randomUUID();
+    const oldHash = "b".repeat(64);
+    const newHash = "c".repeat(64);
+    await db.begin(async (transaction) => {
+      await transaction`delete from public.session where user_id = ${userA}`;
+      await transaction`
+        insert into account_membership (account_id, user_id, role, status)
+        values (${accountB}, ${userA}, 'viewer', 'active')
+        on conflict (account_id, user_id) do update set status = 'active'
+      `;
+      await transaction`
+        insert into public.session (id, account_id, user_id, token_hash, expires_at)
+        values (${sessionId}, ${accountA}, ${userA}, ${oldHash}, now() + interval '1 day')
+      `;
+    });
+
+    const accounts = await db`
+      select account_id, role, status, active
+      from public.auth_list_accounts(${oldHash})
+      order by account_id
+    `;
+    expect(accounts).toEqual([
+      { account_id: accountA, role: "owner", status: "active", active: true },
+      { account_id: accountB, role: "viewer", status: "active", active: false },
+    ]);
+
+    const [switched] = await db`
+      select * from public.auth_switch_account(
+        ${oldHash}, ${accountB}, ${newHash}, now() + interval '1 day'
+      )
+    `;
+    expect(switched).toMatchObject({ account_id: accountB, user_id: userA, session_id: sessionId });
+    const oldSession = await db`
+      select 1 from public.session where token_hash = ${oldHash}
+    `;
+    expect(oldSession).toEqual([]);
+    const [current] = await db`
+      select account_id, user_id, token_hash
+      from public.session where id = ${sessionId}
+    `;
+    expect(current).toEqual({ account_id: accountB, user_id: userA, token_hash: newHash });
+
+    const denied = await db`
+      select * from public.auth_switch_account(
+        ${newHash}, ${"00000000-0000-4000-8000-000000009999"}, ${"d".repeat(64)}, now() + interval '1 day'
+      )
+    `;
+    expect(denied).toEqual([]);
   });
 });

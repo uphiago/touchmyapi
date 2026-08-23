@@ -99,6 +99,13 @@
       "when": 1787507115122,
       "tag": "0013_membership_hash_format",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1787507714616,
+      "tag": "0014_auth_account_switch",
+      "breakpoints": true
     }
   ]
 }

@@ -51,9 +51,9 @@ export const session = pgTable(
     index("session_family_id_idx").on(table.familyId),
     unique("session_account_id_id_unique").on(table.accountId, table.id),
     foreignKey({
-      name: "session_account_user_fk",
-      columns: [table.accountId, table.userId],
-      foreignColumns: [user.accountId, user.id],
+      name: "session_user_fk",
+      columns: [table.userId],
+      foreignColumns: [user.id],
     }),
   ],
 );
