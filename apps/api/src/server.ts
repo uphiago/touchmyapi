@@ -1,10 +1,9 @@
 import { app } from "./app";
+import { loadConfig } from "./config";
 
-const port = Number(process.env.PORT ?? 3000);
+const config = loadConfig();
 
 Bun.serve({
-  port,
+  port: config.port,
   fetch: app.fetch,
 });
-
-console.log(`TouchMyAPI API listening on http://localhost:${port}`);
