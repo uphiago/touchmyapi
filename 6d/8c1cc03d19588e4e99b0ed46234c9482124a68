@@ -1,0 +1,45 @@
+packages/db/test/roles.isolation.test.ts
+  s_bc54431df54bf2::t_caa61c8b94fb1a 423-426
+  s_bc54431df54bf2::t_7fce54109662a0 421-422,427-440
+  s_bc54431df54bf2::t_745be269999b78 389-406
+packages/db/migrations/0009_audit_chain_order.sql
+  s_bc54431df54bf2::t_0816eda4ec689d 1-28,33-99,102-106,110-136
+  s_bc54431df54bf2::t_6f54dbcdb8562d 29-32
+  s_bc54431df54bf2::t_df82f11cacec3d 100-101,107-109
+packages/db/schema/audit.ts
+  s_bc54431df54bf2::t_ac3ea1154eefad 6,48
+packages/db/test/audit.integration.test.ts
+  s_bc54431df54bf2::t_b3712ba59ddefc 189-203,214-263,270-271,329-330
+  s_bc54431df54bf2::t_6ccc644373bf87 323-324
+  s_bc54431df54bf2::t_3d713469b89c75 204-213,264-269,272-322,325-328
+  s_bc54431df54bf2::t_24891ed43f4250 331-334
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_495c204e1dd3c6 67-73
+docs/superpowers/specs/2026-08-22-audit-chain-design.md
+  s_bc54431df54bf2::t_4c0e9d3f00152b 18-29
+packages/db/src/tenant-session.ts
+  s_bc54431df54bf2::t_69e0ae41800547 656
+docs/superpowers/plans/2026-08-22-t017-audit-chain.md
+  s_bc54431df54bf2::t_0af140cb500767 30-31
+  s_bc54431df54bf2::t_429a04112a748b 18,29
+packages/db/test/schema.integration.test.ts
+  s_bc54431df54bf2::t_ef7c5322923e5b 165-181
+packages/db/src/audit.ts
+  s_bc54431df54bf2::t_bc3dd58cc617dc 166,201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "6d8c1cc03d19588e4e99b0ed46234c9482124a68",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
