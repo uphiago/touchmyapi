@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@touchmyapi/contracts": "workspace:*",
-    "hono": "^4.6.0"
+    "hono": "^4.6.0",
+    "openid-client": "^6.8.1"
   }
 }

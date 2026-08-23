@@ -4,6 +4,7 @@ import { errorResponseSchema, healthResponseSchema } from "@touchmyapi/contracts
 import { loadConfig, type ApiConfig } from "./config";
 import { ApiError, errorEnvelope } from "./error";
 import { getRequestId, requestIdMiddleware, type ApiRequestEnv } from "./request-id";
+import { mountAuthRoutes, type AuthDependencies } from "./auth";
 
 export type AuditRecord = Readonly<{
   action: "request";
@@ -23,6 +24,7 @@ export type ApiDependencies = Readonly<{
   config: ApiConfig;
   logger: ApiLogger;
   auditSink: AuditSink;
+  auth?: AuthDependencies;
 }>;
 
 type App = Hono<ApiRequestEnv>;
@@ -82,6 +84,13 @@ export function createApp(dependencies: ApiDependencies): App {
       credentials: true,
     }),
   );
+  if (dependencies.auth) {
+    mountAuthRoutes(api, dependencies.auth);
+  } else {
+    api.all("/api/v1/auth/*", () => {
+      throw new ApiError(503, "auth_unavailable", "Service Unavailable");
+    });
+  }
 
   api.get("/health", (context) => {
     return context.json(healthResponseSchema.parse({ status: "ok" }));
