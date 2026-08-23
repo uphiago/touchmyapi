@@ -6,6 +6,8 @@ export { createInvitationToken, hashInvitationToken, invitationTokenPattern } fr
 export { ensureQueueState } from "./queue-bootstrap";
 export type { QueueBootstrapOptions } from "./queue-bootstrap";
 export { enqueueJob, QueueUnavailableError } from "./queue";
+export { claimQueueJob } from "./queue-control";
+export type { QueueClaim } from "./queue-control";
 
 export { withTenant } from "./tenant-session";
 export type { RuntimeRole, TenantContext } from "./tenant-session";

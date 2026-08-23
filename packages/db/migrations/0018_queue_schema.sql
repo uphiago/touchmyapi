@@ -229,3 +229,115 @@ ALTER FUNCTION app_private.outbox_heartbeat(uuid, uuid, text, bigint, timestampt
 ALTER FUNCTION app_private.outbox_ack(uuid, uuid, text, bigint, timestamptz) OWNER TO queue_control;
 ALTER FUNCTION app_private.outbox_fail(uuid, uuid, text, bigint, text, timestamptz) OWNER TO queue_control;
 ALTER FUNCTION app_private.outbox_reap(integer, timestamptz) OWNER TO queue_control;
+
+DROP POLICY IF EXISTS job_queue_control ON public.job;
+CREATE POLICY job_queue_control
+  ON public.job FOR ALL TO queue_control
+  USING (true) WITH CHECK (true);
+GRANT SELECT (
+  id, account_id, status, available_at, priority, attempts, max_attempts,
+  lease_owner, lease_expires_at, fencing_token, started_at, stop_requested_at,
+  failure_reason, created_at, normalized_target_key
+) ON public.job TO queue_control;
+GRANT UPDATE (
+  status, available_at, attempts, lease_owner, lease_expires_at, fencing_token,
+  started_at, stop_requested_at, failure_reason
+) ON public.job TO queue_control;
+
+CREATE OR REPLACE FUNCTION app_private.queue_claim(
+  p_worker_id text,
+  p_lease_seconds integer,
+  p_now timestamptz
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+DECLARE
+  global_running integer;
+  global_limit integer;
+  selected_account_id uuid;
+  selected_job_id uuid;
+  selected_fence integer;
+  lease_until timestamptz;
+BEGIN
+  IF p_worker_id IS NULL OR p_worker_id !~ '^[A-Za-z0-9._:-]{1,128}$'
+     OR p_lease_seconds IS NULL OR p_lease_seconds < 1 OR p_lease_seconds > 900
+     OR p_now IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT running_count, concurrency_limit
+  INTO global_running, global_limit
+  FROM public.queue_global_state
+  WHERE id = 'global'
+  FOR UPDATE;
+  IF global_running IS NULL OR global_limit IS NULL OR global_running >= global_limit THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT state.account_id
+  INTO selected_account_id
+  FROM public.queue_tenant_state AS state
+  WHERE state.running_count < state.concurrency_limit
+    AND EXISTS (
+      SELECT 1
+      FROM public.job AS candidate
+      WHERE candidate.account_id = state.account_id
+        AND candidate.status IN ('queued'::public.job_status, 'stale_recovered'::public.job_status)
+        AND candidate.available_at <= p_now
+    )
+  ORDER BY state.last_dispatched_at NULLS FIRST, state.account_id
+  FOR UPDATE SKIP LOCKED
+  LIMIT 1;
+  IF selected_account_id IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT candidate.id
+  INTO selected_job_id
+  FROM public.job AS candidate
+  WHERE candidate.account_id = selected_account_id
+    AND candidate.status IN ('queued'::public.job_status, 'stale_recovered'::public.job_status)
+    AND candidate.available_at <= p_now
+  ORDER BY candidate.priority DESC, candidate.available_at, candidate.created_at, candidate.id
+  FOR UPDATE SKIP LOCKED
+  LIMIT 1;
+  IF selected_job_id IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  lease_until := p_now + make_interval(secs => p_lease_seconds);
+  UPDATE public.job
+  SET status = 'running'::public.job_status,
+      lease_owner = p_worker_id,
+      lease_expires_at = lease_until,
+      started_at = COALESCE(started_at, p_now),
+      fencing_token = fencing_token + 1
+  WHERE id = selected_job_id
+  RETURNING fencing_token INTO selected_fence;
+
+  UPDATE public.queue_tenant_state
+  SET running_count = running_count + 1,
+      last_dispatched_at = p_now,
+      updated_at = p_now
+  WHERE account_id = selected_account_id;
+  UPDATE public.queue_global_state
+  SET running_count = running_count + 1,
+      updated_at = p_now
+  WHERE id = 'global';
+
+  RETURN jsonb_build_object(
+    'jobId', selected_job_id,
+    'accountId', selected_account_id,
+    'status', 'running',
+    'leaseOwner', p_worker_id,
+    'leaseExpiresAt', lease_until,
+    'fencingToken', selected_fence
+  );
+END;
+$$;
+ALTER FUNCTION app_private.queue_claim(text, integer, timestamptz) OWNER TO queue_control;
+REVOKE ALL ON FUNCTION app_private.queue_claim(text, integer, timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_private.queue_claim(text, integer, timestamptz) TO queue_connector;
