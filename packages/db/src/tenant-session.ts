@@ -1,13 +1,19 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { DbConnection } from "./index";
+import {
+  getRawTenantDatabase,
+  type RawDbConnection,
+  type TenantDatabase,
+} from "./connection-internal";
+import { activateTenantContext, expireTenantContext } from "./tenant-internal";
+import { createTenantAccountCapability, type TenantAccountCapability } from "./tenant-account";
 
 /** Runtime roles are deliberately closed to the roles provisioned by migrations. */
 export type RuntimeRole = "api_rls" | "worker_rls" | "reporting_rls";
 
-/** The callback receives only the tenant-scoped query surface. */
-export type TenantConnection<R extends RuntimeRole = RuntimeRole> = {
+/** The callback receives only closed, typed tenant capabilities. */
+export type TenantContext<R extends RuntimeRole = RuntimeRole> = {
   readonly role: R;
-  unsafe<T extends Record<string, unknown>>(query: string, values?: unknown[]): Promise<T[]>;
+  readonly account: TenantAccountCapability<R>;
 };
 
 const RUNTIME_ROLE_SQL: Readonly<Record<RuntimeRole, string>> = {
@@ -192,7 +198,7 @@ const FORBIDDEN_TOKENS = new Set([
 ]);
 
 const ALLOWED_ROOT_TOKENS = new Set(["select", "insert", "update", "delete"]);
-const tenantContext = new AsyncLocalStorage<DbConnection>();
+const tenantContext = new AsyncLocalStorage<RawDbConnection>();
 
 const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -315,6 +321,8 @@ function tokenizeTenantQuery(query: string): SqlToken[] {
   return tokens;
 }
 
+// Retained only for compatibility with migration history; no tenant callback can invoke it.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function validateTenantQuery(query: string): void {
   const tokens = tokenizeTenantQuery(query);
   let depth = 0;
@@ -398,7 +406,7 @@ type PrincipalIdentity = {
 };
 
 async function assertSafePrincipal(
-  connection: DbConnection,
+  connection: RawDbConnection,
   roleName: string,
 ): Promise<PrincipalIdentity> {
   // Production deploys must provision a dedicated login connector with
@@ -561,7 +569,7 @@ type SwitchedPrincipalRow = {
 };
 
 async function assertSwitchedPrincipal(
-  connection: DbConnection,
+  connection: RawDbConnection,
   roleName: RuntimeRole,
   expectedSessionPrincipal: string,
   expectedBackendPid: number,
@@ -718,15 +726,6 @@ async function assertSwitchedPrincipal(
   }
 }
 
-async function abortTransaction(transaction: { unsafe: DbConnection["unsafe"] }): Promise<never> {
-  try {
-    await transaction.unsafe("select 1 / 0");
-  } catch {
-    // The deliberate error marks the postgres.js transaction scope aborted.
-  }
-  throw new TypeError("tenant query blocked by SQL firewall");
-}
-
 /**
  * Run a callback in a transaction with an explicit tenant and least-privilege role.
  *
@@ -735,23 +734,24 @@ async function abortTransaction(transaction: { unsafe: DbConnection["unsafe"] })
  * a usable query surface after the transaction has ended.
  */
 export async function withTenant<T, R extends RuntimeRole = RuntimeRole>(
-  connection: DbConnection,
+  connection: TenantDatabase,
   accountId: string,
   role: R,
-  callback: (db: TenantConnection<R>) => Promise<T>,
+  callback: (context: TenantContext<R>) => Promise<T>,
 ): Promise<T> {
   const tenantId = canonicalAccountId(accountId);
+  const rawConnection = getRawTenantDatabase(connection);
   const selectedRole = roleSql(role);
   const selectedRoleName = RUNTIME_ROLE_NAMES[role];
   if (typeof callback !== "function") {
     throw new TypeError("callback must be a function");
   }
-  if (tenantContext.getStore() === connection) {
+  if (tenantContext.getStore() === rawConnection) {
     throw new Error("nested withTenant on the same DbConnection is not allowed");
   }
-  const reserved = await connection.reserve();
+  const reserved = await rawConnection.reserve();
   try {
-    const result = await tenantContext.run(connection, async () => {
+    const result = await tenantContext.run(rawConnection, async () => {
       let transactionStarted = false;
       try {
         // BEGIN must precede connector inspection: both preflight and SET ROLE
@@ -772,28 +772,26 @@ export async function withTenant<T, R extends RuntimeRole = RuntimeRole>(
           connectorIdentity.backendPid,
         );
 
+        const context = {
+          role,
+          account: undefined as unknown as TenantAccountCapability<R>,
+        } as TenantContext<R>;
+        const account = createTenantAccountCapability(context);
+        Object.defineProperty(context, "account", {
+          value: account,
+          enumerable: true,
+          writable: false,
+          configurable: false,
+        });
+        Object.freeze(context);
+        activateTenantContext(context, reserved, tenantId, role);
         let callbackCompleted = false;
-        let active = true;
         let result!: T;
         try {
-          result = await callback({
-            role,
-            unsafe: async <Row extends Record<string, unknown>>(
-              query: string,
-              values?: unknown[],
-            ): Promise<Row[]> => {
-              if (!active) throw new Error("TenantConnection is no longer active");
-              try {
-                validateTenantQuery(query);
-              } catch {
-                return abortTransaction(reserved);
-              }
-              return (await reserved.unsafe(query, values as never)) as Row[];
-            },
-          });
+          result = await callback(context);
           callbackCompleted = true;
         } finally {
-          active = false;
+          expireTenantContext(context);
         }
         // On callback failure PostgreSQL marks the transaction aborted; rollback
         // below resets LOCAL state. On success reset explicitly before commit as

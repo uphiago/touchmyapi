@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
 import {
-  createDbConnection,
-  type DbConnection,
-  type DbTransaction,
-} from "../../packages/db/src/index";
+  createRawDbConnection,
+  type RawDbConnection,
+  type RawDbTransaction,
+} from "../../packages/db/src/connection-internal";
 
 const RUN_DB_TESTS = process.env.RUN_DB_TESTS === "1";
 const describeDb = RUN_DB_TESTS ? describe : describe.skip;
@@ -65,7 +65,8 @@ const SELECT_GRANTED: Record<string, ReadonlySet<string>> = {
   ]),
 };
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
-type Tx = DbTransaction;
+type DbConnection = RawDbConnection;
+type Tx = RawDbTransaction;
 type TenantRows = {
   accountId: string;
   userId: string;
@@ -260,7 +261,7 @@ function databaseUrlForTest(): string {
 describeDb("PostgreSQL default-deny tenant isolation", () => {
   let db!: DbConnection;
   beforeAll(() => {
-    db = createDbConnection(databaseUrlForTest());
+    db = createRawDbConnection(databaseUrlForTest());
   });
   afterAll(async () => db?.end());
 

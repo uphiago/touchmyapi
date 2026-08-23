@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDbConnection, type DbConnection } from "../src/index";
+import { createRawDbConnection, type RawDbConnection } from "../src/connection-internal";
 
 const RUN_DB_TESTS = process.env.RUN_DB_TESTS === "1";
 const normalizeRelationName = (value: string) => value.replaceAll('"', "");
@@ -97,10 +97,10 @@ function databaseUrlForIntegration(): string {
 const schemaDescribe = RUN_DB_TESTS ? describe : describe.skip;
 
 schemaDescribe("PostgreSQL foundation schema", () => {
-  let db!: DbConnection;
+  let db!: RawDbConnection;
 
   beforeAll(() => {
-    db = createDbConnection(databaseUrlForIntegration());
+    db = createRawDbConnection(databaseUrlForIntegration());
   });
 
   afterAll(async () => {

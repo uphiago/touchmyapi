@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDbConnection, type DbConnection } from "../src/index";
+import { createRawDbConnection, type RawDbConnection } from "../src/connection-internal";
 
 const RUN_DB_TESTS = process.env.RUN_DB_TESTS === "1";
 const describeDb = RUN_DB_TESTS ? describe : describe.skip;
@@ -138,10 +138,10 @@ function databaseUrlForTest(): string {
 }
 
 describeDb("PostgreSQL least-privilege roles", () => {
-  let db!: DbConnection;
+  let db!: RawDbConnection;
 
   beforeAll(() => {
-    db = createDbConnection(databaseUrlForTest());
+    db = createRawDbConnection(databaseUrlForTest());
   });
   afterAll(async () => db?.end());
 
@@ -486,8 +486,8 @@ describeDb("PostgreSQL least-privilege roles", () => {
   });
 
   it("serializes family rotation and logout so old-hash logout revokes replacement", async () => {
-    const rotateDb = createDbConnection(databaseUrlForTest());
-    const revokeDb = createDbConnection(databaseUrlForTest());
+    const rotateDb = createRawDbConnection(databaseUrlForTest());
+    const revokeDb = createRawDbConnection(databaseUrlForTest());
     const run = randomUUID();
     const firstHash = sha256(`concurrent-first-${run}`);
     const replacementHash = sha256(`concurrent-replacement-${run}`);
