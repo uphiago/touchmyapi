@@ -1,0 +1,71 @@
+.specify/memory/constitution.md
+  s_bc54431df54bf2::t_863c27cb0e73b2 3-5,9,53,57
+  s_bc54431df54bf2::t_7031b83379b7b9 47
+specs/001-touchmyapi-platform/spec.md
+  s_bc54431df54bf2::t_c0cac0fcb2c5a0 106-107
+  s_bc54431df54bf2::t_521b5e52206886 138,185-186
+  s_bc54431df54bf2::t_69ab3e451030df 137
+specs/001-touchmyapi-platform/plan.md
+  s_bc54431df54bf2::t_2c270099f4a40d 11
+  s_bc54431df54bf2::t_6f243093fcbfd1 43
+specs/001-touchmyapi-platform/research.md
+  s_bc54431df54bf2::t_69ab3e451030df 90
+  s_bc54431df54bf2::t_a719f664427edb 96
+specs/001-touchmyapi-platform/contracts/api.md
+  s_bc54431df54bf2::t_04b0136eeab6c8 95
+  s_bc54431df54bf2::t_74cf86b6bf8f94 98
+  s_bc54431df54bf2::t_3d258250f99b92 99
+specs/001-touchmyapi-platform/contracts/job.md
+  s_bc54431df54bf2::t_a53bcee52cf730 71
+  s_bc54431df54bf2::t_918f47fc6f7447 69,73
+specs/001-touchmyapi-platform/contracts/export.md
+  s_bc54431df54bf2::t_2cc2158421765a 78
+specs/001-touchmyapi-platform/contracts/queue.md
+  s_bc54431df54bf2::t_d960501ea676a9 15-24,41,47
+  s_bc54431df54bf2::t_69ab3e451030df 11
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_69ab3e451030df 200
+  s_bc54431df54bf2::t_3010e471d7b263 203
+  s_bc54431df54bf2::t_0d27e3cd49391d 77,201,204-205,214
+docs/superpowers/plans/2026-08-22-multiuser-queue-admin.md
+  s_bc54431df54bf2::t_eaa437ea9d884d 214
+  s_bc54431df54bf2::t_69ab3e451030df 169
+  s_bc54431df54bf2::t_6f243093fcbfd1 5
+  s_bc54431df54bf2::t_0d0d2dc575b185 7,28,101-103,108
+  s_bc54431df54bf2::t_155fcd76373876 162-163,168,170,179-180,223-224
+  s_bc54431df54bf2::t_a7d4bcc7c645cf 213
+  s_bc54431df54bf2::t_036e7ea7d1083d 295-296
+specs/001-touchmyapi-platform/data-model.md
+  s_bc54431df54bf2::t_ec581374e6ed27 401
+  s_bc54431df54bf2::t_c8009ab4f739a2 394
+  s_bc54431df54bf2::t_329adb0d2b79fa 409
+  s_bc54431df54bf2::t_2d765d07e87c3e 169-180,210-213,215,408,422-423,430,434
+  s_bc54431df54bf2::t_073ae8dcbed2c1 192
+docs/superpowers/specs/2026-08-22-multiuser-queue-admin-design.md
+  s_bc54431df54bf2::t_69ab3e451030df 44
+  s_bc54431df54bf2::t_db3ecc0bf82e56 60
+  s_bc54431df54bf2::t_bb3ae0500374e2 62
+  s_bc54431df54bf2::t_85dee8832326e8 48-51,54,56
+  s_bc54431df54bf2::t_f0512ef2ac59a8 120-121
+  s_bc54431df54bf2::t_4101242b78d1ea 129,131,147-148
+specs/001-touchmyapi-platform/contracts/admin.md
+  s_bc54431df54bf2::t_74cf86b6bf8f94 34-35
+  s_bc54431df54bf2::t_04b0136eeab6c8 9,31
+  s_bc54431df54bf2::t_c58d846add2501 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "e656d579dac1ee563bc0cef7e1ff81af9336beca",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
