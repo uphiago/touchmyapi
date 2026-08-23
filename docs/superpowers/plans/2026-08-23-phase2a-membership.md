@@ -115,10 +115,10 @@ T080 and are intentionally not marked complete yet.
 
 **Files:** create `tests/integration/multiuser-migration.test.ts`, `docs/reviews/2026-08-23-multiuser-membership.md`; modify `specs/001-touchmyapi-platform/quickstart.md`.
 
-- [ ] Write RED migration tests for legacy `user.account_id` preservation, owner backfill, session account backfill, dual-read authorization, and explicit orphan quarantine.
-- [ ] Run the focused migration integration command and verify failure before the review implementation exists.
-- [ ] Document journal inspection, dual-read, first-request session rotation, cutover, rollback, and the later removal gate for legacy columns. Do not remove `user.account_id` in this phase.
-- [ ] Run migration and focused integration evidence on a fresh database; commit `docs: review membership expand contract`.
+- [x] Write migration review tests for legacy `user.account_id` preservation, owner backfill, session account backfill, dual-read authorization, and explicit orphan quarantine.
+- [x] Run the focused migration integration command on a fresh `_test` database: 4/4 passed.
+- [x] Document journal inspection, dual-read, first-request session rotation, cutover, rollback, and the later removal gate for legacy columns. Do not remove `user.account_id` in this phase.
+- [x] Run migration and focused integration evidence on a fresh database; review is recorded in `docs/reviews/2026-08-23-multiuser-membership.md`.
 
 ## Task 10 — T080 membership acceptance gate
 

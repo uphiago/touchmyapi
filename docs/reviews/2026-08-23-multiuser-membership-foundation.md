@@ -1,14 +1,14 @@
 # Multi-user membership foundation review
 
-**Status:** T071–T075, T077, and T078 are implemented and verified on
-`feat/foundation-phase2`; T076 remains a boundary slice pending its production
-store/deletion adapter.
+**Status:** T071–T075, T077–T079, and the local runtime path are implemented
+and verified on `feat/foundation-phase2`; T076 remains a boundary slice pending
+its production store/deletion adapter.
 
 This checkpoint covers the additive membership foundation, the T076 API
-boundary slice, the T077 database isolation cut, and the T078 server-driven
-workspace UI. The production lifecycle database adapter, expand-contract
-review, acceptance gate, queue/outbox, and staff admin plane remain pending for
-T076 and T079–T094.
+boundary slice, the T077 database isolation cut, the T078 server-driven
+workspace UI, and the T079 expand-contract review. The production lifecycle
+database adapter, acceptance gate, queue/outbox, and staff admin plane remain
+pending for T076, T080, and T081–T094.
 
 ## Delivered boundary
 
@@ -109,10 +109,19 @@ credentials only at deployment. GitHub/X login remains model-disabled by the
 approved launch policy; adding credentials alone does not enable those
 providers.
 
+## T079 expand-contract review
+
+The focused migration review passes 4/4 on a freshly migrated _test database.
+It proves legacy user.account_id/unique preservation, owner membership and
+session binding, dual-read account listing plus session rotation, and the
+explicit no-email orphan/quarantine guard. The full cutover/removal sequence
+and rollback policy are documented in
+docs/reviews/2026-08-23-multiuser-membership.md; user.account_id remains
+intentionally present.
+
 ## Explicitly pending
 
 T076 still needs a production database store/outbox adapter and the account
 deletion revocation workflow; the route and SQL transaction boundary are
-present. T079–T080 cover the expand-contract evidence and aggregate acceptance
-gate.
+present. T080 remains the aggregate acceptance gate.
 Queue/outbox and staff admin work starts only after that gate.

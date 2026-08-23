@@ -24,7 +24,7 @@ This guide validates the code that exists today. It does not claim that the full
 
 No assessment execution, external target access, queue, billing mutation, AI execution, report generation, or runner exists in this checkpoint. T016 and T017 are accepted: the tenant wrapper is an opaque database handle with fixed capabilities, and the audit writer provides redacted monotonic tenant/system chains with FORCE-RLS lock authorities and no raw SQL export. T018 is accepted as the isolated external-credential AEAD boundary, T019 as the passive catalog boundary, T020 as the API boundary, and T021 as the fakeable Google auth boundary. The real OIDC composition requires explicit production credentials and is not exercised by tests.
 
-The historical Foundation Phase 2 remains intentionally limited to T010–T021. The approved Phase 2A extension is being implemented after T021: T071–T078 provide the additive membership foundation, lifecycle boundary, RLS cut, and server-driven workspace UI. T076 production store/deletion, T079 expand-contract review, and T080 acceptance remain before the fenced PostgreSQL queue/outbox and separate admin control plane. SSO and SCIM remain out of scope; GitHub/X are model-disabled and provider adapters remain injectable until production credentials are supplied.
+The historical Foundation Phase 2 remains intentionally limited to T010–T021. The approved Phase 2A extension is being implemented after T021: T071–T079 provide the additive membership foundation, lifecycle boundary, RLS cut, server-driven workspace UI, and expand-contract review. T076 production store/deletion and T080 acceptance remain before the fenced PostgreSQL queue/outbox and separate admin control plane. SSO and SCIM remain out of scope; GitHub/X are model-disabled and provider adapters remain injectable until production credentials are supplied.
 
 ## Prerequisites
 
@@ -159,7 +159,7 @@ docker compose --profile local -f infra/docker/compose.yml exec -T postgres psql
   < infra/docker/postgres/init/002_test_database.sql
 ```
 
-The current DB package proves schema shape, runtime-role privileges, auth-bootstrap isolation, cross-account RLS behavior, T016's closed tenant-capability boundary, and T017's atomic audit writer with API/worker/system chain isolation. T018's focused AEAD suite, T019's catalog→policy authorization suite, T020's API boundary suite, T021's fake-adapter OAuth suite, and the T071–T075 membership foundation gates are green. The aggregate T080 membership acceptance gate is not claimed until T076–T079 are complete.
+The current DB package proves schema shape, runtime-role privileges, auth-bootstrap isolation, cross-account RLS behavior, T016's closed tenant-capability boundary, and T017's atomic audit writer with API/worker/system chain isolation. T018's focused AEAD suite, T019's catalog→policy authorization suite, T020's API boundary suite, T021's fake-adapter OAuth suite, and the T071–T079 membership gates are green. The aggregate T080 membership acceptance gate is still pending the production store/deletion boundary and full sequential gate.
 
 ## Next validation milestones
 
