@@ -1,0 +1,27 @@
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_eccdfe17d824f5 197
+docs/superpowers/plans/2026-08-23-phase2a-membership.md
+  s_bc54431df54bf2::t_a82ee979c0f501 127-129
+tests/integration/multiuser-migration.test.ts
+  s_bc54431df54bf2::t_dc900f5b7f15a5 128
+docs/reviews/2026-08-23-multiuser-membership-acceptance.md
+  s_bc54431df54bf2::t_c9d66e02521c86 1-71
+docs/reviews/2026-08-23-multiuser-membership-foundation.md
+  s_bc54431df54bf2::t_2913af0864aac3 3-5,9-11,126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "2f8df9f4d8aaae162543cb12c934f55c90307f21",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
