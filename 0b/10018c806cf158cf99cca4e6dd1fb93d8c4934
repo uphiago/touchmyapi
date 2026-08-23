@@ -1,0 +1,39 @@
+packages/db/schema/index.ts
+  s_bc54431df54bf2::t_1d3b1746de6f43 3
+packages/db/migrations/0011_multiuser_membership.sql
+  s_bc54431df54bf2::t_902187961bcc00 1-77
+packages/db/schema/membership.ts
+  s_bc54431df54bf2::t_318174dc695ccc 58-59,63-64,95-96,100-101
+  s_bc54431df54bf2::t_1d3b1746de6f43 11-57,60-62,65-74,76-94,97-99
+  s_bc54431df54bf2::t_55ae7afb35e626 1-10,75
+packages/db/test/membership-schema.integration.test.ts
+  s_bc54431df54bf2::t_5ddbdecdcd3858 104-105,111,115,120-121,128
+  s_bc54431df54bf2::t_c98cbaa487cc14 110,112-114,116-117
+  s_bc54431df54bf2::t_7b602920eda872 1-28,44-102,106-109,118-119,122-127,129-144
+  s_bc54431df54bf2::t_24428e5d5e95f7 29-43,103
+  s_bc54431df54bf2::t_1c879c941f3748 145-147
+packages/db/migrations/0012_membership_identity_fk.sql
+  s_bc54431df54bf2::t_67174bbd42d8c1 1-12
+packages/db/migrations/meta/0011_snapshot.json
+  s_bc54431df54bf2::t_4c78e016679ba6 1-2491
+packages/db/migrations/meta/0012_snapshot.json
+  s_bc54431df54bf2::t_397bacbdd9d561 1-2483
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_dffb6b8bedb15c 81-94,97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "0b10018c806cf158cf99cca4e6dd1fb93d8c4934",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
