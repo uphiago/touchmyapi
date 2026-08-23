@@ -1,5 +1,6 @@
 export * from "./common";
 export * from "./identity";
+export * from "./membership";
 export * from "./assessment";
 export * from "./verification";
 export * from "./catalog";

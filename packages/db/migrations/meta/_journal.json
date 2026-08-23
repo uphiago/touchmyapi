@@ -78,6 +78,20 @@
       "when": 1787443000000,
       "tag": "0010_audit_column_insert_boundary",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787506083015,
+      "tag": "0011_multiuser_membership",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787506185545,
+      "tag": "0012_membership_identity_fk",
+      "breakpoints": true
     }
   ]
 }
