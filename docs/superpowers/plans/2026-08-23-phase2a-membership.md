@@ -35,10 +35,10 @@ The provider boundary remains Google-only per the approved spec. Provider config
 
 **Files:** create `packages/db/schema/membership.ts`, `packages/db/test/membership-schema.integration.test.ts`; modify `packages/db/schema/index.ts`, generated migration under `packages/db/migrations/`.
 
-- [ ] Write integration tests asserting `account_membership(account_id,user_id)`, `account_invitation`, composite foreign keys, unique `(account_id,user_id)`, multiple active owners, token-hash-only invitation storage, and no second identity table. Run the focused integration command and verify the expected pre-migration failure.
+- [ ] Write integration tests asserting `account_membership(account_id,user_id)`, `account_invitation`, immutable `user.id` identity FKs plus explicit tenant `account_id`, unique `(account_id,user_id)`, multiple active owners, token-hash-only invitation storage, and no second identity table. Run the focused integration command and verify the expected pre-migration failure.
 - [ ] Inspect `packages/db/drizzle/meta/_journal.json` and highest migration. Generate the next migration with `bunx drizzle-kit generate --config=drizzle.config.ts --name multiuser_membership` against the fresh `_test` URL; inspect SQL before applying it. Because legacy `user.account_id` remains unique during expand, membership identity columns use immutable simple `user.id` FKs plus tenant `account_id`; composite tenant FKs are added to session/attestation and later cutover paths.
 - [ ] Add additive tables and nullable/expand columns only. Backfill exactly one `owner` membership per valid legacy `user.account_id`; quarantine orphan legacy rows explicitly and never match by email. Keep `user.account_id` and its unique constraint during expand.
-- [ ] Apply migrations, run `RUN_DB_TESTS=1 bun run test:integration -- --maxWorkers=1 membership-schema`, then rerun the migration to prove idempotent journal behavior.
+- [ ] Apply migrations, run `RUN_DB_TESTS=1 bun run test:integration -- --maxWorkers=1 membership-schema`, then rerun `bun run db:migrate` to prove Drizzle journal no-op behavior and replay `0012_membership_identity_fk.sql` as raw SQL to prove the correction block is SQL-idempotent too.
 - [ ] Commit `db: add account membership expand migration` with schema, migration, and focused integration test paths.
 
 ## Task 3 — T073 role capability policy
@@ -81,13 +81,13 @@ The provider boundary remains Google-only per the approved spec. Provider config
 - [ ] Run focused API tests, full unit tests, typecheck, and web build if route contracts change.
 - [ ] Commit `api: enforce membership lifecycle`.
 
-## Task 7 — T077 membership RLS and composite references
+## Task 7 — T077 membership RLS and session/attestation composite references
 
 **Files:** generated migration; modify `packages/db/schema/assessment.ts` and `packages/db/schema/identity.ts`; create `tests/isolation/multiuser-rls.test.ts`.
 
 - [ ] Write RED isolation tests with two accounts/users proving membership, invitation, session, assessment, and attestation cannot cross-read/write/reference with missing or wrong tenant context.
 - [ ] Run `RUN_DB_TESTS=1 bun run test:isolation -- --maxWorkers=1 multiuser-rls`; verify the expected failure before migration/policy changes.
-- [ ] Add forced RLS and composite `(account_id,user_id)` membership FKs; bind session account and attestation actors to active membership where applicable. Keep global user lookup only inside fixed auth functions.
+- [ ] Extend the already-forced membership RLS policies and add composite `(account_id,user_id)` references only where session/attestation rows need tenant-bound actors. Membership identity columns remain immutable `user.id` FKs plus explicit tenant `account_id` so one global user can join multiple accounts while legacy `user.account_id` is still unique. Keep global user lookup only inside fixed auth functions.
 - [ ] Apply migration and run the full isolation project sequentially on the fresh `_test` database; verify table grants and role attributes.
 - [ ] Commit `security: enforce membership rls boundaries`.
 

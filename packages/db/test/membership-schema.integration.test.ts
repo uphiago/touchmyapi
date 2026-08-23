@@ -67,7 +67,7 @@ describeDb("Phase 2A membership schema", () => {
     expect(invitationColumns.map((row) => row.column_name)).toContain("token_hash");
   });
 
-  it("enforces composite membership references and one membership per account/user", async () => {
+  it("enforces tenant membership references and one membership per account/user", async () => {
     const constraints = await db`
       select conname, pg_get_constraintdef(oid) as definition
       from pg_constraint
@@ -79,6 +79,57 @@ describeDb("Phase 2A membership schema", () => {
     expect(definitions.join("\n")).toMatch(/account_membership_account_fk/i);
     expect(definitions.join("\n")).toMatch(/account_membership_user_fk/i);
     expect(definitions.join("\n")).toMatch(/account_invitation_token_hash_unique/i);
+
+    const identityForeignKeys = await db`
+      select
+        c.conname,
+        pg_get_constraintdef(c.oid) as definition
+      from pg_constraint as c
+      where c.conrelid in ('public.account_membership'::regclass, 'public.account_invitation'::regclass)
+        and c.contype = 'f'
+        and c.conname in (
+          'account_membership_user_fk',
+          'account_membership_invited_by_user_fk',
+          'account_invitation_invited_by_user_fk',
+          'account_invitation_accepted_by_user_fk'
+        )
+      order by c.conname
+    `;
+    expect(identityForeignKeys).toHaveLength(4);
+    for (const row of identityForeignKeys) {
+      expect(row.definition).toMatch(
+        /FOREIGN KEY \([^,()]+\) REFERENCES (?:["']?public["']?\.)?["']?user["']?\(id\)/i,
+      );
+      expect(row.definition).not.toMatch(/account_id/i);
+    }
+  });
+
+  it("enables forced tenant RLS with no public fallback", async () => {
+    const tables = await db`
+      select c.relname, c.relrowsecurity, c.relforcerowsecurity
+      from pg_class as c
+      where c.oid in ('public.account_membership'::regclass, 'public.account_invitation'::regclass)
+      order by c.relname
+    `;
+    expect(tables).toEqual([
+      { relname: "account_invitation", relrowsecurity: true, relforcerowsecurity: true },
+      { relname: "account_membership", relrowsecurity: true, relforcerowsecurity: true },
+    ]);
+
+    const policies = await db`
+      select polname, polroles::regrole[] as roles
+      from pg_policy
+      where polrelid in ('public.account_membership'::regclass, 'public.account_invitation'::regclass)
+      order by polname
+    `;
+    expect(policies.map((row) => row.polname)).toEqual([
+      "account_invitation_api_rls_tenant",
+      "account_invitation_reporting_rls_tenant",
+      "account_invitation_worker_rls_tenant",
+      "account_membership_api_rls_tenant",
+      "account_membership_reporting_rls_tenant",
+      "account_membership_worker_rls_tenant",
+    ]);
   });
 
   it("keeps legacy user ownership columns and closed membership enum values", async () => {
