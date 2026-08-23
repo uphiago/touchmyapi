@@ -1,0 +1,19 @@
+packages/db/test/roles.isolation.test.ts
+  s_bc54431df54bf2::t_a3bea4b5682438 26,208-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "e8d97bc51ec18c7cd0d63a4131a6edd2379fa023",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
