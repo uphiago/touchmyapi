@@ -93,6 +93,20 @@ export async function failQueueJob(
   return (row?.queue_fail as QueueHeartbeat | null | undefined) ?? null;
 }
 
+export async function reapQueueJobs(
+  db: RawDbConnection,
+  batchSize: number,
+  now = new Date(),
+): Promise<number> {
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 100) {
+    throw new RangeError("batchSize must be between 1 and 100");
+  }
+  const [row] = await db`
+    select app_private.queue_reap(${batchSize}, ${now})
+  `;
+  return Number(row?.queue_reap ?? 0);
+}
+
 function validateLeaseInput(workerId: string, fencingToken: number, leaseSeconds: number): void {
   if (!WORKER_ID.test(workerId)) throw new TypeError("workerId is invalid");
   if (!Number.isSafeInteger(fencingToken) || fencingToken < 0) {

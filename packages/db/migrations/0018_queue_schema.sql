@@ -623,3 +623,87 @@ REVOKE ALL ON FUNCTION app_private.queue_enqueue(uuid, uuid, text, timestamptz, 
 REVOKE ALL ON FUNCTION app_private.queue_enqueue(uuid, uuid, timestamptz, integer, integer) FROM PUBLIC, queue_connector, admin_queue_connector;
 GRANT EXECUTE ON FUNCTION app_private.queue_enqueue(uuid, uuid, text, timestamptz, integer, integer) TO api_rls;
 GRANT EXECUTE ON FUNCTION app_private.queue_enqueue(uuid, uuid, timestamptz, integer, integer) TO api_rls;
+
+CREATE OR REPLACE FUNCTION app_private.queue_reap(
+  p_batch_size integer,
+  p_now timestamptz
+)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+DECLARE
+  tenant_row record;
+  job_row record;
+  recovered_count integer := 0;
+  next_attempt integer;
+  backoff_seconds integer;
+BEGIN
+  IF p_batch_size IS NULL OR p_batch_size < 1 OR p_batch_size > 100
+     OR p_now IS NULL THEN
+    RETURN 0;
+  END IF;
+  PERFORM 1 FROM public.queue_global_state WHERE id = 'global' FOR UPDATE;
+  IF NOT FOUND THEN RETURN 0; END IF;
+
+  <<tenant_loop>>
+  FOR tenant_row IN
+    SELECT state.account_id
+    FROM public.queue_tenant_state AS state
+    WHERE EXISTS (
+      SELECT 1 FROM public.job AS expired
+      WHERE expired.account_id = state.account_id
+        AND expired.status = 'running'::public.job_status
+        AND expired.lease_expires_at <= p_now
+    )
+    ORDER BY state.account_id
+    FOR UPDATE SKIP LOCKED
+  LOOP
+    <<job_loop>>
+    FOR job_row IN
+      SELECT id, attempts, max_attempts, fencing_token
+      FROM public.job
+      WHERE account_id = tenant_row.account_id
+        AND status = 'running'::public.job_status
+        AND lease_expires_at <= p_now
+      ORDER BY id
+      FOR UPDATE SKIP LOCKED
+    LOOP
+      next_attempt := job_row.attempts + 1;
+      IF next_attempt >= job_row.max_attempts THEN
+        UPDATE public.job
+        SET status = 'failed'::public.job_status,
+            attempts = next_attempt,
+            lease_owner = NULL,
+            lease_expires_at = NULL,
+            finished_at = p_now,
+            failure_reason = 'lease_expired'
+        WHERE id = job_row.id;
+      ELSE
+        backoff_seconds := LEAST(300, 5 * (2 ^ LEAST(next_attempt, 6)));
+        UPDATE public.job
+        SET status = 'stale_recovered'::public.job_status,
+            attempts = next_attempt,
+            available_at = p_now + make_interval(secs => backoff_seconds),
+            lease_owner = NULL,
+            lease_expires_at = NULL,
+            failure_reason = 'lease_expired'
+        WHERE id = job_row.id;
+      END IF;
+      UPDATE public.queue_tenant_state
+      SET running_count = GREATEST(running_count - 1, 0), updated_at = p_now
+      WHERE account_id = tenant_row.account_id;
+      UPDATE public.queue_global_state
+      SET running_count = GREATEST(running_count - 1, 0), updated_at = p_now
+      WHERE id = 'global';
+      recovered_count := recovered_count + 1;
+      EXIT tenant_loop WHEN recovered_count >= p_batch_size;
+    END LOOP job_loop;
+  END LOOP tenant_loop;
+  RETURN recovered_count;
+END;
+$$;
+ALTER FUNCTION app_private.queue_reap(integer, timestamptz) OWNER TO queue_control;
+REVOKE ALL ON FUNCTION app_private.queue_reap(integer, timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_private.queue_reap(integer, timestamptz) TO queue_connector;
