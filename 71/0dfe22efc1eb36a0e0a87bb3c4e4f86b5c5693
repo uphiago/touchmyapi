@@ -1,0 +1,33 @@
+packages/db/test/invitations.unit.test.ts
+  s_bc54431df54bf2::t_6656b1e937241c 1-24
+packages/db/migrations/0015_invitations.sql
+  s_bc54431df54bf2::t_804cd1ce52f239 1-117,119-152
+  s_bc54431df54bf2::t_9135772d8bcdcd 118
+packages/db/src/invitations.ts
+  s_bc54431df54bf2::t_6656b1e937241c 1-46
+packages/db/src/index.ts
+  s_bc54431df54bf2::t_6656b1e937241c 5
+packages/db/test/membership-schema.integration.test.ts
+  s_bc54431df54bf2::t_06bde850d640ba 218,272-287,293-331
+  s_bc54431df54bf2::t_89ee6e1f3a46a3 288-292
+  s_bc54431df54bf2::t_998fcc29faebc8 214-217
+  s_bc54431df54bf2::t_e9dd030aa5be71 332-337
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_a8e92d5794f61d 109-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "710dfe22efc1eb36a0e0a87bb3c4e4f86b5c5693",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
