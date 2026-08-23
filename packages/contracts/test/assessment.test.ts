@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assessmentStateSchema } from "../src/assessment";
+import { assessmentCreateSchema, assessmentStateSchema } from "../src/assessment";
 
 describe("assessment state contract", () => {
   it("accepts every persisted state", () => {
@@ -19,5 +19,19 @@ describe("assessment state contract", () => {
 
   it("rejects unknown states", () => {
     expect(() => assessmentStateSchema.parse("executing")).toThrow();
+  });
+
+  it("normalizes a bounded assessment creation request", () => {
+    expect(
+      assessmentCreateSchema.parse({
+        targetCategory: "surface",
+        target: "  example.test  ",
+      }),
+    ).toEqual({
+      targetCategory: "surface",
+      target: "example.test",
+      scope: [],
+      playbookId: "surface-public-posture",
+    });
   });
 });

@@ -6,6 +6,7 @@ import { ApiError, errorEnvelope } from "./error";
 import { getRequestId, requestIdMiddleware, type ApiRequestEnv } from "./request-id";
 import { mountAuthRoutes, type AuthDependencies } from "./auth";
 import { registerMembershipRoutes, type MembershipDependencies } from "./memberships";
+import { registerAssessmentRoutes, type AssessmentDependencies } from "./assessments";
 
 export type AuditRecord = Readonly<{
   action: "request";
@@ -27,6 +28,7 @@ export type ApiDependencies = Readonly<{
   auditSink: AuditSink;
   auth?: AuthDependencies;
   membership?: MembershipDependencies;
+  assessment?: AssessmentDependencies;
 }>;
 
 type App = Hono<ApiRequestEnv>;
@@ -105,6 +107,9 @@ export function createApp(dependencies: ApiDependencies): App {
     mountAuthRoutes(api, dependencies.auth, dependencies.config.environment);
     if (dependencies.membership) {
       registerMembershipRoutes(api, dependencies.membership, dependencies.config.environment);
+    }
+    if (dependencies.assessment) {
+      registerAssessmentRoutes(api, dependencies.assessment, dependencies.config.environment);
     }
   } else {
     api.all("/api/v1/auth/*", () => {

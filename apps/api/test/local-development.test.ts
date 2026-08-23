@@ -53,4 +53,34 @@ describe("local development composition", () => {
       status: "active",
     });
   });
+
+  it("runs the local assessment journey from draft to queued", async () => {
+    const app = createLocalDevelopmentApp(
+      createConfig({ corsOrigin: origin, environment: "development", port: 3000 }),
+    );
+    const sessionResponse = await app.request("http://localhost/api/v1/auth/local-session");
+    const cookie = sessionResponse.headers.get("set-cookie")?.split(";", 1)[0];
+    if (!cookie) throw new Error("local session cookie missing");
+
+    const created = await app.request(`http://localhost/api/v1/accounts/${accountId}/assessments`, {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ targetCategory: "surface", target: "example.test", scope: [] }),
+    });
+    expect(created.status).toBe(201);
+    const draft = (await created.json()).assessment;
+    expect(draft).toMatchObject({
+      accountId,
+      target: "example.test",
+      status: "draft",
+      jobId: null,
+    });
+
+    const queued = await app.request(
+      `http://localhost/api/v1/accounts/${accountId}/assessments/${draft.id}/queue`,
+      { method: "POST", headers: { Cookie: cookie } },
+    );
+    expect(queued.status).toBe(200);
+    expect((await queued.json()).assessment).toMatchObject({ status: "queued" });
+  });
 });

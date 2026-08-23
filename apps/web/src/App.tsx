@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import {
   healthResponseSchema,
   type AccountSummary,
+  type Assessment,
+  type AssessmentCreate,
   type InvitationCreate,
   type Membership,
 } from "../../../packages/contracts/src";
 import { ApiClientError, createApiClient } from "../../../packages/ui/api-client";
 import { AccountSwitcher } from "./account-switcher";
 import { Memberships } from "./memberships";
+import { Assessments } from "./assessments";
 
 type ApiStatus = "checking" | "online" | "unavailable";
 
@@ -19,6 +22,7 @@ export default function App() {
   const [status, setStatus] = useState<ApiStatus>("checking");
   const [accounts, setAccounts] = useState<readonly AccountSummary[]>([]);
   const [memberships, setMemberships] = useState<readonly Membership[]>([]);
+  const [assessments, setAssessments] = useState<readonly Assessment[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -36,11 +40,15 @@ export default function App() {
       const active = snapshot.accounts.find((account) => account.active) ?? snapshot.accounts[0];
       if (!active) {
         setMemberships([]);
+        setAssessments([]);
         return;
       }
       const membershipSnapshot = await client.listMemberships(active.accountId);
       if (cancelled?.()) return;
       setMemberships(membershipSnapshot.memberships);
+      const assessmentSnapshot = await client.listAssessments(active.accountId);
+      if (cancelled?.()) return;
+      setAssessments(assessmentSnapshot.assessments);
     } catch (cause) {
       if (cancelled?.()) return;
       setError(cause instanceof ApiClientError ? cause.message : "Workspace unavailable");
@@ -116,6 +124,30 @@ export default function App() {
     }
   }
 
+  async function createAssessment(input: AssessmentCreate): Promise<void> {
+    if (!activeAccount) return;
+    setNotice(null);
+    try {
+      await client.createAssessment(activeAccount.accountId, input);
+      setNotice("Draft saved. Review authorization and queue it when ready.");
+      await refreshWorkspace();
+    } catch (cause) {
+      setError(cause instanceof ApiClientError ? cause.message : "Assessment unavailable");
+    }
+  }
+
+  async function queueAssessment(assessmentId: string): Promise<void> {
+    if (!activeAccount) return;
+    setNotice(null);
+    try {
+      await client.queueAssessment(activeAccount.accountId, assessmentId);
+      setNotice("Assessment queued. Worker dispatch will use the server-side policy boundary.");
+      await refreshWorkspace();
+    } catch (cause) {
+      setError(cause instanceof ApiClientError ? cause.message : "Queue unavailable");
+    }
+  }
+
   const statusLabel =
     status === "checking"
       ? "Checking API…"
@@ -150,13 +182,21 @@ export default function App() {
           {notice ? <p className="message message--success">{notice}</p> : null}
         </section>
         {activeAccount ? (
-          <Memberships
-            accountId={activeAccount.accountId}
-            memberships={memberships}
-            busy={busy}
-            onInvite={createInvitation}
-            onAccept={acceptInvitation}
-          />
+          <>
+            <Assessments
+              assessments={assessments}
+              busy={busy}
+              onCreate={createAssessment}
+              onQueue={queueAssessment}
+            />
+            <Memberships
+              accountId={activeAccount.accountId}
+              memberships={memberships}
+              busy={busy}
+              onInvite={createInvitation}
+              onAccept={acceptInvitation}
+            />
+          </>
         ) : (
           <section className="panel empty-state">
             No account data is available for this session.

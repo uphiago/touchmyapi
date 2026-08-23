@@ -7,6 +7,7 @@ import type {
   MembershipOperationResult,
   MembershipStore,
 } from "./memberships";
+import { createLocalAssessmentStore } from "./assessments";
 
 export const LOCAL_SESSION_TOKEN = "L".repeat(43);
 const localAccountId = "00000000-0000-4000-8000-000000000101";
@@ -184,6 +185,11 @@ export function createLocalDevelopmentApp(
       resolveSession: auth.store.resolveSession,
       allowInsecureCookies: true,
     } satisfies MembershipDependencies,
+    assessment: {
+      store: createLocalAssessmentStore(),
+      resolveSession: auth.store.resolveSession,
+      allowInsecureCookies: true,
+    },
   };
   const api = createApp(dependencies);
   api.get("/api/v1/auth/local-session", (context) => {

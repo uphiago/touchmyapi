@@ -8,7 +8,7 @@ export function errorEnvelope(code: string, message: string, field?: string) {
 
 export class ApiError extends Error {
   readonly code: string;
-  readonly status: 400 | 401 | 403 | 409 | 503;
+  readonly status: 400 | 401 | 403 | 404 | 409 | 503;
   readonly field?: string;
 
   constructor(status: ApiError["status"], code: string, message: string, field?: string) {

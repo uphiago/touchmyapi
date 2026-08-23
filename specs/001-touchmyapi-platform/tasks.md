@@ -206,6 +206,11 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 - [x] T086 [INFRA] Implement transactional outbox through standalone typed functions and `apps/worker-control/src/outbox-dispatcher.ts`: fixed claim/heartbeat/ack/fail/reap signatures, short leases/fencing, bounded retries, redacted errors, terminal failure, at-least-once event keys, and outbox-only locks. `NOTIFY` remains optional and non-authoritative.
 - [ ] T087 [US1] Integrate typed queue/enqueue/control primitives into T024/T025/T027/T029 and gate (`tests/integration/{queue-recovery,assessment-concurrency}.test.ts`, review): T024 selects `stale_recovered`, T025 consumes active index, T027/T029 integrate without duplicate semantics, tenant enqueue remains policy-gated, completion/fail/reaper/reconcile preserve global→tenant→job order with stale-fence no-op, standalone outbox uses outbox-only locks, and admin queue actions use separate JIT connector; FR-024/025 and SC-004/014/015 evidence.
 
+Checkpoint: the local mock journey is wired through account-scoped assessment
+list/create/queue routes and the web console. Production PostgreSQL assessment
+store, verification gate, and worker dispatch remain intentionally open for
+T027/T029/T087; see `docs/reviews/2026-08-23-queue-integration.md`.
+
 ### Phase 2C admin control plane (T088–T094, after queue and billing read dependencies)
 
 - [ ] T088 [P] [US6] Define admin contracts/schema/bootstrap (`packages/contracts/src/admin.ts`, `packages/db/schema/admin.ts`): exact staff/support names, separate cookies/origin, out-of-band immutable Workspace subject bootstrap, no domain-only/no customer auth.

@@ -9,6 +9,11 @@ import {
   membershipListResponseSchema,
   type AccountListResponse,
   type AccountMutationResponse,
+  assessmentCreateSchema,
+  assessmentListResponseSchema,
+  assessmentMutationResponseSchema,
+  type Assessment,
+  type AssessmentCreate,
   type InvitationCreate,
   type InvitationCreateResponse,
   type MembershipListResponse,
@@ -35,6 +40,12 @@ export type ApiClient = Readonly<{
     input: InvitationCreate,
   ) => Promise<InvitationCreateResponse>;
   acceptInvitation: (token: string) => Promise<AccountMutationResponse>;
+  listAssessments: (accountId: string) => Promise<{ assessments: readonly Assessment[] }>;
+  createAssessment: (
+    accountId: string,
+    input: AssessmentCreate,
+  ) => Promise<{ assessment: Assessment }>;
+  queueAssessment: (accountId: string, assessmentId: string) => Promise<{ assessment: Assessment }>;
 }>;
 
 export type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -114,5 +125,30 @@ export function createApiClient(baseUrl: string, fetcher: Fetcher = fetch): ApiC
         { method: "POST", body: JSON.stringify(body) },
       );
     },
+    listAssessments: (accountId) =>
+      requestJson(
+        fetcher,
+        joinUrl(baseUrl, `/api/v1/accounts/${encodeURIComponent(accountId)}/assessments`),
+        assessmentListResponseSchema,
+      ),
+    createAssessment: (accountId, input) => {
+      const body = assessmentCreateSchema.parse(input);
+      return requestJson(
+        fetcher,
+        joinUrl(baseUrl, `/api/v1/accounts/${encodeURIComponent(accountId)}/assessments`),
+        assessmentMutationResponseSchema,
+        { method: "POST", body: JSON.stringify(body) },
+      );
+    },
+    queueAssessment: (accountId, assessmentId) =>
+      requestJson(
+        fetcher,
+        joinUrl(
+          baseUrl,
+          `/api/v1/accounts/${encodeURIComponent(accountId)}/assessments/${encodeURIComponent(assessmentId)}/queue`,
+        ),
+        assessmentMutationResponseSchema,
+        { method: "POST" },
+      ),
   };
 }

@@ -246,6 +246,11 @@ wake-up hint.
 
 ### Task T087: US1 integration and queue gate (US1)
 
+**Checkpoint:** [~] Local development now supports the server-driven
+assessment draft → queue journey with a development-only mock store and live
+smoke coverage. PostgreSQL assessment persistence, verification gating, and
+worker dispatch remain the next production integration slice.
+
 **Files:**
 - Modify: `tests/integration/queue-recovery.test.ts`
 - Modify: `tests/integration/assessment-concurrency.test.ts`

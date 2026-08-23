@@ -1,6 +1,12 @@
 export {
+  assessmentCreateSchema,
+  assessmentListResponseSchema,
+  assessmentMutationResponseSchema,
+  assessmentSchema,
   assessmentStateSchema,
   targetCategorySchema,
+  type Assessment,
+  type AssessmentCreate,
   type AssessmentState,
   type TargetCategory,
 } from "./assessment";
