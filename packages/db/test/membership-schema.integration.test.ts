@@ -343,5 +343,23 @@ describeDb("Phase 2A membership schema", () => {
       select token_hash from public.session where id = ${sessionId}
     `;
     expect(replayedSession?.token_hash).toBe(replacementHash);
+
+    await db`
+      update account_membership
+      set status = 'suspended'
+      where account_id = ${accountB} and user_id = ${recipient}
+    `;
+    await db`
+      insert into account_invitation
+        (account_id, token_hash, email, proposed_role, status, expires_at, invited_by_user_id)
+      values
+        (${accountB}, ${"2".repeat(64)}, 'suspended@example.test', 'viewer', 'pending', now() + interval '1 day', ${inviter})
+      on conflict (token_hash) do nothing
+    `;
+    expect(
+      await db`select * from public.auth_accept_invitation(
+        ${replacementHash}, ${"2".repeat(64)}, ${"3".repeat(64)}, now() + interval '1 day'
+      )`,
+    ).toEqual([]);
   });
 });

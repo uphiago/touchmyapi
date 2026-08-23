@@ -45,6 +45,7 @@ BEGIN
     AND a.deleted_at IS NULL
   FOR UPDATE OF s;
   IF inviter_id IS NULL THEN RETURN; END IF;
+  IF current_account_id <> p_target_account_id THEN RETURN; END IF;
   SELECT true INTO inviter_allowed
   FROM public.account_membership AS m
   JOIN public.account AS target_account ON target_account.id = m.account_id
@@ -87,6 +88,7 @@ DECLARE
   invitation_expires_at timestamptz;
   accepted_for_user_id uuid;
   target_account_status public.account_status;
+  existing_membership_status public.membership_status;
 BEGIN
   IF p_session_hash IS NULL OR p_session_hash !~ '^[0-9a-f]{64}$'
      OR p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$'
@@ -136,6 +138,11 @@ BEGIN
   ELSIF invitation_expires_at <= clock_timestamp() THEN
     RETURN;
   ELSE
+    SELECT m.status INTO existing_membership_status
+    FROM public.account_membership AS m
+    WHERE m.account_id = invitation_account_id AND m.user_id = current_user_id
+    FOR UPDATE;
+    IF existing_membership_status = 'suspended'::public.membership_status THEN RETURN; END IF;
     INSERT INTO public.account_membership (account_id, user_id, role, status)
     VALUES (invitation_account_id, current_user_id, invitation_role, 'active'::public.membership_status)
     ON CONFLICT ON CONSTRAINT account_membership_account_user_unique DO NOTHING;
