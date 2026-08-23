@@ -6,7 +6,7 @@
 
 **Architecture:** `packages/contracts` define os formatos compartilhados; `packages/policy`, `packages/secrets` e `packages/playbooks` são bibliotecas puras que não executam alvos. `packages/db` mantém migrações, funções bootstrap e transações tenant-scoped usando roles PostgreSQL sem privilégios de proprietário; `apps/api` apenas coordena adaptadores validados e expõe saúde e autenticação. A implementação é entregue em cinco gates, sem assessment, fila, runner, billing, relatório, scanner, target fetch ou agente privado.
 
-**Checkpoint 2026-08-23:** T010–T017 estão aceitas. T016 substituiu `TenantConnection.unsafe(string)` por `TenantDatabase` opaco e capacidades fechadas; T017 adicionou writers de auditoria tenant/system com redaction recursiva, sequência monotônica, bootstrap serializado, roles FORCE-RLS e grants por coluna. Consulte `docs/reviews/2026-08-22-t016-capability-boundary.md` e `docs/reviews/2026-08-23-t017-audit-chain.md`. T018–T021 permanecem pendentes; os checkboxes abaixo registram execução.
+**Checkpoint 2026-08-23:** T010–T021 estão aceitas. T016 substituiu `TenantConnection.unsafe(string)` por `TenantDatabase` opaco e capacidades fechadas; T017 adicionou writers de auditoria tenant/system com redaction recursiva, sequência monotônica, bootstrap serializado, roles FORCE-RLS e grants por coluna. T018 adicionou AEAD de credenciais, T019 o catálogo passivo, T020 a fronteira Hono e T021 o OAuth Google PKCE fakeável. Consulte os reviews em `docs/reviews/`; os checkboxes abaixo registram execução.
 
 **Tech Stack:** Bun 1.4.0, TypeScript strict, Vitest, Hono, Zod, Drizzle ORM/drizzle-kit, PostgreSQL 16, `postgres`, `openid-client`, Web Crypto/Node `crypto`, Docker Compose, GitHub Actions, React/Vite existente.
 
@@ -832,18 +832,14 @@ git commit -m "feat: add dependency-injected hono api boundary"
 
 **Files:**
 - Modify: `apps/api/package.json`
-- Create: `apps/api/src/auth/oidc-adapter.ts`
-- Create: `apps/api/src/auth/transient-cookie.ts`
-- Create: `apps/api/src/auth/google.ts`
-- Create: `apps/api/src/session.ts`
-- Create: `apps/api/test/oauth.test.ts`
+- Create: `apps/api/src/auth.ts`
+- Create: `apps/api/src/oidc-adapter.ts`
+- Create: `apps/api/test/auth.test.ts`
 - Modify: `apps/api/src/app.ts`
-- Modify: `packages/db/src/auth-bootstrap.ts`
-- Modify: `packages/db/migrations/0001_rls_roles.sql`
 
-- [ ] **Step 1: Escrever RED usando fake adapter, sem Google**
+- [x] **Step 1: Escrever testes usando fake adapter, sem Google**
 
-Teste login redireciona com `response_type=code`, `code_challenge_method=S256`, state e nonce criptograficamente diferentes; callback rejeita state, nonce, issuer, audience, subject e redirect incorretos; sucesso cria identidade por `(google, provider_subject)` sem email linking; logout ausente/repetido é 204; `/auth/me` retorna somente user/account/plan/iaEnabled; GitHub/X retorna `unsupported_provider`. Inspecione `Set-Cookie`: `HttpOnly`, `Secure` (exceto flag local explícita), `SameSite=Lax`, `Path=/`, Max-Age curto para transitório e expiração/rotação para sessão. O fake adapter deve contar chamadas e nunca fazer rede.
+Teste login redireciona com `response_type=code`, `code_challenge_method=S256`, state e nonce criptograficamente diferentes; callback rejeita state, nonce, issuer, audience, subject e redirect incorretos; sucesso cria identidade por `(google, provider_subject)` sem email linking; logout ausente/repetido é 204; `/auth/me` retorna somente user/account/plan/iaEnabled; GitHub/X retorna `unsupported_provider`. Inspecione `Set-Cookie`: `HttpOnly`, `Secure` (exceto flag local explícita), `SameSite=Lax`, `Path=/api/v1/auth`, Max-Age curto para transitório e expiração/rotação para sessão. O fake adapter deve contar chamadas e nunca fazer rede.
 
 ```ts
 const fakeOidc = {
@@ -852,9 +848,9 @@ const fakeOidc = {
 };
 ```
 
-Execute `bun run test:unit -- oauth`; esperado RED.
+Os testes usam adapter/store injetados e não fazem chamadas de rede; a suíte final ficou verde.
 
-- [ ] **Step 2: Implementar interfaces e cookie seguro**
+- [x] **Step 2: Implementar interfaces e cookie seguro**
 
 Adicione `openid-client` e `zod` às dependências da API. `oidc-adapter.ts` deve exportar:
 
@@ -869,15 +865,15 @@ export function createGoogleOidcAdapter(config: { clientId: string; clientSecret
 
 O adapter real usa Authorization Code + PKCE S256 de `openid-client`, issuer `https://accounts.google.com`, audience/client ID e redirect URI exatos; não é usado nos testes. `transient-cookie.ts` usa chave obrigatória injetada e AES-GCM para `{state,nonce,codeVerifier,returnTo,expiresAt}`, cookie HttpOnly/Secure/SameSite=Lax, erro genérico e limpeza em qualquer callback OAuth. Não use a chave de cookie como client secret.
 
-- [ ] **Step 3: Implementar sessão opaca e bootstrap estreito**
+- [x] **Step 3: Implementar sessão opaca e bootstrap estreito**
 
-`session.ts` gera 32 bytes random, envia token somente no cookie, calcula SHA-256 e persiste apenas hash. Resolve por hash, verifica expiração/revogação, roda rotação atômica e revoga por `auth_bootstrap`. A migration deve usar `auth_complete_google_login(provider_subject,email,session_hash,expires_at,ip,user_agent)` para criação de account/user/session/audit em uma transação; as outras funções resolvem, rotacionam ou revogam exclusivamente por hash. Ausência de Stripe entitlement resulta em `free_unverified` derivado em memória; login não insere entitlement/credit. Email nunca é chave de busca ou vínculo.
+O contrato `AuthStore` gera 32 bytes random, envia token somente no cookie, calcula SHA-256 e persiste apenas hash. Resolve por hash, verifica expiração/revogação, roda rotação atômica e revoga por `auth_bootstrap`. A composição de persistência deve mapear `completeGoogleLogin`, `resolveSession`, `rotateSession` e `revokeSession` às funções estreitas já presentes no bootstrap PostgreSQL; a fronteira T021 não abre SQL arbitrário. Ausência de Stripe entitlement resulta em `free_unverified` derivado em memória; login não insere entitlement/credit. Email nunca é chave de busca ou vínculo.
 
-- [ ] **Step 4: Integrar rotas e falhas seguras**
+- [x] **Step 4: Integrar rotas e falhas seguras**
 
 Implemente `GET /api/v1/auth/login`, `GET /api/v1/auth/callback`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`. Limpe cookie transitório em erro e não inclua code, token, claims, verifier, state, nonce ou body provider em resposta/log/audit. Rejeite produção sem `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, redirect URI ou cookie key com 503 de configuração; aceite cookie inseguro somente com `ALLOW_INSECURE_COOKIES=true` e `NODE_ENV=development`.
 
-- [ ] **Step 5: Rodar GREEN e security gate**
+- [x] **Step 5: Rodar GREEN e security gate**
 
 Execute `bun run test:unit -- oauth`, `bun run test:contract`, `bun run typecheck`, `bun run lint`, `bun run format`, `git diff --check`; esperado PASS. Execute `rg -n "fetch\\(|Bun\\.serve|accounts.google.com" apps/api/test packages` para confirmar que apenas adapter real contém endpoint e os testes usam fake; nenhum teste pode sair para internet.
 
@@ -898,7 +894,7 @@ git commit -m "feat: add testable google pkce sessions"
 - Modify: `specs/001-touchmyapi-platform/tasks.md`
 - Create: `docs/reviews/2026-08-22-foundation-phase2-implementation.md`
 
-- [ ] **Step 1: Rodar a sequência final obrigatória**
+- [x] **Step 1: Rodar a sequência final obrigatória**
 
 Execute no worktree com PostgreSQL 16:
 
@@ -920,15 +916,15 @@ git diff --check
 
 Esperado: todos exit 0; integração/isolation nunca são contabilizadas como passadas quando skipadas; e2e aparece como pending/skipped de forma explícita. Registre no review comando, versão Bun 1.4.0, PostgreSQL 16, resultado e qualquer bloqueio externo sem marcar como verde.
 
-- [ ] **Step 2: Fazer revisão de cobertura por requisito**
+- [x] **Step 2: Fazer revisão de cobertura por requisito**
 
 No documento de review, marque evidência para T010–T021, FR-001–FR-005, FR-014, FR-018 e SC-002/SC-003/SC-007, além das decisões R1/R2/R5/R7/R8. Confirme que os non-goals não foram violados e que nenhum novo arquivo contém execução, rede de target, Stripe mutation, AI tool, relatório ou runner. Inclua a matriz de teste: unit policy/AEAD, contract playbook/API, integration migration/auth/audit, isolation A/B/RLS, e2e pending.
 
-- [ ] **Step 3: Corrigir drift documental e atualizar status**
+- [x] **Step 3: Corrigir drift documental e atualizar status**
 
 Atualize quickstart/README apenas para descrever o que realmente está executável: health, policy, migrations/RLS, AEAD, catálogo passivo e auth fakeável; não anuncie assessment. Em `tasks.md`, marque T010–T021 somente com evidência dos testes verdes e deixe tarefas posteriores sem alteração de status.
 
-- [ ] **Step 4: Commitar documentação e revisão**
+- [x] **Step 4: Commitar documentação e revisão**
 
 ```bash
 git add README.md specs/001-touchmyapi-platform/quickstart.md specs/001-touchmyapi-platform/tasks.md docs/reviews/2026-08-22-foundation-phase2-implementation.md

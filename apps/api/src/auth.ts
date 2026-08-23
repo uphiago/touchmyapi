@@ -4,9 +4,9 @@ import type { ApiRequestEnv } from "./request-id";
 import type { ApiEnvironment } from "./config";
 
 const GOOGLE_ISSUER = "https://accounts.google.com";
-const OAUTH_COOKIE = "__Host-tma-oauth";
-const SESSION_COOKIE = "__Host-tma-session";
-const COOKIE_PATH = "/";
+const OAUTH_COOKIE = "__Secure-tma-oauth";
+const SESSION_COOKIE = "__Secure-tma-session";
+const COOKIE_PATH = "/api/v1/auth";
 const MAX_COOKIE_BYTES = 4096;
 const TOKEN_LENGTH = 43;
 const TEXT = new TextEncoder();

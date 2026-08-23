@@ -9,8 +9,8 @@ const config = createConfig({
   port: 3100,
 });
 const key = new Uint8Array(32).fill(7);
-const sessionCookieName = "__Host-tma-session";
-const oauthCookie = "__Host-tma-oauth";
+const sessionCookieName = "__Secure-tma-session";
+const oauthCookie = "__Secure-tma-oauth";
 
 const claims: GoogleIdentityClaims = {
   issuer: "https://accounts.google.com",
@@ -137,7 +137,7 @@ describe("Google OAuth boundary", () => {
     expect(setCookie).toContain("HttpOnly");
     expect(setCookie).toContain("Secure");
     expect(setCookie).toContain("SameSite=Lax");
-    expect(setCookie).toContain("Path=/");
+    expect(setCookie).toContain("Path=/api/v1/auth");
     expect(setCookie).toContain("Max-Age=600");
     expect(setCookie).not.toContain(location.searchParams.get("state") ?? "");
     expect(setCookie).not.toContain(location.searchParams.get("nonce") ?? "");
@@ -167,7 +167,7 @@ describe("Google OAuth boundary", () => {
     expect(setCookie).toContain("HttpOnly");
     expect(setCookie).toContain("Secure");
     expect(setCookie).toContain("SameSite=Lax");
-    expect(setCookie).toContain("Path=/");
+    expect(setCookie).toContain("Path=/api/v1/auth");
     expect(setCookie).toContain("Max-Age=3600");
     expect(callback.headers.get("set-cookie")).toContain(`${oauthCookie}=;`);
   });

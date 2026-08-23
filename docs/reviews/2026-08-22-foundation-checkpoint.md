@@ -4,11 +4,11 @@
 
 **Branch:** `feat/foundation-phase2`
 
-**Scope:** Policy, schema, RLS, tenant-capability boundary, accepted audit chain, credential AEAD, passive playbook catalog, and API boundary; T021 remains pending.
+**Scope:** Policy, schema, RLS, tenant-capability boundary, accepted audit chain, credential AEAD, passive playbook catalog, API boundary, and Google OAuth PKCE boundary.
 
 ## Outcome
 
-The accepted checkpoint is T010–T020. T016 replaced its arbitrary tenant-SQL callback with an opaque public database handle and transaction-bound closed capabilities. T017 adds redacted monotonic tenant/system audit chains, dedicated FORCE-RLS lock rows, owner-compatible bootstrap policies, sequence-defaulted fixed-column inserts, and API/worker/system capability expiry. T018 adds an isolated version-2 AES-256-GCM envelope with key-ID-bound AAD, strict UTF-8/input limits, explicit version-1 rejection, stable errors, and best-effort zeroization. T019 adds a strict passive-only catalog whose limits/evidence/order are accepted by the policy engine and whose slice is detached and non-executing. T020 adds a dependency-injected Hono boundary with exact CORS, pre-handler audit gating, stable errors, and a fail-closed default sink. Both specification and adversarial quality reviews passed. T021 remains pending. No assessment, target network access, billing mutation, runner, report generation, AI execution, membership API, queue, or admin runtime was added.
+The accepted checkpoint is T010–T021. T016 replaced its arbitrary tenant-SQL callback with an opaque public database handle and transaction-bound closed capabilities. T017 adds redacted monotonic tenant/system audit chains, dedicated FORCE-RLS lock rows, owner-compatible bootstrap policies, sequence-defaulted fixed-column inserts, and API/worker/system capability expiry. T018 adds an isolated version-2 AES-256-GCM envelope with key-ID-bound AAD, strict UTF-8/input limits, explicit version-1 rejection, stable errors, and best-effort zeroization. T019 adds a strict passive-only catalog whose limits/evidence/order are accepted by the policy engine and whose slice is detached and non-executing. T020 adds a dependency-injected Hono boundary with exact CORS, pre-handler audit gating, stable errors, and a fail-closed default sink. T021 adds a Google-only fakeable Authorization Code + PKCE boundary with encrypted transient state, hash-only rotating sessions, revocation, and secure cookies. Both specification and adversarial quality reviews passed. No assessment, target network access, billing mutation, runner, report generation, AI execution, membership API, queue, or admin runtime was added.
 
 | Task range | Status | Evidence |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ The accepted checkpoint is T010–T020. T016 replaced its arbitrary tenant-SQL c
 | T018 | Accepted | Version-2 credential AEAD; 12/12 focused tests; spec/quality Ready: Yes |
 | T019 | Accepted | Closed passive catalog + catalog→policy authorization; 29 contract and 229 unit tests; spec/quality Ready: Yes |
 | T020 | Accepted | Hono boundary + audit/CORS/error gates; 13 API tests and 240 unit tests; spec/quality Ready: Yes |
-| T021 | Pending | No implementation yet |
+| T021 | Accepted | Google PKCE boundary; 8 focused auth tests, hash-only rotation/revocation, endpoint/nonce/cookie hardening; spec/quality Ready: Yes |
 | T071–T094 | Design only | Membership, fenced PostgreSQL queue/outbox, and admin control-plane docs/tasks approved; no runtime implementation |
 
 ## T016 resolved finding
@@ -50,8 +50,7 @@ Two old `tma_t016_*` roles and one large object were observed in a reused local 
 
 ## Resume order
 
-1. Implement T021 Google OAuth PKCE.
-3. Run the Foundation Phase 2 final acceptance gate.
-4. Execute T071–T080 membership, T081–T087 PostgreSQL queue/outbox, and T088–T094 admin work in the documented dependency order.
+1. Run the Foundation Phase 2 final acceptance gate and publish the branch.
+2. Execute T071–T080 membership, T081–T087 PostgreSQL queue/outbox, and T088–T094 admin work in the documented dependency order.
 
 The authoritative product/security decisions remain the constitution, global spec/plan/research/data model/contracts, and task list. This checkpoint records implementation evidence only; it does not override them.
