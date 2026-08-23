@@ -6,6 +6,42 @@ type Check = Readonly<{
   validate: (response: Response, body: string) => boolean;
 }>;
 
+async function checkLocalAssessmentJourney(): Promise<void> {
+  const session = await fetch(`${apiBaseUrl}/api/v1/auth/local-session`);
+  const cookie = session.headers.get("set-cookie")?.split(";", 1)[0];
+  if (!session.ok || !cookie) throw new Error("local session bootstrap failed");
+  const accountsResponse = await fetch(`${apiBaseUrl}/api/v1/accounts`, {
+    headers: { Cookie: cookie },
+  });
+  const accounts = (await accountsResponse.json()) as {
+    accounts?: readonly { accountId: string; active: boolean }[];
+  };
+  const account = accounts.accounts?.find((item) => item.active) ?? accounts.accounts?.[0];
+  if (!accountsResponse.ok || !account) throw new Error("local account bootstrap failed");
+  const created = await fetch(`${apiBaseUrl}/api/v1/accounts/${account.accountId}/assessments`, {
+    method: "POST",
+    headers: { Cookie: cookie, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      targetCategory: "surface",
+      target: `smoke-${Date.now()}.example.test`,
+      scope: [],
+    }),
+  });
+  const draft = (await created.json()) as { assessment?: { id: string; status: string } };
+  if (!created.ok || draft.assessment?.status !== "draft") {
+    throw new Error(`local assessment create failed: HTTP ${created.status}`);
+  }
+  const queued = await fetch(
+    `${apiBaseUrl}/api/v1/accounts/${account.accountId}/assessments/${draft.assessment.id}/queue`,
+    { method: "POST", headers: { Cookie: cookie } },
+  );
+  const result = (await queued.json()) as { assessment?: { status: string; jobId: string | null } };
+  if (!queued.ok || result.assessment?.status !== "queued" || !result.assessment.jobId) {
+    throw new Error(`local assessment queue failed: HTTP ${queued.status}`);
+  }
+  console.log(`[smoke] PASS assessment draft → queued ${account.accountId}`);
+}
+
 const apiBaseUrl = process.env.VITE_API_BASE_URL ?? "http://localhost:3000";
 const webBaseUrl = process.env.WEB_BASE_URL ?? "http://localhost:5173";
 const timeoutMs = Number(process.env.LOCAL_SMOKE_TIMEOUT_MS ?? 30_000);
@@ -43,8 +79,14 @@ while (Date.now() < deadline) {
     }
   }
   if (passed) {
-    console.log("[smoke] local stack is responding");
-    process.exit(0);
+    try {
+      await checkLocalAssessmentJourney();
+      console.log("[smoke] local stack is responding");
+      process.exit(0);
+    } catch (error) {
+      passed = false;
+      lastError = `assessment journey: ${error instanceof Error ? error.message : String(error)}`;
+    }
   }
   await Bun.sleep(500);
 }

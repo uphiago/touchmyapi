@@ -20,6 +20,8 @@ Evidence:
 - `bun run typecheck` and `bun run --cwd apps/web build`: passed.
 - Live smoke against `http://localhost:3000` created and queued
   `local.example.test` successfully.
+- `bun run local:smoke` now performs the same draft → queued journey on every
+  local readiness check, in addition to API health and web shell checks.
 
 The production store adapter still needs to connect assessment creation and
 queueing to the PostgreSQL transaction boundary (`packages/db/src/queue.ts`)
