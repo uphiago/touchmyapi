@@ -98,8 +98,24 @@ function createAuthFixture(
         iaEnabled: true,
       };
       sessions.set(input.replacementSessionHash, session);
-      return session;
+      return { session, rotated: true };
     },
+    listAccounts: async () => [
+      {
+        accountId: "11111111-1111-4111-8111-111111111111",
+        role: "owner",
+        status: "active",
+        active: true,
+      },
+    ],
+    switchAccount: async () => ({
+      userId: "user-1",
+      accountId: "account-2",
+      email: "user@example.test",
+      role: "viewer",
+      plan: "free_unverified",
+      iaEnabled: true,
+    }),
   };
   const dependencies: ApiDependencies = {
     config,
@@ -338,6 +354,38 @@ describe("Google OAuth boundary", () => {
       "https://console.example.test",
     );
     expect(response.headers.get("set-cookie")).toContain(`${sessionCookieName}=`);
+  });
+
+  it("lists safe account summaries and switches only through the session store", async () => {
+    const fixture = createAuthFixture();
+    const response = await fixture.app.request("http://localhost/api/v1/account", {
+      headers: { Cookie: `${sessionCookieName}=${"A".repeat(43)}` },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      accounts: [
+        {
+          accountId: "11111111-1111-4111-8111-111111111111",
+          role: "owner",
+          status: "active",
+          active: true,
+        },
+      ],
+    });
+
+    const switched = await fixture.app.request("http://localhost/api/v1/account/switch", {
+      method: "POST",
+      headers: {
+        Cookie: `${sessionCookieName}=${"A".repeat(43)}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ accountId: "22222222-2222-4222-8222-222222222222" }),
+    });
+    expect(switched.status).toBe(200);
+    expect(await switched.json()).toEqual({
+      account: { id: "account-2", role: "viewer" },
+      user: { id: "user-1" },
+    });
   });
 });
 

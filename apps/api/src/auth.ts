@@ -1,5 +1,9 @@
 import { ApiError } from "./error";
-import { invitationAcceptSchema } from "@touchmyapi/contracts";
+import {
+  accountListResponseSchema,
+  accountSwitchSchema,
+  invitationAcceptSchema,
+} from "@touchmyapi/contracts";
 import type { Hono } from "hono";
 import type { ApiRequestEnv } from "./request-id";
 import type { ApiEnvironment } from "./config";
@@ -8,6 +12,7 @@ const GOOGLE_ISSUER = "https://accounts.google.com";
 const OAUTH_COOKIE = "__Secure-tma-oauth";
 const SESSION_COOKIE = "__Secure-tma-session";
 const COOKIE_PATH = "/api/v1/auth";
+const SESSION_COOKIE_PATH = "/api/v1";
 const MAX_COOKIE_BYTES = 4096;
 const TOKEN_LENGTH = 43;
 const TEXT = new TextEncoder();
@@ -44,6 +49,11 @@ export type AuthSession = Readonly<{
   iaEnabled: boolean;
 }>;
 
+export type InvitationAcceptance = Readonly<{
+  session: AuthSession;
+  rotated: boolean;
+}>;
+
 export type AuthStore = Readonly<{
   completeGoogleLogin: (input: {
     providerSubject: string;
@@ -64,6 +74,20 @@ export type AuthStore = Readonly<{
   acceptInvitation?: (input: {
     sessionHash: string;
     tokenHash: string;
+    replacementSessionHash: string;
+    replacementExpiresAt: Date;
+  }) => Promise<InvitationAcceptance | undefined>;
+  listAccounts?: (sessionHash: string) => Promise<
+    readonly {
+      accountId: string;
+      role: string;
+      status: string;
+      active: boolean;
+    }[]
+  >;
+  switchAccount?: (input: {
+    sessionHash: string;
+    targetAccountId: string;
     replacementSessionHash: string;
     replacementExpiresAt: Date;
   }) => Promise<AuthSession | undefined>;
@@ -223,7 +247,8 @@ async function openTransient(value: string, key: Uint8Array): Promise<TransientS
 }
 
 function cookieHeader(name: string, value: string, maxAge: number, secure: boolean): string {
-  return `${name}=${value}; Path=${COOKIE_PATH}; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+  const path = name.includes("oauth") ? COOKIE_PATH : SESSION_COOKIE_PATH;
+  return `${name}=${value}; Path=${path}; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
 }
 
 function clearCookie(name: string, secure: boolean): string {
@@ -386,13 +411,55 @@ export function registerAuthRoutes(
       const replacementToken = randomToken();
       const replacementHash = await hashSession(replacementToken);
       const replacementExpiresAt = new Date(Date.now() + auth.sessionMaxAgeSeconds * 1000);
-      const session = await auth.store.acceptInvitation({
+      const acceptance = await auth.store.acceptInvitation({
         sessionHash,
         tokenHash,
         replacementSessionHash: replacementHash,
         replacementExpiresAt,
       });
-      if (!session) throw new ApiError(400, "invalid_invitation", "Invalid invitation");
+      if (!acceptance) throw new ApiError(400, "invalid_invitation", "Invalid invitation");
+      const session = acceptance.session;
+      const response = context.json({
+        account: { id: session.accountId, role: session.role },
+        user: { id: session.userId },
+      });
+      if (acceptance.rotated) {
+        addCookie(
+          response,
+          cookieHeader(sessionCookieName, replacementToken, auth.sessionMaxAgeSeconds, secure),
+        );
+      }
+      return response;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(400, "invalid_invitation", "Invalid invitation");
+    }
+  });
+
+  api.get("/api/v1/account", async (context) => {
+    const token = readSessionToken(context.req.raw, sessionCookieName);
+    if (!token || !auth.store.listAccounts) {
+      throw new ApiError(401, "unauthorized", "Authentication required");
+    }
+    const accounts = await auth.store.listAccounts(await hashSession(token));
+    return context.json(accountListResponseSchema.parse({ accounts }));
+  });
+
+  api.post("/api/v1/account/switch", async (context) => {
+    try {
+      const token = readSessionToken(context.req.raw, sessionCookieName);
+      if (!token || !auth.store.switchAccount) {
+        throw new ApiError(401, "unauthorized", "Authentication required");
+      }
+      const body = accountSwitchSchema.parse(await context.req.json());
+      const replacementToken = randomToken();
+      const session = await auth.store.switchAccount({
+        sessionHash: await hashSession(token),
+        targetAccountId: body.accountId,
+        replacementSessionHash: await hashSession(replacementToken),
+        replacementExpiresAt: new Date(Date.now() + auth.sessionMaxAgeSeconds * 1000),
+      });
+      if (!session) throw new ApiError(403, "membership_required", "Membership required");
       const response = context.json({
         account: { id: session.accountId, role: session.role },
         user: { id: session.userId },
@@ -404,7 +471,7 @@ export function registerAuthRoutes(
       return response;
     } catch (error) {
       if (error instanceof ApiError) throw error;
-      throw new ApiError(400, "invalid_invitation", "Invalid invitation");
+      throw new ApiError(400, "active_account_required", "Invalid account switch");
     }
   });
 
