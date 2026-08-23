@@ -1,0 +1,21 @@
+apps/api/src/auth.ts
+  s_bc54431df54bf2::t_c6af156bf7ef99 4,244-249
+apps/api/src/app.ts
+  s_bc54431df54bf2::t_b904808ae64731 88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "5143ae958ca8a622647b874f57a3ee4f36133632",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
