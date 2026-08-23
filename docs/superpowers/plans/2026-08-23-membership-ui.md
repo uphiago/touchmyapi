@@ -142,6 +142,10 @@ Expected output includes `PASS API health`, `PASS web shell`, and
 `local stack is responding`; inspect `bun run local:logs` before stopping the
 application processes with `Ctrl-C`.
 
+The local composition must also expose `GET /api/v1/auth/local-session`, return
+two demo accounts, allow a switch to the second account, and list its
+membership. This route is available only when `LOCAL_MOCKS=1` in development.
+
 - [x] **Step 2: Record T078 evidence**
 
 Mark T078 complete only with the focused tests and build evidence. Keep T076 production store/deletion, T079 migration review, and T080 acceptance gate explicitly pending.

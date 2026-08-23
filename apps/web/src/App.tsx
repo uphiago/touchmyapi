@@ -13,6 +13,7 @@ type ApiStatus = "checking" | "online" | "unavailable";
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:3000";
+const LOCAL_MOCKS = import.meta.env.VITE_LOCAL_MOCKS === "1";
 
 export default function App() {
   const [status, setStatus] = useState<ApiStatus>("checking");
@@ -67,7 +68,14 @@ export default function App() {
 
     void checkHealth();
 
-    void refreshWorkspace(() => cancelled);
+    void (async () => {
+      if (LOCAL_MOCKS) {
+        await fetch(`${API_BASE_URL}/api/v1/auth/local-session`, {
+          credentials: "include",
+        });
+      }
+      await refreshWorkspace(() => cancelled);
+    })();
 
     return () => {
       cancelled = true;

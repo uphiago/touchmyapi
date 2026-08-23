@@ -98,9 +98,11 @@ Run from the repository root with Bun 1.4.0:
 - The full unit project passes 274/274 and the production web build passes.
 - The local runtime path was exercised with `bun run dev:local` and
   `bun run local:smoke`: API health and the Vite shell both returned PASS while
-  PostgreSQL was running. PostgreSQL logs showed readiness to accept
-  connections; the API/Vite processes were then stopped with Ctrl-C and the
-  database volume was preserved.
+  PostgreSQL was running. The development-only local mock session also returned
+  two accounts, switched to the second account, and listed its membership.
+  PostgreSQL logs showed readiness to accept connections; the API/Vite
+  processes were then stopped with Ctrl-C and the database volume was
+  preserved.
 
 The real Google OIDC adapter remains injectable and requires production
 credentials only at deployment. GitHub/X login remains model-disabled by the

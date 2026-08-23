@@ -33,14 +33,14 @@ const children = [
   Bun.spawn({
     cmd: ["bun", "--cwd", "apps/api", "dev"],
     cwd: root,
-    env: { ...baseEnv, CORS_ORIGIN: "http://localhost:5173", PORT: "3000" },
+    env: { ...baseEnv, CORS_ORIGIN: "http://localhost:5173", LOCAL_MOCKS: "1", PORT: "3000" },
     stdout: "inherit",
     stderr: "inherit",
   }),
   Bun.spawn({
-    cmd: ["bun", "--cwd", "apps/web", "dev", "--", "--host", "127.0.0.1"],
+    cmd: ["bun", "--cwd", "apps/web", "dev", "--", "--host", "127.0.0.1", "--strictPort"],
     cwd: root,
-    env: { ...baseEnv, VITE_API_BASE_URL: apiUrl },
+    env: { ...baseEnv, VITE_API_BASE_URL: apiUrl, VITE_LOCAL_MOCKS: "1" },
     stdout: "inherit",
     stderr: "inherit",
   }),
@@ -57,7 +57,13 @@ function shutdown(signal: string): void {
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-const exitCodes = await Promise.all(children.map((child) => child.exited));
-if (!shuttingDown && exitCodes.some((code) => code !== 0)) {
-  throw new Error(`[local] child process failed: ${exitCodes.join(", ")}`);
+const exitPromises = children.map((child) => child.exited);
+const firstExit = await Promise.race(
+  exitPromises.map(async (promise, index) => ({ index, code: await promise })),
+);
+if (!shuttingDown && firstExit.code !== 0) {
+  console.error(`[local] child process ${firstExit.index} failed with ${firstExit.code}`);
+  shutdown("child failure");
+  process.exit(1);
 }
+await Promise.all(exitPromises);

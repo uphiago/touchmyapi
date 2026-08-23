@@ -86,6 +86,12 @@ the API and Vite web shell with inherited logs:
 bun run dev:local
 ```
 
+Development mode sets `LOCAL_MOCKS=1` only for the child API and
+`VITE_LOCAL_MOCKS=1` only for the child web process. The API exposes a local
+demo session with two accounts and memberships, so the switcher and membership
+screens are usable without Google credentials. This composition is not used by
+production mode and does not persist or deliver real invitations.
+
 In a second terminal, wait for both processes and run the smoke check:
 
 ```bash
