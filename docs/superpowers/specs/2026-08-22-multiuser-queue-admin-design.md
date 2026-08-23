@@ -121,7 +121,7 @@ The admin UI authenticates staff separately, requests a capability grant with re
 
 ## Security invariants
 
-1. All business queries run under a non-owner, non-`BYPASSRLS` role with `app.tenant=account_id`; membership itself is the authorization input, not an ID in a URL.
+1. All business queries run under a non-owner, non-`BYPASSRLS` role with `app.tenant=account_id`; membership itself is the authorization input, not an ID in a URL. During expand, membership identity references use immutable `user.id` FKs plus `account_id`; composite tenant FKs are reserved for session/attestation and cutover paths so the legacy unique `user.account_id` can remain without blocking one user joining multiple accounts.
 2. The existing `user` table is the sole customer identity authority. Narrow functions `auth_list_accounts(session_hash)` and `auth_switch_account(current_hash,target_account_id,new_hash,expiry)` provide safe account enumeration/switch and cannot perform arbitrary search, email linking, or cross-account joins.
 3. Session cookies are separate for customer and admin origins. Active account is server-side, rotated on login/switch/role-sensitive change, and revocable.
 4. Invitation tokens are 256-bit random bearer values, single-use, expiry-bound, hash-only at rest, accepted only in a redacted POST body, and never placed in URLs/logs/audit.
