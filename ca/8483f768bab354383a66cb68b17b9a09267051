@@ -1,0 +1,27 @@
+packages/db/test/tenant-session.integration.test.ts
+  s_bc54431df54bf2::t_b65546ae35df3e 355
+  s_bc54431df54bf2::t_1d2e2cffab3f68 171,183-188,356-360,362-386,390-394
+  s_bc54431df54bf2::t_926d039d64a81b 293,295-299,309-312
+  s_bc54431df54bf2::t_a2b1d2ee23f47b 172-182
+  s_bc54431df54bf2::t_0f2f8508e4491a 361,387-389
+  s_bc54431df54bf2::t_958178377dfa1d 395
+packages/db/src/tenant-account.ts
+  s_bc54431df54bf2::t_c99b6cac937ec6 15,34,37,41
+  s_bc54431df54bf2::t_1e74f2c8e3fecd 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ca8483f768bab354383a66cb68b17b9a09267051",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
