@@ -84,6 +84,20 @@ describe("credential AEAD", () => {
     }
   });
 
+  it("authenticates the key ID even when an alias resolves to the same key", async () => {
+    const aliasedProvider: KeyProvider = {
+      getKey: async (keyId) => (keyId === "k1" || keyId === "alias" ? key : undefined),
+    };
+    const envelope = await encryptCredential(aliasedProvider, "k1", "secret-value", context);
+
+    await expectStableError(
+      decryptCredential(aliasedProvider, { ...envelope, keyId: "alias" }, context),
+      "secret-value",
+      "k1",
+      "alias",
+    );
+  });
+
   it("rejects missing, unknown, and rotated keys", async () => {
     const envelope = await encryptCredential(provider, "k1", "secret-value", context);
     const missing: KeyProvider = { getKey: async () => undefined };

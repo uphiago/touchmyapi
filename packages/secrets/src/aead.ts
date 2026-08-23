@@ -50,10 +50,12 @@ function decodeBase64Url(value: unknown): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-function canonicalContext(context: CredentialContext): Uint8Array<ArrayBuffer> {
+function canonicalContext(context: CredentialContext, keyId: string): Uint8Array<ArrayBuffer> {
   if (
     context === null ||
     typeof context !== "object" ||
+    typeof keyId !== "string" ||
+    keyId.length === 0 ||
     typeof context.accountId !== "string" ||
     typeof context.assessmentId !== "string" ||
     typeof context.credentialId !== "string" ||
@@ -67,6 +69,7 @@ function canonicalContext(context: CredentialContext): Uint8Array<ArrayBuffer> {
     assessmentId: context.assessmentId,
     credentialId: context.credentialId,
     purpose: context.purpose,
+    keyId,
   });
   const encoded = new TextEncoder().encode(canonical);
   const bytes = new Uint8Array(new ArrayBuffer(encoded.byteLength));
@@ -134,7 +137,7 @@ export async function encryptCredential(
 ): Promise<CredentialEnvelope> {
   try {
     if (typeof plaintext !== "string") throw new Error("invalid plaintext");
-    const additionalData = canonicalContext(context);
+    const additionalData = canonicalContext(context, keyId);
     const nonce = new Uint8Array(new ArrayBuffer(NONCE_BYTES));
     globalThis.crypto.getRandomValues(nonce);
     const key = await importKey(provider, keyId, "encrypt");
@@ -163,7 +166,7 @@ export async function decryptCredential(
 ): Promise<string> {
   try {
     const { nonce, ciphertext } = validateEnvelope(envelope);
-    const additionalData = canonicalContext(context);
+    const additionalData = canonicalContext(context, envelope.keyId);
     const key = await importKey(provider, envelope.keyId, "decrypt");
     const plaintext = await globalThis.crypto.subtle.decrypt(
       { name: "AES-GCM", iv: nonce, additionalData, tagLength: AUTH_TAG_BITS },
