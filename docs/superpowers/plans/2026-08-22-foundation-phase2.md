@@ -725,7 +725,7 @@ describe("credential AEAD", () => {
 
 - [ ] **Step 2: Implementar envelope e contexto AAD**
 
-Use `version: 1`, `algorithm: "AES-256-GCM"`, `keyId`, fresh 12-byte nonce, base64url ciphertext/tag e AAD canonical JSON ordenado de `accountId`, `assessmentId`, `credentialId`, `purpose`. `KeyProvider` é injetado; chaves devem ter 32 bytes; ausência de provider/key e falhas de autenticação retornam somente `Error("credential encryption failed")` ou `Error("credential decryption failed")`. O módulo não importa `process.env`, não persiste e não loga.
+Use `version: 2`, `algorithm: "AES-256-GCM"`, `keyId`, fresh 12-byte nonce, base64url ciphertext/tag e AAD canonical JSON ordenado de `accountId`, `assessmentId`, `credentialId`, `purpose` e `keyId`. O decrypt rejeita explicitamente envelopes legados `version: 1` (qualquer migração deve recriptografar sob a versão atual). `KeyProvider` é injetado; chaves devem ter 32 bytes; `keyId` e cada campo de contexto têm limite UTF-8 de 256 bytes; plaintext tem limite de 1 MiB; nonce/ciphertext são limitados antes de qualquer decode base64url. Ausência de provider/key e falhas de autenticação retornam somente `Error("credential encryption failed")` ou `Error("credential decryption failed")`. O módulo não importa `process.env`, não persiste e não loga; buffers temporários recebem best-effort zeroization, reconhecendo a limitação do GC de JavaScript.
 
 - [ ] **Step 3: Rodar GREEN e commit**
 
