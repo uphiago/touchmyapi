@@ -7,11 +7,20 @@ type Check = Readonly<{
 }>;
 
 async function checkLocalAssessmentJourney(): Promise<void> {
-  const session = await fetch(`${apiBaseUrl}/api/v1/auth/local-session`);
+  const session = await fetch(`${apiBaseUrl}/api/v1/auth/local-session`, {
+    headers: { Origin: webBaseUrl },
+  });
   const cookie = session.headers.get("set-cookie")?.split(";", 1)[0];
-  if (!session.ok || !cookie) throw new Error("local session bootstrap failed");
+  if (
+    !session.ok ||
+    !cookie ||
+    session.headers.get("access-control-allow-origin") !== webBaseUrl ||
+    session.headers.get("access-control-allow-credentials") !== "true"
+  ) {
+    throw new Error("local browser session or CORS bootstrap failed");
+  }
   const accountsResponse = await fetch(`${apiBaseUrl}/api/v1/accounts`, {
-    headers: { Cookie: cookie },
+    headers: { Cookie: cookie, Origin: webBaseUrl },
   });
   const accounts = (await accountsResponse.json()) as {
     accounts?: readonly { accountId: string; active: boolean }[];
@@ -20,7 +29,7 @@ async function checkLocalAssessmentJourney(): Promise<void> {
   if (!accountsResponse.ok || !account) throw new Error("local account bootstrap failed");
   const created = await fetch(`${apiBaseUrl}/api/v1/accounts/${account.accountId}/assessments`, {
     method: "POST",
-    headers: { Cookie: cookie, "Content-Type": "application/json" },
+    headers: { Cookie: cookie, Origin: webBaseUrl, "Content-Type": "application/json" },
     body: JSON.stringify({
       targetCategory: "surface",
       target: `smoke-${Date.now()}.example.test`,
@@ -33,7 +42,7 @@ async function checkLocalAssessmentJourney(): Promise<void> {
   }
   const queued = await fetch(
     `${apiBaseUrl}/api/v1/accounts/${account.accountId}/assessments/${draft.assessment.id}/queue`,
-    { method: "POST", headers: { Cookie: cookie } },
+    { method: "POST", headers: { Cookie: cookie, Origin: webBaseUrl } },
   );
   const result = (await queued.json()) as { assessment?: { status: string; jobId: string | null } };
   if (!queued.ok || result.assessment?.status !== "queued" || !result.assessment.jobId) {
@@ -42,8 +51,8 @@ async function checkLocalAssessmentJourney(): Promise<void> {
   console.log(`[smoke] PASS assessment draft → queued ${account.accountId}`);
 }
 
-const apiBaseUrl = process.env.VITE_API_BASE_URL ?? "http://localhost:3000";
-const webBaseUrl = process.env.WEB_BASE_URL ?? "http://localhost:5173";
+const apiBaseUrl = process.env.VITE_API_BASE_URL ?? "http://127.0.0.1:3000";
+const webBaseUrl = process.env.WEB_BASE_URL ?? "http://127.0.0.1:5173";
 const timeoutMs = Number(process.env.LOCAL_SMOKE_TIMEOUT_MS ?? 30_000);
 const checks: readonly Check[] = [
   {

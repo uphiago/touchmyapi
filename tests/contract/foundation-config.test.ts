@@ -93,6 +93,26 @@ describe("foundation configuration contracts", () => {
       expect(name).not.toMatch(/SECRET|PRIVATE|TOKEN|PASSWORD|WEBHOOK|ACCESS_KEY/);
     }
   });
+
+  it("uses the same canonical loopback origins for Vite, API, and CORS", () => {
+    const local = read("scripts/dev-local.ts");
+
+    expect(local).toContain('const localWebOrigin = "http://127.0.0.1:5173";');
+    expect(local).toContain('const localApiOrigin = "http://127.0.0.1:3000";');
+    expect(local).toContain("CORS_ORIGIN: localWebOrigin");
+    expect(local).toContain("VITE_API_BASE_URL: localApiOrigin");
+    expect(local).toContain('["--host", "127.0.0.1", "--strictPort"]');
+    expect(local).not.toContain('CORS_ORIGIN: "http://localhost:5173"');
+  });
+
+  it("makes the local smoke prove the browser CORS and credential boundary", () => {
+    const smoke = read("scripts/local-smoke.ts");
+
+    expect(smoke).toContain('"http://127.0.0.1:3000"');
+    expect(smoke).toContain('"http://127.0.0.1:5173"');
+    expect(smoke).toContain("headers: { Origin: webBaseUrl }");
+    expect(smoke).toContain('session.headers.get("access-control-allow-origin") !== webBaseUrl');
+  });
 });
 
 const dockerAvailable = (() => {
