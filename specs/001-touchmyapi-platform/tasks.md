@@ -221,6 +221,15 @@ T027/T029/T087; see `docs/reviews/2026-08-23-queue-integration.md`.
 - [ ] T093 [P] [US6] Implement separate admin UI (`apps/admin/src`): login/callback/WebAuthn/grants/queue/billing read-only; browser cannot grant capability, alter policy, access secrets/raw evidence, or mutate billing.
 - [ ] T094 [US6] Run admin RLS/e2e/runbook/review (`tests/isolation/admin-rls.test.ts`, `tests/e2e/multiuser-admin.test.ts`, `docs/reviews/2026-08-22-multiuser-queue-admin.md`, `quickstart.md`) proving FR-022–027, SC-011–016, and all no-bypass constraints.
 
+### Phase 2D console/deployment checkpoint (T095–T100)
+
+- [ ] T095 [P] [US1] Replace the customer landing-style shell with the approved operational console (`apps/web/src/{app-shell,overview,assessment-wizard}.tsx`, responsive `app.css`): Overview/Assessments/Team/Workspace navigation, guided authorized assessment draft → queue flow, truthful local-mock banner, role/account context, loading/error/empty states, and desktop/mobile component tests. This checkpoint enriches T036/T078 but does not complete real execution/findings/reports.
+- [ ] T096 [P] [US6] Add a development-only separate admin composition and UI (`apps/api/src/{admin-local,admin-server}.ts`, `apps/admin/src`), using ports `3001/5174`, a dedicated admin cookie/CORS origin/store, safe operations/account/queue metadata, JIT request + distinct mock approval + bounded mock action, read-only billing, and redacted audit. Production remains unavailable; this does not complete T088–T093 persistence/OIDC/WebAuthn/JIT acceptance.
+- [ ] T097 [US6] Gate local customer/admin separation (`tests/contract/foundation-config.test.ts`, admin API tests, `scripts/{dev-local,local-smoke}.ts`): customer/admin cookies reject cross-use, browser origins match CORS, mocks require explicit development flags, all four child processes shut down together, and smoke proves grant-before-action without secrets/raw evidence/global reaper/billing writes.
+- [ ] T098 [P] [INFRA] Add production packaging (`apps/{api,web,admin}/Dockerfile`, `.dockerignore`, `infra/docker/compose.production.yml`): non-root/read-only application runtimes where supported, immutable image tag input, PostgreSQL without public port, separate customer/admin origins, local mocks disabled, health checks, and one-shot migration before application cutover.
+- [ ] T099 [INFRA] Add the Barbarossa-pattern GitHub/OVH release (`.github/workflows/build-deploy.yml`, `scripts/{deploy-ovh,smoke-remote}.sh`, `docs/operations/ovh-deployment.md`): PR validation, manual/`v*` release only, SHA-pinned actions and images, minimal permissions, GitHub `production` environment, verified host key/strict SSH, host-provisioned `.env` preservation, serialized deploy, bounded image pruning, migration-before-cutover, remote smoke, and prior-SHA rollback metadata. External OVH/GitHub secrets and reverse-proxy/DNS provisioning remain unchecked until proven.
+- [ ] T100 Run the console/admin/deploy checkpoint review (`docs/reviews/2026-08-23-console-admin-ovh-checkpoint.md`): customer/admin production builds, local browser captures at desktop/mobile, customer and admin smoke, workflow/Compose regression tests, full fast gates, and separately migrated PostgreSQL integration/isolation suites. Mark only T095–T100 complete; T087 and T088–T094 remain governed by their full acceptance criteria.
+
 ---
 
 ## Dependencies & Execution Order
@@ -233,6 +242,7 @@ T027/T029/T087; see `docs/reviews/2026-08-23-queue-integration.md`.
 - **Phase 2B queue/outbox (T081–T087)**: depends on T080; T087 integrates and enriches T024/T025/T027/T029; PostgreSQL remains source of truth
 - **US1 queue gate (T087)**: must pass before T022; no duplicate queue semantics in existing T027/T029
 - **Phase 2C admin (T088–T094)**: depends on queue/outbox T081–T087 and billing read model T045; separate staff/MFA origin; no billing writes
+- **Phase 2D console/deployment checkpoint (T095–T100)**: customer console T095 depends on T078/T078a; local admin demonstration T096/T097 may precede persistent T088–T092 only because it is explicit development-only state; production packaging/release T098/T099 depends on the customer/admin build outputs and does not make unfinished production backends available
 - **US1 (P3)**: depends on P2 + T080 membership gate + T087 queue gate
 - **US2 (P4)**: depends on P2 + US1 foundational surfaces (assessment creation hooks into entitlement)
 - **US3 (P5)**: depends on US1 (completed assessments) + US2 (plan gating)

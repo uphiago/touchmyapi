@@ -103,11 +103,20 @@ bun run local:smoke
 Expected output contains:
 
 ```text
-[smoke] PASS API health http://localhost:3000/health
-[smoke] PASS web shell http://localhost:5173
+[smoke] PASS API health http://127.0.0.1:3000/health
+[smoke] PASS web shell http://127.0.0.1:5173
 [smoke] PASS assessment draft → queued <account-id>
 [smoke] local stack is responding
 ```
+
+The approved T095–T100 checkpoint extends this same command with a separate
+development-only admin API and application at `http://127.0.0.1:3001` and
+`http://127.0.0.1:5174`. Until T096/T097 are checked, those two ports are not
+part of the runnable quickstart. They will use a dedicated admin cookie, CORS
+origin, and server-side mock store; customer sessions will not authenticate to
+them. See
+`docs/superpowers/specs/2026-08-23-user-admin-console-design.md` and
+`docs/superpowers/plans/2026-08-23-user-admin-ovh-implementation.md`.
 
 The API and Vite logs remain attached to the first terminal. To inspect the
 PostgreSQL container independently, use `bun run local:logs`. Stop only the
