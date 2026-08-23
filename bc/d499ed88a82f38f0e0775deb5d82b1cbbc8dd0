@@ -1,0 +1,21 @@
+packages/db/test/membership-schema.integration.test.ts
+  s_bc54431df54bf2::t_d9f0369abd38d3 346-363
+packages/db/migrations/0015_invitations.sql
+  s_bc54431df54bf2::t_a647f3adc6301e 48,91,141-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "bcd499ed88a82f38f0e0775deb5d82b1cbbc8dd0",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
