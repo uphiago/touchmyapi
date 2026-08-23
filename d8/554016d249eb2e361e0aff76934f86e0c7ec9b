@@ -1,0 +1,52 @@
+apps/api/src/local-development.ts
+  s_bc54431df54bf2::t_f1a3be0b6a9892 10,188-192
+apps/web/src/App.tsx
+  s_bc54431df54bf2::t_b9d126a1a898b3 5-6,13,25,43,49-51,127-150,185-199
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_a5cede103d4afc 209-213
+docs/reviews/2026-08-23-queue-integration.md
+  s_bc54431df54bf2::t_b3606434db81e1 1-27
+docs/superpowers/plans/2026-08-22-multiuser-queue-admin.md
+  s_bc54431df54bf2::t_ec4bca84afb620 249-253
+apps/api/src/assessments.ts
+  s_bc54431df54bf2::t_6a18887d6945e4 1-9,11-170,172-180
+  s_bc54431df54bf2::t_79771f5b5bbdb6 10,171
+  s_bc54431df54bf2::t_6e1a1ef6971ece 181-185
+packages/contracts/test/assessment.test.ts
+  s_bc54431df54bf2::t_3011af76973933 2,23-35
+  s_bc54431df54bf2::t_46c0bc46aea175 36
+packages/contracts/src/index.ts
+  s_bc54431df54bf2::t_1d957e73ef6e43 2-5,8-9
+packages/contracts/src/assessment.ts
+  s_bc54431df54bf2::t_1d957e73ef6e43 26-57
+apps/api/src/app.ts
+  s_bc54431df54bf2::t_f1b25bcbf3a5b9 9,31,111-112
+  s_bc54431df54bf2::t_88fbbfabd192f4 113
+apps/web/src/assessments.tsx
+  s_bc54431df54bf2::t_2308c03b4b033f 1-82
+  s_bc54431df54bf2::t_d6ee5d5da5a815 83-105
+packages/ui/api-client.ts
+  s_bc54431df54bf2::t_69f9f280db732d 12-16,43-48,128-149
+  s_bc54431df54bf2::t_310ef2f9a53904 150-152
+apps/api/src/error.ts
+  s_bc54431df54bf2::t_8b7345cdeb343b 11
+apps/api/test/local-development.test.ts
+  s_bc54431df54bf2::t_5216ac12359821 56-80
+  s_bc54431df54bf2::t_9a3aa9da520922 81-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d8554016d249eb2e361e0aff76934f86e0c7ec9b",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
