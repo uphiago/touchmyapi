@@ -1,14 +1,14 @@
 # Multi-user membership foundation review
 
-**Status:** T071–T075, T077–T079, and the local runtime path are implemented
-and verified on `feat/foundation-phase2`; T076 remains a boundary slice pending
-its production store/deletion adapter.
+**Status:** T071–T075 and T077–T080 are implemented and verified on
+`feat/foundation-phase2`; T076 remains a boundary slice pending its production
+store/deletion adapter.
 
 This checkpoint covers the additive membership foundation, the T076 API
 boundary slice, the T077 database isolation cut, the T078 server-driven
-workspace UI, and the T079 expand-contract review. The production lifecycle
-database adapter, acceptance gate, queue/outbox, and staff admin plane remain
-pending for T076, T080, and T081–T094.
+workspace UI, the T079 expand-contract review, and the T080 acceptance gate.
+The production lifecycle database adapter, queue/outbox, and staff admin plane
+remain pending for T076 and T081–T094.
 
 ## Delivered boundary
 
@@ -123,5 +123,5 @@ intentionally present.
 
 T076 still needs a production database store/outbox adapter and the account
 deletion revocation workflow; the route and SQL transaction boundary are
-present. T080 remains the aggregate acceptance gate.
+present. T080 is accepted for the membership foundation.
 Queue/outbox and staff admin work starts only after that gate.

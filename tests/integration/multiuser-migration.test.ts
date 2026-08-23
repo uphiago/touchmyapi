@@ -125,6 +125,7 @@ describe.skipIf(!RUN_DB_TESTS)("multi-user expand-contract migration", () => {
       sessionId = login.session_id;
       await db.begin(async (tx) => {
         const [created] = await tx`insert into public.account default values returning id`;
+        if (!created) throw new Error("account fixture missing");
         accountB = created.id;
         await tx`insert into public.account_membership (account_id, user_id, role, status)
           values (${accountB}, ${userId}, 'viewer', 'active')`;

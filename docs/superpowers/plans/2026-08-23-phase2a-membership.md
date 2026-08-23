@@ -124,9 +124,9 @@ T080 and are intentionally not marked complete yet.
 
 **Files:** create `docs/reviews/2026-08-23-multiuser-membership-acceptance.md`; modify tasks/checkpoint/quickstart docs.
 
-- [ ] Run unit, contract, integration, and isolation projects sequentially with the fresh `_test` URL; record exact counts and any intentionally pending e2e test.
-- [ ] Review FR-022/FR-023/SC-011/SC-012/SC-013 evidence: active membership/roles, multiple owners and last-owner guard, body-token redaction, auth list/switch, legacy expand-contract, user-only identity, and RLS isolation.
-- [ ] Update task checkboxes only after evidence is green, document GitHub/X as still model-disabled and provider mocks as injectable, run typecheck/lint/format/web build/Compose/diff checks, and commit `docs: accept multiuser membership gate`.
+- [x] Run unit, contract, integration, and isolation projects sequentially with separately migrated fresh `_test` URLs; record exact counts and the intentionally pending e2e/production-adapter work.
+- [x] Review FR-022/FR-023/SC-011/SC-012/SC-013 evidence: active membership/roles, multiple owners and last-owner guard, body-token redaction, auth list/switch, legacy expand-contract, user-only identity, and RLS isolation.
+- [x] Update task checkboxes only after evidence is green, document GitHub/X as still model-disabled and provider mocks as injectable, run typecheck/lint/format/web build/Compose/diff checks, and record the gate in `docs/reviews/2026-08-23-multiuser-membership-acceptance.md`.
 
 ## Final review handoff
 
