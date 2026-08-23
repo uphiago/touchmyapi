@@ -4,13 +4,13 @@ TouchMyAPI is a platform for authorized security assessments. The executable fou
 
 ## Project status
 
-T017 is now accepted: it adds recursive redaction, monotonic append-only tenant/system audit chains, per-account and system FORCE-RLS lock authorities, API/worker closed writers, and fixed-column insert privileges; specification and adversarial quality reviews passed. T018–T021 remain unimplemented. The multi-user, PostgreSQL queue/outbox, and separate admin control-plane work in T071–T094 is design-only and remains unchecked.
+T018 is now accepted: it adds context-bound AES-256-GCM credential envelopes with key-ID AAD, versioned migration rejection, bounded inputs, stable errors, and best-effort buffer zeroization; specification and adversarial quality reviews passed. T019–T021 remain unimplemented. The multi-user, PostgreSQL queue/outbox, and separate admin control-plane work in T071–T094 is design-only and remains unchecked.
 
 The authoritative handoff is the [foundation checkpoint](docs/reviews/2026-08-22-foundation-checkpoint.md). Status checkboxes live in [platform tasks](specs/001-touchmyapi-platform/tasks.md); architecture and operational decisions remain in the linked plan, spec, research, data model, contracts, and quickstart under `specs/001-touchmyapi-platform/`.
 
 ## Current security boundary
 
-The foundation does **not** execute assessments or contact external targets. Google OAuth, durable queue/outbox, Stripe webhooks, sandboxed runners, reports, AI orchestration, and the private agent remain unimplemented. T016 exposes no raw PostgreSQL connection or generic query surface from `@touchmyapi/db`: callers receive an opaque connection handle and a frozen tenant context whose account capabilities are role-specific and expire at transaction completion. See the [checkpoint review](docs/reviews/2026-08-22-foundation-checkpoint.md) and [T016 review](docs/reviews/2026-08-22-t016-capability-boundary.md).
+The foundation does **not** execute assessments or contact external targets. Google OAuth, durable queue/outbox, Stripe webhooks, sandboxed runners, reports, AI orchestration, and the private agent remain unimplemented. T016 exposes no raw PostgreSQL connection or generic query surface from `@touchmyapi/db`: callers receive an opaque connection handle and a frozen tenant context whose account capabilities are role-specific and expire at transaction completion. T018's secrets package is an isolated crypto boundary with no environment lookup, persistence, logging, or runtime dependencies. See the [checkpoint review](docs/reviews/2026-08-22-foundation-checkpoint.md), [T016 review](docs/reviews/2026-08-22-t016-capability-boundary.md), and [T018 review](docs/reviews/2026-08-23-t018-credential-aead.md).
 
 ## Prerequisites
 

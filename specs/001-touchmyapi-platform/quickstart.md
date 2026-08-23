@@ -15,8 +15,9 @@ This guide validates the code that exists today. It does not claim that the full
 - `api_rls`, `worker_rls`, and `reporting_rls` least-privilege roles, forced default-deny RLS, and fixed-purpose auth bootstrap functions (T015)
 - Explicit PostgreSQL connection factory and opt-in integration/isolation suites
 - PostgreSQL 16 Compose service bound to loopback only
+- Context-bound `@touchmyapi/secrets` AES-256-GCM envelope for external credentials (T018), with versioned key-ID AAD, bounded inputs, generic failures, and no env/log/persistence access
 
-No assessment execution, external target access, Google authentication routes, queue, billing mutation, AI execution, report generation, or runner exists in this checkpoint. T016 and T017 are accepted: the tenant wrapper is an opaque database handle with fixed capabilities, and the audit writer provides redacted monotonic tenant/system chains with FORCE-RLS lock authorities and no raw SQL export. T018–T021 remain pending.
+No assessment execution, external target access, Google authentication routes, queue, billing mutation, AI execution, report generation, or runner exists in this checkpoint. T016 and T017 are accepted: the tenant wrapper is an opaque database handle with fixed capabilities, and the audit writer provides redacted monotonic tenant/system chains with FORCE-RLS lock authorities and no raw SQL export. T018 is accepted as the isolated external-credential AEAD boundary; T019–T021 remain pending.
 
 The historical Foundation Phase 2 remains intentionally limited to T010–T021 and does not implement organizations, invitations, roles, or admin operations. The approved Phase 2A extension is documented separately and is scheduled after T021: account/workspace membership first, then the fenced PostgreSQL queue/outbox, followed by the separate admin control plane. SSO and SCIM remain out of scope.
 
@@ -115,13 +116,13 @@ docker compose --profile local -f infra/docker/compose.yml exec -T postgres psql
   < infra/docker/postgres/init/002_test_database.sql
 ```
 
-The current DB package proves schema shape, runtime-role privileges, auth-bootstrap isolation, cross-account RLS behavior, T016's closed tenant-capability boundary, and T017's atomic audit writer with API/worker/system chain isolation. T018–T021 remain before the database/API foundation gate is accepted.
+The current DB package proves schema shape, runtime-role privileges, auth-bootstrap isolation, cross-account RLS behavior, T016's closed tenant-capability boundary, and T017's atomic audit writer with API/worker/system chain isolation. T018's focused AEAD suite is also green; T019–T021 remain before the database/API foundation gate is accepted.
 
 ## Next validation milestones
 
 The end-to-end scenarios formerly listed here are not runnable yet. Implement them in the order defined by [tasks.md](./tasks.md):
 
-1. Implement the atomic redacted audit chain (T017), credential AEAD (T018), and the passive playbook contract/runtime (T019); keep DB gates serialized or on isolated databases.
+1. Implement the passive playbook contract/runtime (T019); keep DB gates serialized or on isolated databases.
 3. Implement the Hono security boundary and Google OAuth sessions (T020–T021).
 4. Only then implement membership and the PostgreSQL queue/outbox before assessment state/UI work.
 5. Add webhook-only Stripe entitlement, HTTP-file verification, SSRF-safe fetching, sandboxed execution, evidence/reports, and the private agent in task order.
