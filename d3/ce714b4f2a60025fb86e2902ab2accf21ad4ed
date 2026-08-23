@@ -1,0 +1,29 @@
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_edc5d246f9e578 20,22,121,127
+docs/superpowers/plans/2026-08-22-foundation-phase2.md
+  s_bc54431df54bf2::t_edc5d246f9e578 806,810,820,824
+docs/reviews/2026-08-22-foundation-checkpoint.md
+  s_bc54431df54bf2::t_edc5d246f9e578 7,11,24-25,53
+docs/reviews/2026-08-23-t020-api-boundary.md
+  s_bc54431df54bf2::t_edc5d246f9e578 1-29
+README.md
+  s_bc54431df54bf2::t_edc5d246f9e578 7,13
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_edc5d246f9e578 53,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d3ce714b4f2a60025fb86e2902ab2accf21ad4ed",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
