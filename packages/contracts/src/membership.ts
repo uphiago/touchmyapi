@@ -144,6 +144,25 @@ export const accountSwitchSchema = z
 
 export type AccountSwitch = z.infer<typeof accountSwitchSchema>;
 
+export const accountMutationResponseSchema = z
+  .object({
+    account: z
+      .object({
+        id: uuidSchema,
+        role: membershipRoleSchema,
+      })
+      .strict(),
+    user: z
+      .object({
+        id: uuidSchema,
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
+export type AccountMutationResponse = z.infer<typeof accountMutationResponseSchema>;
+
 export const membershipErrorCodeSchema = z.enum([
   "invalid_invitation",
   "membership_required",

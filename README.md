@@ -4,13 +4,19 @@ TouchMyAPI is a platform for authorized security assessments. The executable fou
 
 ## Project status
 
-T020 and T021 are accepted, and the T071–T075 plus T077 multi-user membership foundation is implemented on the phase-2 branch. T020 adds the dependency-injected Hono API boundary with exact CORS, server-owned request IDs, pre-handler redaction-safe audit gating, stable error envelopes, and fail-closed audit configuration. T021 adds a Google-only, fakeable OAuth Authorization Code + PKCE boundary with encrypted transient state, hash-only sessions, rotation, revocation, and secure cookies. The membership slice adds additive account memberships/invitations, role capabilities, session-bound account list/switch, body-only invitation acceptance, the T076 lifecycle API boundary, and two-account RLS/composite-FK enforcement. The production membership store/account-deletion workflow, browser UI, PostgreSQL queue/outbox, and separate admin control-plane work in T076 and T078–T094 are still pending.
+T020 and T021 are accepted, and the T071–T078 multi-user membership foundation is implemented on the phase-2 branch. T020 adds the dependency-injected Hono API boundary with exact CORS, server-owned request IDs, pre-handler redaction-safe audit gating, stable error envelopes, and fail-closed audit configuration. T021 adds a Google-only, fakeable OAuth Authorization Code + PKCE boundary with encrypted transient state, hash-only sessions, rotation, revocation, and secure cookies. The membership slice adds additive account memberships/invitations, role capabilities, session-bound account list/switch, body-only invitation acceptance, the T076 lifecycle API boundary, two-account RLS/composite-FK enforcement, and the server-driven membership workspace UI. The production membership store/account-deletion workflow, expand-contract review, acceptance gate, PostgreSQL queue/outbox, and separate admin control-plane work in T076 and T079–T094 are still pending.
 
 The authoritative handoff is the [foundation checkpoint](docs/reviews/2026-08-22-foundation-checkpoint.md). Status checkboxes live in [platform tasks](specs/001-touchmyapi-platform/tasks.md); architecture and operational decisions remain in the linked plan, spec, research, data model, contracts, and quickstart under `specs/001-touchmyapi-platform/`.
 
 ## Current security boundary
 
 The foundation does **not** execute assessments or contact external targets. Durable queue/outbox, Stripe webhooks, sandboxed runners, reports, AI orchestration, and the private agent remain unimplemented. T021's real Google adapter is an explicit composition boundary; tests inject a fake adapter and never contact Google. GitHub/X remain model-disabled. T016 exposes no raw PostgreSQL connection or generic query surface from `@touchmyapi/db`: callers receive an opaque connection handle and a frozen tenant context whose account capabilities are role-specific and expire at transaction completion. T018's secrets package is an isolated crypto boundary with no environment lookup, persistence, logging, or runtime dependencies. T019 is contract-only and does not perform DNS/HTTP/TLS or any other network operation. T020 is an API boundary only; its executable default audit sink fails closed and no assessment handler exists. See the [membership foundation review](docs/reviews/2026-08-23-multiuser-membership-foundation.md) and the earlier [checkpoint review](docs/reviews/2026-08-22-foundation-checkpoint.md) for the current boundaries.
+
+For a local end-to-end smoke run, use `bun run dev:local` (PostgreSQL,
+migrations, API, and Vite with attached logs) and then `bun run local:smoke` in
+another terminal. `bun run local:logs` tails the PostgreSQL container and
+`bun run local:down` stops only the local Compose services without deleting
+volumes.
 
 ## Prerequisites
 

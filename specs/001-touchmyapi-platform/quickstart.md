@@ -20,10 +20,11 @@ This guide validates the code that exists today. It does not claim that the full
 - Dependency-injected Hono API boundary (T020) with exact CORS, request IDs, stable errors, audit gating, and no assessment routes
 - Google-only OAuth Authorization Code + PKCE boundary (T021) with encrypted transient state, hash-only rotating sessions, revocation, secure cookies, and a fakeable adapter for tests
 - T071–T075 multi-user foundation: additive memberships/invitations, role capability policy, active-account session list/switch, hash-only invitation acceptance, and credentialed API CORS with injectable stores
+- T077–T078 multi-user isolation and server-driven workspace UI: composite membership references, account switcher, membership list, invitation forms, and body-only acceptance
 
 No assessment execution, external target access, queue, billing mutation, AI execution, report generation, or runner exists in this checkpoint. T016 and T017 are accepted: the tenant wrapper is an opaque database handle with fixed capabilities, and the audit writer provides redacted monotonic tenant/system chains with FORCE-RLS lock authorities and no raw SQL export. T018 is accepted as the isolated external-credential AEAD boundary, T019 as the passive catalog boundary, T020 as the API boundary, and T021 as the fakeable Google auth boundary. The real OIDC composition requires explicit production credentials and is not exercised by tests.
 
-The historical Foundation Phase 2 remains intentionally limited to T010–T021. The approved Phase 2A extension is being implemented after T021: T071–T075 provide the additive membership foundation, while the full lifecycle API/UI remains in T076–T080. The fenced PostgreSQL queue/outbox follows, then the separate admin control plane. SSO and SCIM remain out of scope; GitHub/X are model-disabled and provider adapters remain injectable until production credentials are supplied.
+The historical Foundation Phase 2 remains intentionally limited to T010–T021. The approved Phase 2A extension is being implemented after T021: T071–T078 provide the additive membership foundation, lifecycle boundary, RLS cut, and server-driven workspace UI. T076 production store/deletion, T079 expand-contract review, and T080 acceptance remain before the fenced PostgreSQL queue/outbox and separate admin control plane. SSO and SCIM remain out of scope; GitHub/X are model-disabled and provider adapters remain injectable until production credentials are supplied.
 
 ## Prerequisites
 
@@ -75,7 +76,39 @@ Expected:
 
 No command above starts an assessment or contacts an external target.
 
-## Run the API and web shell
+## Run the local stack with logs and smoke verification
+
+The repository provides one reproducible local path. It starts loopback-only
+PostgreSQL, applies migrations to the local `touchmyapi` database, then starts
+the API and Vite web shell with inherited logs:
+
+```bash
+bun run dev:local
+```
+
+In a second terminal, wait for both processes and run the smoke check:
+
+```bash
+bun run local:smoke
+```
+
+Expected output contains:
+
+```text
+[smoke] PASS API health http://localhost:3000/health
+[smoke] PASS web shell http://localhost:5173
+[smoke] local stack is responding
+```
+
+The API and Vite logs remain attached to the first terminal. To inspect the
+PostgreSQL container independently, use `bun run local:logs`. Stop only the
+application processes with `Ctrl-C`; stop the local container without deleting
+its volume with `bun run local:down`.
+
+The smoke check only contacts loopback services. It never logs in, sends an
+invitation token, executes an assessment, or contacts an external target.
+
+## Run the API and web shell manually
 
 Start the API:
 
@@ -95,7 +128,7 @@ Optionally start the web shell in another terminal:
 bun run dev:web
 ```
 
-Open `http://localhost:5173`. The shell reports `API online` only after validating the response against the shared Zod schema.
+Open `http://localhost:5173`. The workspace reports `API online` only after validating the response against the shared Zod schema. Without an authenticated session it should show the server error state rather than inventing account data.
 
 ## PostgreSQL integration and isolation gates
 

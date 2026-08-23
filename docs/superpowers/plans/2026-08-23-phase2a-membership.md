@@ -105,11 +105,11 @@ T080 and are intentionally not marked complete yet.
 
 **Files:** modify `packages/ui/api-client.ts`; create `apps/web/src/account-switcher.tsx`, `apps/web/src/memberships.tsx`, `apps/web/src/memberships.test.tsx`.
 
-- [ ] Write RED component tests for account list/active account, role labels, invitation create/explicit accept form, no token URL construction/echo, and no browser authorization decisions.
-- [ ] Run `bun test apps/web/src/memberships.test.tsx`; verify failure before implementation.
-- [ ] Implement API-derived views and `POST /api/v1/invitations/accept` body submission. Account switching must call the server and consume the rotated session; UI only renders server decisions.
-- [ ] Run the component tests and `(cd apps/web && bun run build)`.
-- [ ] Commit `web: add explicit account membership controls`.
+- [x] Write RED component/client tests for account list/active account, role labels, invitation create/explicit accept form, no token URL construction/echo, and no browser authorization decisions.
+- [x] Run the focused unit project and verify the expected missing-client failure before implementation.
+- [x] Implement API-derived views and `POST /api/v1/invitations/accept` body submission. Account switching calls the server and consumes the rotated session; UI only renders server decisions.
+- [x] Run the component tests, full unit project (274/274), typecheck, lint, format, and `(cd apps/web && bun run build)`.
+- [x] Commit and push the explicit account membership controls.
 
 ## Task 9 — T079 expand-contract review
 

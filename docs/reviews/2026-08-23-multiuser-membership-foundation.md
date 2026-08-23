@@ -1,13 +1,14 @@
 # Multi-user membership foundation review
 
-**Status:** T071–T075 and the T077 RLS/composite-reference slice are
-implemented and verified on `feat/foundation-phase2`; T076 remains a boundary
-slice pending its production store/deletion adapter.
+**Status:** T071–T075, T077, and T078 are implemented and verified on
+`feat/foundation-phase2`; T076 remains a boundary slice pending its production
+store/deletion adapter.
 
 This checkpoint covers the additive membership foundation, the T076 API
-boundary slice, and the T077 database isolation cut. The production lifecycle
-database adapter, browser UI, queue/outbox, and staff admin plane remain
-pending for T076 and T078–T094.
+boundary slice, the T077 database isolation cut, and the T078 server-driven
+workspace UI. The production lifecycle database adapter, expand-contract
+review, acceptance gate, queue/outbox, and staff admin plane remain pending for
+T076 and T079–T094.
 
 ## Delivered boundary
 
@@ -55,7 +56,7 @@ Run from the repository root with Bun 1.4.0:
 | Gate | Result |
 | --- | ---: |
 | Contract tests | 36 passed |
-| Unit tests | 267 passed |
+| Unit tests | 274 passed |
 | PostgreSQL integration (fresh `_test`, sequential) | 64 passed |
 | Isolation project (fresh `_test`, sequential) | 24 passed |
 | TypeScript | passed |
@@ -80,6 +81,27 @@ Run from the repository root with Bun 1.4.0:
 - The full isolation project passes 24/24 and the full PostgreSQL integration
   project passes 64/64 on separate freshly migrated databases.
 
+## T078 server-driven workspace UI
+
+- `packages/ui/api-client.ts` validates account, membership, invitation, and
+  stable error responses through the existing Zod contracts and uses
+  credentialed requests for every call.
+- `AccountSwitcher` consumes the server account snapshot and delegates account
+  changes to `POST /api/v1/account/switch`; it never grants or infers access in
+  the browser.
+- `Memberships` renders server-provided role/status rows, invitation creation,
+  and explicit body-only acceptance. The raw token is cleared immediately after
+  submission and is never rendered or added to a URL.
+- The Vite shell now has a responsive dark industrial workspace treatment with
+  keyboard focus states, reduced-motion support, loading/empty/error states,
+  and server-authoritative mutation refreshes.
+- The full unit project passes 274/274 and the production web build passes.
+- The local runtime path was exercised with `bun run dev:local` and
+  `bun run local:smoke`: API health and the Vite shell both returned PASS while
+  PostgreSQL was running. PostgreSQL logs showed readiness to accept
+  connections; the API/Vite processes were then stopped with Ctrl-C and the
+  database volume was preserved.
+
 The real Google OIDC adapter remains injectable and requires production
 credentials only at deployment. GitHub/X login remains model-disabled by the
 approved launch policy; adding credentials alone does not enable those
@@ -89,6 +111,6 @@ providers.
 
 T076 still needs a production database store/outbox adapter and the account
 deletion revocation workflow; the route and SQL transaction boundary are
-present. T078–T080 cover the server-driven web controls, expand-contract
-evidence, and the aggregate acceptance gate.
+present. T079–T080 cover the expand-contract evidence and aggregate acceptance
+gate.
 Queue/outbox and staff admin work starts only after that gate.

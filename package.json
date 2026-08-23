@@ -13,6 +13,11 @@
   "scripts": {
     "dev:api": "bun --cwd apps/api dev",
     "dev:web": "bun --cwd apps/web dev",
+    "dev:local": "bun scripts/dev-local.ts",
+    "local:smoke": "bun scripts/local-smoke.ts",
+    "local:up": "docker compose --profile local -f infra/docker/compose.yml up -d postgres",
+    "local:down": "docker compose --profile local -f infra/docker/compose.yml down",
+    "local:logs": "docker compose --profile local -f infra/docker/compose.yml logs -f --tail=100 postgres",
     "typecheck": "bun x tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",

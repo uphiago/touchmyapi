@@ -22,6 +22,7 @@ export default defineConfig({
         [
           "tests/unit/**/*.test.ts",
           "apps/**/test/**/*.test.ts",
+          "apps/web/src/**/*.test.tsx",
           "packages/policy/test/**/*.test.ts",
           "packages/secrets/test/**/*.test.ts",
           "packages/**/test/**/*.unit.test.ts",

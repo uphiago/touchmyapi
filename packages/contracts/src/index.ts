@@ -22,6 +22,7 @@ export { auditEventSchema, type AuditEvent } from "./audit";
 export {
   accountListResponseSchema,
   accountListSchema,
+  accountMutationResponseSchema,
   accountSummarySchema,
   accountSwitchRequestSchema,
   accountSwitchSchema,
@@ -44,6 +45,7 @@ export {
   membershipStatusSchema,
   type AccountListResponse,
   type AccountSummary,
+  type AccountMutationResponse,
   type AccountSwitch,
   type Invitation,
   type InvitationAccept,
