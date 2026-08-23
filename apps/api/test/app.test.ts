@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { createApp, type AuditRecord, type AuditSink, type ApiLogger } from "../src/app";
+import {
+  app as defaultApp,
+  createApp,
+  type AuditRecord,
+  type AuditSink,
+  type ApiLogger,
+} from "../src/app";
 import { createConfig } from "../src/config";
+import { ApiError } from "../src/error";
 
 const config = createConfig({
   corsOrigin: "https://console.example.test",
@@ -73,16 +80,38 @@ describe("API boundary", () => {
     expect(records[0]).toMatchObject({ action: "request" });
     expect(records[0]?.requestId).toBe(response.headers.get("x-request-id"));
     expect(JSON.stringify(records[0]?.payload)).not.toContain("do-not-record");
-    expect(records[0]?.payload).toEqual({ method: "GET", path: "/api/v1/unknown" });
+    expect(records[0]?.payload).toEqual({ method: "GET", route: "api.v1" });
+  });
+
+  it("uses server-owned request IDs and never persists secret-bearing paths", async () => {
+    const records: AuditRecord[] = [];
+    const app = createTestApp({
+      record: async (record) => {
+        records.push(record);
+      },
+    });
+    const response = await app.request("http://localhost/api/v1/unknown/password-reset-token", {
+      headers: { "x-request-id": "attacker-request-id" },
+    });
+
+    expect(response.headers.get("x-request-id")).not.toBe("attacker-request-id");
+    expect(response.headers.get("x-request-id")).toBe(records[0]?.requestId);
+    expect(JSON.stringify(records[0]?.payload)).not.toContain("password-reset-token");
+    expect(records[0]?.payload).toEqual({ method: "GET", route: "api.v1" });
   });
 
   it("fails closed for mutations when the audit sink is unavailable", async () => {
+    let executed = false;
     const app = createTestApp({
       record: async () => {
         throw new Error("audit secret should not escape");
       },
     });
-    const response = await app.request("http://localhost/api/v1/assessments", {
+    app.post("/api/v1/mutation", () => {
+      executed = true;
+      return new Response("must not execute");
+    });
+    const response = await app.request("http://localhost/api/v1/mutation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password: "do-not-record" }),
@@ -92,6 +121,27 @@ describe("API boundary", () => {
     expect(await response.json()).toEqual({
       error: { code: "audit_unavailable", message: "Service Unavailable" },
     });
+    expect(executed).toBe(false);
+  });
+
+  it("maps typed API errors to their stable status envelope", async () => {
+    const app = createTestApp({ record: async () => undefined });
+    app.get("/api/v1/conflict", () => {
+      throw new ApiError(409, "conflict", "Conflict", "target");
+    });
+
+    const response = await app.request("http://localhost/api/v1/conflict");
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: { code: "conflict", message: "Conflict", field: "target" },
+    });
+  });
+
+  it("does not run with a silent default audit sink", async () => {
+    expect((await defaultApp.request("http://localhost/health")).status).toBe(200);
+    expect(
+      (await defaultApp.request("http://localhost/api/v1/mutation", { method: "POST" })).status,
+    ).toBe(503);
   });
 
   it("maps unexpected route errors without exposing stack or details", async () => {

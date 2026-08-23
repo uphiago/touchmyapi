@@ -2,7 +2,7 @@ import { Hono, type MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
 import { errorResponseSchema, healthResponseSchema } from "@touchmyapi/contracts";
 import { loadConfig, type ApiConfig } from "./config";
-import { errorEnvelope } from "./error";
+import { ApiError, errorEnvelope } from "./error";
 import { getRequestId, requestIdMiddleware, type ApiRequestEnv } from "./request-id";
 
 export type AuditRecord = Readonly<{
@@ -28,6 +28,11 @@ export type ApiDependencies = Readonly<{
 type App = Hono<ApiRequestEnv>;
 
 export const noopAuditSink: AuditSink = Object.freeze({ record: async () => undefined });
+export const unavailableAuditSink: AuditSink = Object.freeze({
+  record: async () => {
+    throw new Error("audit sink unavailable");
+  },
+});
 export const defaultLogger: ApiLogger = Object.freeze({
   error: (message, context) => console.error(message, context),
 });
@@ -38,16 +43,10 @@ function isMutation(method: string): boolean {
 
 function auditMiddleware(dependencies: ApiDependencies): MiddlewareHandler<ApiRequestEnv> {
   return async (context, next) => {
-    let nextError: unknown;
-    try {
-      await next();
-    } catch (error) {
-      nextError = error;
-    }
     const record: AuditRecord = {
       action: "request",
       requestId: getRequestId(context),
-      payload: { method: context.req.method, path: context.req.path },
+      payload: { method: context.req.method, route: "api.v1" },
     };
     try {
       await dependencies.auditSink.record(record);
@@ -62,7 +61,7 @@ function auditMiddleware(dependencies: ApiDependencies): MiddlewareHandler<ApiRe
         return response;
       }
     }
-    if (nextError !== undefined) throw nextError;
+    await next();
   };
 }
 
@@ -82,7 +81,6 @@ export function createApp(dependencies: ApiDependencies): App {
       credentials: true,
     }),
   );
-  api.use("/api/v1", auditMiddleware(dependencies));
   api.use("/api/v1/*", auditMiddleware(dependencies));
 
   api.get("/health", (context) => {
@@ -96,6 +94,9 @@ export function createApp(dependencies: ApiDependencies): App {
   api.onError((_error, context) => {
     dependencies.logger.error?.("unhandled request error", { requestId: getRequestId(context) });
     context.header("x-request-id", getRequestId(context));
+    if (_error instanceof ApiError) {
+      return context.json(errorEnvelope(_error.code, _error.message, _error.field), _error.status);
+    }
     return context.json(errorEnvelope("internal_error", "Internal Server Error"), 500);
   });
 
@@ -105,5 +106,5 @@ export function createApp(dependencies: ApiDependencies): App {
 export const app = createApp({
   config: loadConfig(),
   logger: defaultLogger,
-  auditSink: noopAuditSink,
+  auditSink: unavailableAuditSink,
 });
