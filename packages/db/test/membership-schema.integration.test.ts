@@ -212,6 +212,11 @@ describeDb("Phase 2A membership schema", () => {
         on conflict (account_id, user_id) do update set status = 'active'
       `;
       await transaction`
+        update account_membership
+        set role = 'viewer', removed_at = null
+        where account_id = ${accountB} and user_id = ${userA}
+      `;
+      await transaction`
         insert into public.session (id, account_id, user_id, token_hash, expires_at)
         values (${sessionId}, ${accountA}, ${userA}, ${oldHash}, now() + interval '1 day')
       `;
@@ -263,5 +268,71 @@ describeDb("Phase 2A membership schema", () => {
         )
       `,
     ).toEqual([]);
+  });
+
+  it("creates and accepts hash-only invitations through the auth boundary", async () => {
+    const accountB = "00000000-0000-4000-8000-000000000102";
+    const inviter = "00000000-0000-4000-8000-000000000201";
+    const recipient = "00000000-0000-4000-8000-000000000202";
+    const sessionId = crypto.randomUUID();
+    const sessionHash = "f".repeat(64);
+    const replacementHash = "e".repeat(64);
+    const tokenHash = "1".repeat(64);
+    await db.begin(async (transaction) => {
+      await transaction`delete from public.session where user_id in (${inviter}, ${recipient})`;
+      await transaction`
+        update account_membership
+        set status = 'active', role = 'admin', removed_at = null
+        where account_id = ${accountB} and user_id = ${inviter}
+      `;
+      await transaction`
+        insert into account_membership (account_id, user_id, role, status)
+        values (${accountB}, ${recipient}, 'owner', 'active')
+        on conflict (account_id, user_id) do update set status = 'active'
+      `;
+      await transaction`delete from account_invitation where token_hash = ${tokenHash}`;
+      await transaction`
+        insert into public.session (id, account_id, user_id, token_hash, expires_at)
+        values (${sessionId}, ${accountB}, ${recipient}, ${sessionHash}, now() + interval '1 day')
+      `;
+    });
+
+    const [created] = await db`
+      select * from public.auth_create_invitation(
+        ${accountB}, ${inviter}, ${"invitee@example.test"}, 'viewer', ${tokenHash}, now() + interval '1 day'
+      )
+    `;
+    expect(created?.invitation_id).toMatch(/^[0-9a-f-]{36}$/u);
+    const [record] = await db`
+      select token_hash, to_jsonb(account_invitation) ? 'token' as has_raw_token
+      from account_invitation where token_hash = ${tokenHash}
+    `;
+    expect(record).toEqual({ token_hash: tokenHash, has_raw_token: false });
+
+    const [accepted] = await db`
+      select * from public.auth_accept_invitation(
+        ${sessionHash}, ${tokenHash}, ${replacementHash}, now() + interval '1 day'
+      )
+    `;
+    expect(accepted).toMatchObject({
+      account_id: accountB,
+      user_id: recipient,
+      session_id: sessionId,
+    });
+    const [invitation] = await db`
+      select status, accepted_by_user_id
+      from account_invitation where token_hash = ${tokenHash}
+    `;
+    expect(invitation).toEqual({ status: "accepted", accepted_by_user_id: recipient });
+    const [membership] = await db`
+      select role, status from account_membership
+      where account_id = ${accountB} and user_id = ${recipient}
+    `;
+    expect(membership).toEqual({ role: "viewer", status: "active" });
+    expect(
+      await db`select * from public.auth_accept_invitation(
+      ${replacementHash}, ${tokenHash}, ${"d".repeat(64)}, now() + interval '1 day'
+    )`,
+    ).toHaveLength(1);
   });
 });
