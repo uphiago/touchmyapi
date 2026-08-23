@@ -19,10 +19,11 @@ This guide validates the code that exists today. It does not claim that the full
 - Strict passive `@touchmyapi/playbooks` catalog `surface-public-posture@1.0.0` (T019), aligned with the policy engine and containing no execution/network behavior
 - Dependency-injected Hono API boundary (T020) with exact CORS, request IDs, stable errors, audit gating, and no assessment routes
 - Google-only OAuth Authorization Code + PKCE boundary (T021) with encrypted transient state, hash-only rotating sessions, revocation, secure cookies, and a fakeable adapter for tests
-- T071–T075 multi-user foundation: additive memberships/invitations, role capability policy, active-account session list/switch, hash-only invitation acceptance, and credentialed API CORS with injectable stores
-- T077–T078 multi-user isolation and server-driven workspace UI: composite membership references, account switcher, membership list, invitation forms, and body-only acceptance
+- T071–T080 multi-user foundation: additive memberships/invitations, role capability policy, active-account session list/switch, hash-only invitation acceptance, lifecycle/RLS acceptance, and server-driven workspace UI
+- T081–T086 PostgreSQL queue/outbox infrastructure: transactional enqueue, fair fenced claims, lease recovery, reconciliation, and standalone outbox controls
+- Development-only account-scoped assessment draft → queue routes and web panel, backed by an explicit in-memory local mock
 
-No assessment execution, external target access, queue, billing mutation, AI execution, report generation, or runner exists in this checkpoint. T016 and T017 are accepted: the tenant wrapper is an opaque database handle with fixed capabilities, and the audit writer provides redacted monotonic tenant/system chains with FORCE-RLS lock authorities and no raw SQL export. T018 is accepted as the isolated external-credential AEAD boundary, T019 as the passive catalog boundary, T020 as the API boundary, and T021 as the fakeable Google auth boundary. The real OIDC composition requires explicit production credentials and is not exercised by tests.
+No real assessment execution, external target access, billing mutation, AI execution, report generation, or runner exists in this checkpoint. Queue/outbox persistence is implemented, but the production assessment store, verification gate, and worker dispatch remain open under T087. The local draft → queue route is intentionally available only through `LOCAL_MOCKS=1` development composition. T016 and T017 are accepted: the tenant wrapper is an opaque database handle with fixed capabilities, and the audit writer provides redacted monotonic tenant/system chains with FORCE-RLS lock authorities and no raw SQL export. T018 is accepted as the isolated external-credential AEAD boundary, T019 as the passive catalog boundary, T020 as the API boundary, and T021 as the fakeable Google auth boundary. The real OIDC composition requires explicit production credentials and is not exercised by tests.
 
 The historical Foundation Phase 2 remains intentionally limited to T010–T021. The approved Phase 2A extension is being implemented after T021: T071–T079 provide the additive membership foundation, lifecycle boundary, RLS cut, server-driven workspace UI, and expand-contract review. T076 production store/deletion and T080 acceptance remain before the fenced PostgreSQL queue/outbox and separate admin control plane. SSO and SCIM remain out of scope; GitHub/X are model-disabled and provider adapters remain injectable until production credentials are supplied.
 
@@ -88,9 +89,10 @@ bun run dev:local
 
 Development mode sets `LOCAL_MOCKS=1` only for the child API and
 `VITE_LOCAL_MOCKS=1` only for the child web process. The API exposes a local
-demo session with two accounts and memberships, so the switcher and membership
-screens are usable without Google credentials. This composition is not used by
-production mode and does not persist or deliver real invitations.
+demo session with two accounts and memberships, so the switcher, membership
+screens, and assessment draft → queue panel are usable without Google
+credentials. This composition is not used by production mode, does not persist
+or deliver real invitations, and does not contact targets.
 
 In a second terminal, wait for both processes and run the smoke check:
 
@@ -103,6 +105,7 @@ Expected output contains:
 ```text
 [smoke] PASS API health http://localhost:3000/health
 [smoke] PASS web shell http://localhost:5173
+[smoke] PASS assessment draft → queued <account-id>
 [smoke] local stack is responding
 ```
 
@@ -111,8 +114,9 @@ PostgreSQL container independently, use `bun run local:logs`. Stop only the
 application processes with `Ctrl-C`; stop the local container without deleting
 its volume with `bun run local:down`.
 
-The smoke check only contacts loopback services. It never logs in, sends an
-invitation token, executes an assessment, or contacts an external target.
+The smoke check only contacts loopback services. It bootstraps the development
+session, creates and queues one mock assessment, and never sends an invitation
+token, executes a real assessment, or contacts an external target.
 
 ## Run the API and web shell manually
 
