@@ -1,0 +1,41 @@
+packages/db/src/tenant-session.ts
+  s_bc54431df54bf2::t_b023d60e593149 134,395-397
+  s_bc54431df54bf2::t_a4b3780df714c0 8-9
+  s_bc54431df54bf2::t_d8ba47ccf24a10 675-677,679-682,684-686
+  s_bc54431df54bf2::t_2b57b96a92cc86 711-712
+  s_bc54431df54bf2::t_830d8a919f67ee 737
+  s_bc54431df54bf2::t_896186b6a280d7 740-741,745,765,780
+  s_bc54431df54bf2::t_a2d68e4f04eb0d 768-773
+  s_bc54431df54bf2::t_dd61a070deb933 116-133,156-157
+  s_bc54431df54bf2::t_b00978961b9b76 335-338,367
+  s_bc54431df54bf2::t_467f283d24a8cf 757-758
+  s_bc54431df54bf2::t_1b543984ab428e 45-52,69-78,93-94,96-98,100,102-115
+  s_bc54431df54bf2::t_f3b24568e43b30 400-403,540-543
+  s_bc54431df54bf2::t_dcfad8433b4e63 53-68,79-92,95,99,101
+  s_bc54431df54bf2::t_023d74fe92d506 398,546-658,663-674,687-710,713-718
+  s_bc54431df54bf2::t_b06f90f5bcc077 659-662
+  s_bc54431df54bf2::t_ebd4890416b5f6 678,683
+  s_bc54431df54bf2::t_0dbe3d1060bac0 399,544-545
+packages/db/test/tenant-session.integration.test.ts
+  s_bc54431df54bf2::t_0999a605d10755 863-864
+  s_bc54431df54bf2::t_10ecdc5ed3d106 632-640,642-643
+  s_bc54431df54bf2::t_176fe434933758 551-552
+  s_bc54431df54bf2::t_1a5365b3cb9037 538-550,553-631
+  s_bc54431df54bf2::t_9d04b7a80f1d72 641
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "c32e05fd7ee6daf98000655c1f31d4264d9de482",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
