@@ -17,7 +17,7 @@ export type GoogleIdentityClaims = {
   subject: string;
   email: string;
   emailVerified: boolean;
-  nonce?: string;
+  nonce: string;
 };
 
 export type GoogleCodeExchange = Readonly<{
@@ -53,6 +53,11 @@ export type AuthStore = Readonly<{
     userAgent?: string;
   }) => Promise<AuthSession | undefined>;
   resolveSession: (sessionHash: string) => Promise<AuthSession | undefined>;
+  rotateSession: (input: {
+    currentSessionHash: string;
+    replacementSessionHash: string;
+    replacementExpiresAt: Date;
+  }) => Promise<AuthSession | undefined>;
   revokeSession: (sessionHash: string) => Promise<void>;
 }>;
 
@@ -151,7 +156,9 @@ async function sealTransient(value: TransientState, key: Uint8Array): Promise<st
 async function openTransient(value: string, key: Uint8Array): Promise<TransientState> {
   if (key.byteLength !== 32) throw new Error("invalid transient key");
   if (value.length > MAX_COOKIE_BYTES) throw new Error("invalid cookie");
-  const [nonceValue, ciphertextValue] = value.split(".");
+  const parts = value.split(".");
+  if (parts.length !== 2) throw new Error("invalid cookie");
+  const [nonceValue, ciphertextValue] = parts;
   if (
     !nonceValue ||
     !ciphertextValue ||
@@ -220,6 +227,12 @@ function readCookie(request: Request, name: string): string | undefined {
   return undefined;
 }
 
+function readSessionToken(request: Request, name: string): string | undefined {
+  const token = readCookie(request, name);
+  if (token === undefined) return undefined;
+  return /^[A-Za-z0-9_-]{43}$/u.test(token) ? token : undefined;
+}
+
 function addCookie(response: Response, value: string): void {
   response.headers.append("set-cookie", value);
 }
@@ -247,6 +260,8 @@ export function registerAuthRoutes(
   environment: ApiEnvironment = "production",
 ): void {
   const secure = !(auth.allowInsecureCookies === true && environment === "development");
+  const oauthCookieName = secure ? OAUTH_COOKIE : "tma-oauth";
+  const sessionCookieName = secure ? SESSION_COOKIE : "tma-session";
   api.get("/api/v1/auth/login", async (context) => {
     if ((context.req.query("provider") ?? "google") !== "google") {
       throw new ApiError(400, "unsupported_provider", "Unsupported provider");
@@ -283,7 +298,7 @@ export function registerAuthRoutes(
       });
       addCookie(
         response,
-        cookieHeader(OAUTH_COOKIE, transient, auth.transientMaxAgeSeconds, secure),
+        cookieHeader(oauthCookieName, transient, auth.transientMaxAgeSeconds, secure),
       );
       return response;
     } catch {
@@ -292,15 +307,15 @@ export function registerAuthRoutes(
   });
 
   api.get("/api/v1/auth/callback", async (context) => {
-    const clear = () => context.header("set-cookie", clearCookie(OAUTH_COOKIE, secure));
+    const clear = () => context.header("set-cookie", clearCookie(oauthCookieName, secure));
     try {
       const code = context.req.query("code");
       const state = context.req.query("state");
-      const cookie = readCookie(context.req.raw, OAUTH_COOKIE);
+      const cookie = readCookie(context.req.raw, oauthCookieName);
       if (!code || !state || !cookie) throw new Error("invalid callback");
+      if (code.length > 2048 || state.length > 128) throw new Error("invalid callback");
       const transient = await openTransient(cookie, auth.transientKey);
       if (state !== transient.state) throw new Error("invalid callback");
-      if (code.length > 2048 || state.length > 128) throw new Error("invalid callback");
       const claims = await auth.adapter.exchangeCode({
         code,
         verifier: transient.verifier,
@@ -308,8 +323,7 @@ export function registerAuthRoutes(
         redirectUri: auth.adapter.redirectUri,
       });
       validateClaims(claims, auth.adapter);
-      if (claims.nonce !== undefined && claims.nonce !== transient.nonce)
-        throw new Error("invalid claims");
+      if (claims.nonce !== transient.nonce) throw new Error("invalid claims");
       const sessionToken = randomToken();
       const sessionHash = await hashSession(sessionToken);
       const expiresAt = new Date(Date.now() + auth.sessionMaxAgeSeconds * 1000);
@@ -326,9 +340,9 @@ export function registerAuthRoutes(
       });
       addCookie(
         response,
-        cookieHeader(SESSION_COOKIE, sessionToken, auth.sessionMaxAgeSeconds, secure),
+        cookieHeader(sessionCookieName, sessionToken, auth.sessionMaxAgeSeconds, secure),
       );
-      addCookie(response, clearCookie(OAUTH_COOKIE, secure));
+      addCookie(response, clearCookie(oauthCookieName, secure));
       return response;
     } catch {
       clear();
@@ -338,10 +352,10 @@ export function registerAuthRoutes(
 
   api.post("/api/v1/auth/logout", async (context) => {
     try {
-      const token = readCookie(context.req.raw, SESSION_COOKIE);
+      const token = readSessionToken(context.req.raw, sessionCookieName);
       if (token) await auth.store.revokeSession(await hashSession(token));
       const response = new Response(null, { status: 204 });
-      addCookie(response, clearCookie(SESSION_COOKIE, secure));
+      addCookie(response, clearCookie(sessionCookieName, secure));
       return response;
     } catch {
       throw new ApiError(503, "auth_unavailable", "Authentication unavailable");
@@ -350,11 +364,21 @@ export function registerAuthRoutes(
 
   api.get("/api/v1/auth/me", async (context) => {
     try {
-      const token = readCookie(context.req.raw, SESSION_COOKIE);
+      const token = readSessionToken(context.req.raw, sessionCookieName);
       if (!token) throw new ApiError(401, "unauthorized", "Authentication required");
-      const session = await auth.store.resolveSession(await hashSession(token));
+      const currentHash = await hashSession(token);
+      const session = await auth.store.resolveSession(currentHash);
       if (!session) throw new ApiError(401, "unauthorized", "Authentication required");
-      return context.json({
+      const replacementToken = randomToken();
+      const replacementHash = await hashSession(replacementToken);
+      const replacementExpiresAt = new Date(Date.now() + auth.sessionMaxAgeSeconds * 1000);
+      const rotated = await auth.store.rotateSession({
+        currentSessionHash: currentHash,
+        replacementSessionHash: replacementHash,
+        replacementExpiresAt,
+      });
+      if (!rotated) throw new ApiError(401, "unauthorized", "Authentication required");
+      const response = context.json({
         user: { id: session.userId, email: session.email },
         account: {
           id: session.accountId,
@@ -363,6 +387,11 @@ export function registerAuthRoutes(
           iaEnabled: session.iaEnabled,
         },
       });
+      addCookie(
+        response,
+        cookieHeader(sessionCookieName, replacementToken, auth.sessionMaxAgeSeconds, secure),
+      );
+      return response;
     } catch (error) {
       if (error instanceof ApiError) throw error;
       throw new ApiError(503, "auth_unavailable", "Authentication unavailable");

@@ -1,13 +1,13 @@
 import type { GoogleCodeExchange, GoogleIdentityClaims, GoogleOidcAdapter } from "./auth";
 import {
   ClientSecretPost,
-  None,
   authorizationCodeGrant,
   discovery,
   type Configuration,
 } from "openid-client";
 
 const GOOGLE_ISSUER = "https://accounts.google.com";
+const GOOGLE_AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 
 /**
  * The API boundary deliberately depends on this narrow adapter rather than on
@@ -30,7 +30,7 @@ export function createGoogleOidcAdapter(options: GoogleOidcAdapterOptions): Goog
   if (
     options.clientId.length === 0 ||
     options.redirectUri.length === 0 ||
-    options.authorizationEndpoint.length === 0 ||
+    options.authorizationEndpoint !== GOOGLE_AUTHORIZATION_ENDPOINT ||
     typeof options.exchangeCode !== "function"
   ) {
     throw new Error("invalid Google OIDC adapter");
@@ -45,7 +45,7 @@ export function createGoogleOidcAdapter(options: GoogleOidcAdapterOptions): Goog
 
 export type OpenIdGoogleOidcAdapterOptions = Readonly<{
   clientId: string;
-  clientSecret?: string;
+  clientSecret: string;
   redirectUri: string;
   issuer?: string;
   authorizationEndpoint?: string;
@@ -69,7 +69,7 @@ export async function createOpenIdGoogleOidcAdapter(
       new URL(GOOGLE_ISSUER),
       options.clientId,
       undefined,
-      options.clientSecret === undefined ? None() : ClientSecretPost(options.clientSecret),
+      ClientSecretPost(options.clientSecret),
     ));
   const discoveredEndpoint = configuration.serverMetadata().authorization_endpoint;
   const authorizationEndpoint = options.authorizationEndpoint ?? discoveredEndpoint;
@@ -95,7 +95,7 @@ export async function createOpenIdGoogleOidcAdapter(
         subject: String(claims.sub),
         email: typeof claims.email === "string" ? claims.email : "",
         emailVerified: claims.email_verified === true,
-        nonce: typeof claims.nonce === "string" ? claims.nonce : undefined,
+        nonce: typeof claims.nonce === "string" ? claims.nonce : "",
       };
     },
   });

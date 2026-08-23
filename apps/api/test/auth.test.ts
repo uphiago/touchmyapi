@@ -18,6 +18,7 @@ const claims: GoogleIdentityClaims = {
   subject: "google-subject-1",
   email: "user@example.test",
   emailVerified: true,
+  nonce: "provider-nonce",
 };
 
 function cookieValue(response: Response, name: string): string {
@@ -41,6 +42,7 @@ function createAuthFixture(
     [];
   const completed: Array<Parameters<AuthStore["completeGoogleLogin"]>[0]> = [];
   const resolved: string[] = [];
+  const rotated: string[] = [];
   const revoked: string[] = [];
   const sessions = new Map<string, AuthSession>();
   const adapter: GoogleOidcAdapter = {
@@ -50,7 +52,8 @@ function createAuthFixture(
     exchangeCode: async (input) => {
       exchanged.push(input);
       if (overrides.exchangeError) throw overrides.exchangeError;
-      return overrides.claims ?? claims;
+      const exchangedClaims = overrides.claims ?? claims;
+      return overrides.claims ? exchangedClaims : { ...exchangedClaims, nonce: input.nonce };
     },
   };
   const store: AuthStore = {
@@ -71,6 +74,14 @@ function createAuthFixture(
       resolved.push(hash);
       return sessions.get(hash);
     },
+    rotateSession: async ({ currentSessionHash, replacementSessionHash }) => {
+      const session = sessions.get(currentSessionHash);
+      if (!session) return undefined;
+      rotated.push(currentSessionHash);
+      sessions.delete(currentSessionHash);
+      sessions.set(replacementSessionHash, session);
+      return session;
+    },
     revokeSession: async (hash) => {
       revoked.push(hash);
       sessions.delete(hash);
@@ -89,7 +100,16 @@ function createAuthFixture(
       successRedirect: "https://console.example.test/",
     },
   };
-  return { app: createApp(dependencies), exchanged, completed, resolved, revoked, adapter, store };
+  return {
+    app: createApp(dependencies),
+    exchanged,
+    completed,
+    resolved,
+    rotated,
+    revoked,
+    adapter,
+    store,
+  };
 }
 
 afterEach(() => {
@@ -216,6 +236,20 @@ describe("Google OAuth boundary", () => {
     });
   });
 
+  it("rejects an otherwise-valid provider response with no nonce", async () => {
+    const fixture = createAuthFixture({
+      claims: { ...claims, nonce: undefined } as unknown as GoogleIdentityClaims,
+    });
+    const login = await fixture.app.request("http://localhost/api/v1/auth/login");
+    const state = new URL(login.headers.get("location") ?? "").searchParams.get("state");
+    const response = await fixture.app.request(
+      `http://localhost/api/v1/auth/callback?code=provider-code&state=${state}`,
+      { headers: { Cookie: cookieHeader(login) } },
+    );
+    expect(response.status).toBe(401);
+    expect(fixture.completed).toHaveLength(0);
+  });
+
   it("resolves /me from a hash-only session and revokes it on logout", async () => {
     const fixture = createAuthFixture();
     const login = await fixture.app.request("http://localhost/api/v1/auth/login");
@@ -235,14 +269,33 @@ describe("Google OAuth boundary", () => {
     });
     expect(fixture.resolved[0]).toMatch(/^[0-9a-f]{64}$/);
     expect(fixture.resolved[0]).not.toBe(sessionCookie);
+    const replacementCookie = cookieValue(me, sessionCookieName);
+    expect(replacementCookie).not.toBe(sessionCookie);
+    expect(fixture.rotated).toHaveLength(1);
 
     const logout = await fixture.app.request("http://localhost/api/v1/auth/logout", {
       method: "POST",
-      headers: { Cookie: `${sessionCookieName}=${sessionCookie}` },
+      headers: { Cookie: `${sessionCookieName}=${replacementCookie}` },
     });
     expect(logout.status).toBe(204);
     expect(fixture.revoked[0]).toMatch(/^[0-9a-f]{64}$/);
     expect(logout.headers.get("set-cookie")).toContain(`${sessionCookieName}=;`);
+  });
+
+  it("does not hash or resolve malformed session cookie values", async () => {
+    const fixture = createAuthFixture();
+    const malformed = await fixture.app.request("http://localhost/api/v1/auth/me", {
+      headers: { Cookie: `${sessionCookieName}=${"x".repeat(4097)}` },
+    });
+    expect(malformed.status).toBe(401);
+    expect(fixture.resolved).toHaveLength(0);
+
+    const logout = await fixture.app.request("http://localhost/api/v1/auth/logout", {
+      method: "POST",
+      headers: { Cookie: `${sessionCookieName}=${"x".repeat(4097)}` },
+    });
+    expect(logout.status).toBe(204);
+    expect(fixture.revoked).toHaveLength(0);
   });
 });
 
