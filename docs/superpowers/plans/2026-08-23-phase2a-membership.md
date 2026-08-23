@@ -25,21 +25,21 @@ The provider boundary remains Google-only per the approved spec. Provider config
 
 **Files:** create `packages/contracts/src/membership.ts`, `packages/contracts/test/membership.test.ts`; modify `packages/contracts/src/index.ts`, `specs/001-touchmyapi-platform/contracts/membership.md`.
 
-- [ ] Write tests first for strict roles `owner|admin|operator|viewer|billing`, statuses `active|suspended|removed`, invitation create/accept, account list/switch, and stable errors. Every object must reject unknown keys; only the explicit accept body may contain `token`.
-- [ ] Run `bun run test:contract -- membership`; it must fail because the module/export is absent.
-- [ ] Implement frozen Zod schemas and inferred types. Use UUID strings for IDs, bounded ISO dates, and stable error codes `invalid_invitation`, `membership_required`, `membership_suspended`, `active_account_required`, `last_owner_protected`.
-- [ ] Run `bun run test:contract -- membership && bun run typecheck`; expect all membership tests and strict typing to pass.
-- [ ] Commit `contracts: define user membership and invitation` with only contract paths.
+- [x] Write tests first for strict roles `owner|admin|operator|viewer|billing`, statuses `active|suspended|removed`, invitation create/accept, account list/switch, and stable errors. Every object must reject unknown keys; only the explicit accept body may contain `token`.
+- [x] Run `bun run test:contract -- membership`; it must fail because the module/export is absent.
+- [x] Implement frozen Zod schemas and inferred types. Use UUID strings for IDs, bounded ISO dates, and stable error codes `invalid_invitation`, `membership_required`, `membership_suspended`, `active_account_required`, `last_owner_protected`.
+- [x] Run `bun run test:contract -- membership && bun run typecheck`; expect all membership tests and strict typing to pass.
+- [x] Commit `contracts: define user membership and invitation` with only contract paths.
 
 ## Task 2 — T072 additive membership schema and backfill
 
 **Files:** create `packages/db/schema/membership.ts`, `packages/db/test/membership-schema.integration.test.ts`; modify `packages/db/schema/index.ts`, generated migration under `packages/db/migrations/`.
 
-- [ ] Write integration tests asserting `account_membership(account_id,user_id)`, `account_invitation`, immutable `user.id` identity FKs plus explicit tenant `account_id`, unique `(account_id,user_id)`, multiple active owners, token-hash-only invitation storage, and no second identity table. Run the focused integration command and verify the expected pre-migration failure.
-- [ ] Inspect `packages/db/drizzle/meta/_journal.json` and highest migration. Generate the next migration with `bunx drizzle-kit generate --config=drizzle.config.ts --name multiuser_membership` against the fresh `_test` URL; inspect SQL before applying it. Because legacy `user.account_id` remains unique during expand, membership identity columns use immutable simple `user.id` FKs plus tenant `account_id`; composite tenant FKs are added to session/attestation and later cutover paths.
-- [ ] Add additive tables and nullable/expand columns only. Backfill exactly one `owner` membership per valid legacy `user.account_id`; quarantine orphan legacy rows explicitly and never match by email. Keep `user.account_id` and its unique constraint during expand.
-- [ ] Apply migrations, run `RUN_DB_TESTS=1 bun run test:integration -- --maxWorkers=1 membership-schema`, then rerun `bun run db:migrate` to prove Drizzle journal no-op behavior and replay `0012_membership_identity_fk.sql` as raw SQL to prove the correction block is SQL-idempotent too.
-- [ ] Commit `db: add account membership expand migration` with schema, migration, and focused integration test paths.
+- [x] Write integration tests asserting `account_membership(account_id,user_id)`, `account_invitation`, immutable `user.id` identity FKs plus explicit tenant `account_id`, unique `(account_id,user_id)`, multiple active owners, token-hash-only invitation storage, and no second identity table. Run the focused integration command and verify the expected pre-migration failure.
+- [x] Inspect `packages/db/drizzle/meta/_journal.json` and highest migration. Generate the next migration with `bunx drizzle-kit generate --config=drizzle.config.ts --name multiuser_membership` against the fresh `_test` URL; inspect SQL before applying it. Because legacy `user.account_id` remains unique during expand, membership identity columns use immutable simple `user.id` FKs plus tenant `account_id`; composite tenant FKs are added to session/attestation and later cutover paths.
+- [x] Add additive tables and nullable/expand columns only. Backfill exactly one `owner` membership per valid legacy `user.account_id`; quarantine orphan legacy rows explicitly and never match by email. Keep `user.account_id` and its unique constraint during expand.
+- [x] Apply migrations, run `RUN_DB_TESTS=1 bun run test:integration -- --maxWorkers=1 membership-schema`, then rerun `bun run db:migrate` to prove Drizzle journal no-op behavior and replay `0012_membership_identity_fk.sql` as raw SQL to prove the correction block is SQL-idempotent too.
+- [x] Commit `db: add account membership expand migration` with schema, migration, and focused integration test paths.
 
 ## Task 3 — T073 role capability policy
 
