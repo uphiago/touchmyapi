@@ -1,0 +1,78 @@
+package.json
+  s_bc54431df54bf2::t_b24e8a97166f09 16-20
+packages/ui/api-client.ts
+  s_bc54431df54bf2::t_a4e4e53a741eec 3,11,31,37,61
+  s_bc54431df54bf2::t_da730e4f1d61df 15
+  s_bc54431df54bf2::t_f72c206c20c707 1-2,4-10,12-14,16-30,32-36,38-39,41-60,62-118
+  s_bc54431df54bf2::t_1a8b3927dbf780 40
+docs/superpowers/plans/2026-08-23-phase2a-membership.md
+  s_bc54431df54bf2::t_10bbbb1f6e3b0f 108-112
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_b24e8a97166f09 23,79-111,131
+  s_bc54431df54bf2::t_5039ba60bab368 27
+vitest.config.ts
+  s_bc54431df54bf2::t_5809c1d9ecb1a1 25
+packages/ui/package.json
+  s_bc54431df54bf2::t_f72c206c20c707 1-12
+scripts/dev-local.ts
+  s_bc54431df54bf2::t_c1e8f4a6183ec6 1-2,8-10,12,16,32,39
+  s_bc54431df54bf2::t_b24e8a97166f09 3-7,11,13-15,17-31,33-38,40-59
+  s_bc54431df54bf2::t_933a4ca9d13281 60-63
+apps/web/index.html
+  s_bc54431df54bf2::t_b78cd72a3753af 6-7
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_b24e8a97166f09 195
+  s_bc54431df54bf2::t_10bbbb1f6e3b0f 194
+apps/web/src/app.css
+  s_bc54431df54bf2::t_b78cd72a3753af 2-20,25,27-53,57-59,62-69,72-80,83-89,92-100,104-122,126,130,134-345
+  s_bc54431df54bf2::t_25bd386139c43c 346
+docs/reviews/2026-08-23-multiuser-membership-foundation.md
+  s_bc54431df54bf2::t_6aca08c12b3c0e 99-103
+  s_bc54431df54bf2::t_10bbbb1f6e3b0f 3-5,8-11,59,84-98,104,114-115
+docs/superpowers/plans/2026-08-23-membership-ui.md
+  s_bc54431df54bf2::t_10bbbb1f6e3b0f 18-19,22,26,30,46,50,66,70,74,78,89,93,97,101,112,116,130,145,149
+  s_bc54431df54bf2::t_030f6173724898 123-124
+  s_bc54431df54bf2::t_6aca08c12b3c0e 134-144
+apps/web/src/memberships.tsx
+  s_bc54431df54bf2::t_a75f2f275632e0 1-146
+  s_bc54431df54bf2::t_6e64f182d11175 147-154
+apps/web/src/App.tsx
+  s_bc54431df54bf2::t_1a8b3927dbf780 2-7
+  s_bc54431df54bf2::t_a75f2f275632e0 1,8-10,19-49,70-71,77-110,120-155
+  s_bc54431df54bf2::t_5256277147c906 156-157
+apps/web/src/account-switcher.tsx
+  s_bc54431df54bf2::t_a75f2f275632e0 1-46
+  s_bc54431df54bf2::t_576be6ce88756f 47-48
+scripts/local-smoke.ts
+  s_bc54431df54bf2::t_b24e8a97166f09 3-53
+  s_bc54431df54bf2::t_c1e8f4a6183ec6 1-2
+apps/web/src/memberships.test.tsx
+  s_bc54431df54bf2::t_93f4a765cdd2ff 1,6-24,26-38,40-55,57-74,76-88,90-122
+  s_bc54431df54bf2::t_378432bbe0e7bf 2,4-5,123-170
+  s_bc54431df54bf2::t_1a8b3927dbf780 3,25,39,56,75,89
+packages/contracts/src/membership.ts
+  s_bc54431df54bf2::t_a4e4e53a741eec 147-165
+packages/contracts/src/index.ts
+  s_bc54431df54bf2::t_a4e4e53a741eec 25,48
+README.md
+  s_bc54431df54bf2::t_6aca08c12b3c0e 15-20
+  s_bc54431df54bf2::t_10bbbb1f6e3b0f 7
+bun.lock
+  s_bc54431df54bf2::t_7b153f5221b2ca 77-83,278-279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "0be35466c0faeb893489c26cf692b68ff865bb73",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
