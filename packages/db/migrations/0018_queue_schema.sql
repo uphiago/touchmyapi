@@ -241,7 +241,7 @@ GRANT SELECT (
 ) ON public.job TO queue_control;
 GRANT UPDATE (
   status, available_at, attempts, lease_owner, lease_expires_at, fencing_token,
-  started_at, stop_requested_at, failure_reason
+  started_at, finished_at, stop_requested_at, failure_reason
 ) ON public.job TO queue_control;
 
 CREATE OR REPLACE FUNCTION app_private.queue_claim(
@@ -341,3 +341,165 @@ $$;
 ALTER FUNCTION app_private.queue_claim(text, integer, timestamptz) OWNER TO queue_control;
 REVOKE ALL ON FUNCTION app_private.queue_claim(text, integer, timestamptz) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app_private.queue_claim(text, integer, timestamptz) TO queue_connector;
+
+CREATE OR REPLACE FUNCTION app_private.queue_heartbeat(
+  p_account_id uuid,
+  p_job_id uuid,
+  p_lease_owner text,
+  p_fencing_token bigint,
+  p_lease_seconds integer,
+  p_now timestamptz
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+DECLARE
+  ignored integer;
+  renewed_until timestamptz;
+BEGIN
+  IF p_account_id IS NULL OR p_job_id IS NULL OR p_lease_owner IS NULL
+     OR p_lease_owner !~ '^[A-Za-z0-9._:-]{1,128}$'
+     OR p_fencing_token IS NULL OR p_lease_seconds IS NULL
+     OR p_lease_seconds < 1 OR p_lease_seconds > 900 OR p_now IS NULL THEN
+    RETURN NULL;
+  END IF;
+  PERFORM 1 FROM public.queue_global_state WHERE id = 'global' FOR UPDATE;
+  PERFORM 1 FROM public.queue_tenant_state
+  WHERE account_id = p_account_id
+  FOR UPDATE;
+  SELECT 1 INTO ignored
+  FROM public.job
+  WHERE id = p_job_id AND account_id = p_account_id
+    AND status = 'running'::public.job_status
+    AND lease_owner = p_lease_owner
+    AND fencing_token = p_fencing_token
+    AND lease_expires_at > p_now
+  FOR UPDATE;
+  IF ignored IS NULL THEN RETURN NULL; END IF;
+  renewed_until := p_now + make_interval(secs => p_lease_seconds);
+  UPDATE public.job
+  SET lease_expires_at = renewed_until
+  WHERE id = p_job_id AND account_id = p_account_id;
+  RETURN jsonb_build_object(
+    'jobId', p_job_id, 'accountId', p_account_id,
+    'status', 'running', 'leaseOwner', p_lease_owner,
+    'leaseExpiresAt', renewed_until, 'fencingToken', p_fencing_token
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.queue_complete(
+  p_account_id uuid,
+  p_job_id uuid,
+  p_lease_owner text,
+  p_fencing_token bigint,
+  p_result_metadata jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+DECLARE
+  ignored integer;
+BEGIN
+  IF p_account_id IS NULL OR p_job_id IS NULL OR p_lease_owner IS NULL
+     OR p_lease_owner !~ '^[A-Za-z0-9._:-]{1,128}$'
+     OR p_fencing_token IS NULL THEN
+    RETURN NULL;
+  END IF;
+  PERFORM 1 FROM public.queue_global_state WHERE id = 'global' FOR UPDATE;
+  PERFORM 1 FROM public.queue_tenant_state
+  WHERE account_id = p_account_id
+  FOR UPDATE;
+  SELECT 1 INTO ignored
+  FROM public.job
+  WHERE id = p_job_id AND account_id = p_account_id
+    AND status = 'running'::public.job_status
+    AND lease_owner = p_lease_owner
+    AND fencing_token = p_fencing_token
+  FOR UPDATE;
+  IF ignored IS NULL THEN RETURN NULL; END IF;
+  UPDATE public.job
+  SET status = 'succeeded'::public.job_status,
+      lease_owner = NULL, lease_expires_at = NULL, finished_at = clock_timestamp()
+  WHERE id = p_job_id AND account_id = p_account_id;
+  UPDATE public.queue_tenant_state
+  SET running_count = GREATEST(running_count - 1, 0), updated_at = clock_timestamp()
+  WHERE account_id = p_account_id;
+  UPDATE public.queue_global_state
+  SET running_count = GREATEST(running_count - 1, 0), updated_at = clock_timestamp()
+  WHERE id = 'global';
+  RETURN jsonb_build_object(
+    'jobId', p_job_id, 'accountId', p_account_id,
+    'status', 'succeeded', 'fencingToken', p_fencing_token
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.queue_fail(
+  p_account_id uuid,
+  p_job_id uuid,
+  p_lease_owner text,
+  p_fencing_token bigint,
+  p_failure_reason text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, app_private
+AS $$
+DECLARE
+  ignored integer;
+  safe_reason text;
+BEGIN
+  IF p_account_id IS NULL OR p_job_id IS NULL OR p_lease_owner IS NULL
+     OR p_lease_owner !~ '^[A-Za-z0-9._:-]{1,128}$'
+     OR p_fencing_token IS NULL OR p_failure_reason IS NULL
+     OR length(p_failure_reason) > 512 OR p_failure_reason ~ '[\r\n]' THEN
+    RETURN NULL;
+  END IF;
+  safe_reason := btrim(p_failure_reason);
+  IF safe_reason = '' THEN RETURN NULL; END IF;
+  PERFORM 1 FROM public.queue_global_state WHERE id = 'global' FOR UPDATE;
+  PERFORM 1 FROM public.queue_tenant_state
+  WHERE account_id = p_account_id
+  FOR UPDATE;
+  SELECT 1 INTO ignored
+  FROM public.job
+  WHERE id = p_job_id AND account_id = p_account_id
+    AND status = 'running'::public.job_status
+    AND lease_owner = p_lease_owner
+    AND fencing_token = p_fencing_token
+  FOR UPDATE;
+  IF ignored IS NULL THEN RETURN NULL; END IF;
+  UPDATE public.job
+  SET status = 'failed'::public.job_status,
+      lease_owner = NULL, lease_expires_at = NULL, finished_at = clock_timestamp(),
+      attempts = attempts + 1, failure_reason = safe_reason
+  WHERE id = p_job_id AND account_id = p_account_id;
+  UPDATE public.queue_tenant_state
+  SET running_count = GREATEST(running_count - 1, 0), updated_at = clock_timestamp()
+  WHERE account_id = p_account_id;
+  UPDATE public.queue_global_state
+  SET running_count = GREATEST(running_count - 1, 0), updated_at = clock_timestamp()
+  WHERE id = 'global';
+  RETURN jsonb_build_object(
+    'jobId', p_job_id, 'accountId', p_account_id,
+    'status', 'failed', 'fencingToken', p_fencing_token
+  );
+END;
+$$;
+
+ALTER FUNCTION app_private.queue_heartbeat(uuid, uuid, text, bigint, integer, timestamptz) OWNER TO queue_control;
+ALTER FUNCTION app_private.queue_complete(uuid, uuid, text, bigint, jsonb) OWNER TO queue_control;
+ALTER FUNCTION app_private.queue_fail(uuid, uuid, text, bigint, text) OWNER TO queue_control;
+REVOKE ALL ON FUNCTION app_private.queue_heartbeat(uuid, uuid, text, bigint, integer, timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app_private.queue_complete(uuid, uuid, text, bigint, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app_private.queue_fail(uuid, uuid, text, bigint, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_private.queue_heartbeat(uuid, uuid, text, bigint, integer, timestamptz),
+  app_private.queue_complete(uuid, uuid, text, bigint, jsonb),
+  app_private.queue_fail(uuid, uuid, text, bigint, text)
+  TO queue_connector;

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createRawDbConnection, type RawDbConnection } from "../src/connection-internal";
-import { claimQueueJob } from "../src/queue-control";
+import { claimQueueJob, completeQueueJob, heartbeatQueueJob } from "../src/queue-control";
 
 const RUN_DB_TESTS = process.env.RUN_DB_TESTS === "1";
 
@@ -66,6 +66,23 @@ describe.skipIf(!RUN_DB_TESTS)("queue control claim boundary", () => {
       expect(job).toEqual({ status: "running", lease_owner: "worker-a", fencing_token: 1 });
       expect(global).toEqual({ running_count: 1 });
       expect(tenant).toEqual({ running_count: 1 });
+
+      const renewed = await heartbeatQueueJob(db, accountId, jobId, "worker-a", 1, 90);
+      expect(renewed).toMatchObject({ jobId, fencingToken: 1, leaseOwner: "worker-a" });
+      expect(await completeQueueJob(db, accountId, jobId, "worker-a", 99)).toBeNull();
+      const [stillRunning] = await db.unsafe(
+        "select public.job.status, queue_global_state.running_count from public.job cross join public.queue_global_state where public.job.id = $1::uuid and queue_global_state.id = 'global'",
+        [jobId],
+      );
+      expect(stillRunning).toMatchObject({ status: "running", running_count: 1 });
+      expect(await completeQueueJob(db, accountId, jobId, "worker-a", 1)).toMatchObject({
+        status: "succeeded",
+        fencingToken: 1,
+      });
+      const [completedGlobal] = await db.unsafe(
+        "select running_count from public.queue_global_state",
+      );
+      expect(completedGlobal).toEqual({ running_count: 0 });
     } finally {
       await db.unsafe("delete from public.job where id = $1::uuid", [jobId]);
       await db.unsafe("delete from public.assessment where id = $1::uuid", [assessmentId]);
