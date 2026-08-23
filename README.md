@@ -4,7 +4,7 @@ TouchMyAPI is a platform for authorized security assessments. The executable fou
 
 ## Project status
 
-T016 is now accepted: it replaced arbitrary tenant SQL with an opaque `TenantDatabase` and closed, transaction-bound capabilities, then passed specification and adversarial quality reviews. T017–T021 remain unimplemented. The multi-user, PostgreSQL queue/outbox, and separate admin control-plane work in T071–T094 is design-only and remains unchecked.
+T017 is now accepted: it adds recursive redaction, monotonic append-only tenant/system audit chains, per-account and system FORCE-RLS lock authorities, API/worker closed writers, and fixed-column insert privileges; specification and adversarial quality reviews passed. T018–T021 remain unimplemented. The multi-user, PostgreSQL queue/outbox, and separate admin control-plane work in T071–T094 is design-only and remains unchecked.
 
 The authoritative handoff is the [foundation checkpoint](docs/reviews/2026-08-22-foundation-checkpoint.md). Status checkboxes live in [platform tasks](specs/001-touchmyapi-platform/tasks.md); architecture and operational decisions remain in the linked plan, spec, research, data model, contracts, and quickstart under `specs/001-touchmyapi-platform/`.
 

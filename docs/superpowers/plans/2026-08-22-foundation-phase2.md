@@ -6,7 +6,7 @@
 
 **Architecture:** `packages/contracts` define os formatos compartilhados; `packages/policy`, `packages/secrets` e `packages/playbooks` são bibliotecas puras que não executam alvos. `packages/db` mantém migrações, funções bootstrap e transações tenant-scoped usando roles PostgreSQL sem privilégios de proprietário; `apps/api` apenas coordena adaptadores validados e expõe saúde e autenticação. A implementação é entregue em cinco gates, sem assessment, fila, runner, billing, relatório, scanner, target fetch ou agente privado.
 
-**Checkpoint 2026-08-22:** os passos de Task 1–9 foram executados. T010–T016 estão aceitas; T016 substituiu `TenantConnection.unsafe(string)` por `TenantDatabase` opaco e capacidades fechadas, incluindo provas de grants concorrentes. T017–T021 não foram iniciadas. Consulte `docs/reviews/2026-08-22-t016-capability-boundary.md`. Os checkboxes abaixo registram execução dos passos; `specs/001-touchmyapi-platform/tasks.md` registra aceite.
+**Checkpoint 2026-08-23:** T010–T017 estão aceitas. T016 substituiu `TenantConnection.unsafe(string)` por `TenantDatabase` opaco e capacidades fechadas; T017 adicionou writers de auditoria tenant/system com redaction recursiva, sequência monotônica, bootstrap serializado, roles FORCE-RLS e grants por coluna. Consulte `docs/reviews/2026-08-22-t016-capability-boundary.md` e `docs/reviews/2026-08-23-t017-audit-chain.md`. T018–T021 permanecem pendentes; os checkboxes abaixo registram execução.
 
 **Tech Stack:** Bun 1.4.0, TypeScript strict, Vitest, Hono, Zod, Drizzle ORM/drizzle-kit, PostgreSQL 16, `postgres`, `openid-client`, Web Crypto/Node `crypto`, Docker Compose, GitHub Actions, React/Vite existente.
 
@@ -662,18 +662,22 @@ git commit -m "feat: scope database transactions by tenant"
 - Create: `packages/db/test/audit.integration.test.ts`
 - Modify: `packages/db/src/index.ts`
 - Modify: `tests/isolation/rls.test.ts`
+- Create: `packages/db/migrations/0007_audit_chain.sql`
+- Create: `packages/db/migrations/0008_audit_account_lock.sql`
+- Create: `packages/db/migrations/0009_audit_chain_order.sql`
+- Create: `packages/db/migrations/0010_audit_column_insert_boundary.sql`
 
-- [ ] **Step 1: Escrever RED de redaction, atomicidade e concorrência**
+- [x] **Step 1: Escrever RED de redaction, atomicidade e concorrência**
 
 Use o `auditEventSchema` existente como contrato e teste recursivamente `password`, `token`, `authorization`, `cookie`, `secret`, `privateKey`, JWT e PEM removidos antes de INSERT. Insira concorrência para a mesma conta e afirme cadeia sem dois `prev_event_id` iguais indevidos; force erro e afirme que mutation e audit rollbackam juntas; runtime não atualiza/deleta histórico. Teste também a cadeia accountless em `audit_system_state`, a ausência de acesso a dados de negócio pelo conector de sistema e a expiração de ambas as capabilities.
 
-- [ ] **Step 2: Implementar writer transacional**
+- [x] **Step 2: Implementar writer transacional**
 
-Exporte `appendAuditEvent(context, input)`. Redija payload antes de persistir, derive `account_id` somente do contexto ativo, faça `SELECT ... FROM public.account WHERE id=$1 FOR UPDATE`, selecione o último evento da cadeia dentro da mesma transação e insira o próximo. Para evento accountless, use `withSystemAudit` e bloqueie a linha singleton `audit_system_state(id='system')`; o `audit_system`/connector dedicado recebe somente RLS/grants necessários para essa cadeia. O método deve lançar erro se audit falhar; mutation crítica deve chamar ambos no mesmo callback de `withTenant`. Nenhuma superfície de advisory lock ou SQL arbitrário é permitida. Consulte `docs/superpowers/specs/2026-08-22-audit-chain-design.md`.
+Exporte `appendAuditEvent(context, input)` para API/worker e `appendSystemAuditEvent` para a capability accountless. Redija payload antes de persistir, derive `account_id` somente do contexto ativo, bloqueie `audit_account_state(account_id)` e ordene a cauda pela sequência monotônica `audit_event_chain_seq`; insira o próximo evento na mesma transação. Para evento accountless, use `withSystemAudit` e bloqueie a linha singleton `audit_system_state(id='system')`; o `audit_system`/connector dedicado recebe somente RLS/grants necessários para essa cadeia. O bootstrap SECURITY DEFINER cria/bloqueia a linha de estado e liga seu evento à mesma cadeia. INSERT runtime é concedido por coluna, excluindo `chain_seq` e `created_at`; nenhum runtime atualiza/deleta histórico. Nenhuma superfície de advisory lock ou SQL arbitrário é permitida. Consulte `docs/superpowers/specs/2026-08-22-audit-chain-design.md`.
 
-- [ ] **Step 3: Rodar GREEN e revisar**
+- [x] **Step 3: Rodar GREEN e revisar**
 
-Execute `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration -- audit`, `RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:isolation`, `bun run typecheck`, `bun run lint`, `bun run format`, `git diff --check`; esperado PASS. Commit:
+Execute em um banco novo PostgreSQL 16 `RUN_DB_TESTS=1 DATABASE_URL=... bun run test:integration -- --maxWorkers=1`, `RUN_DB_TESTS=1 DATABASE_URL=... bun run test:isolation -- --maxWorkers=1`, `bun run test:unit`, `bun run test:contract`, `bun run typecheck`, `bun run lint`, `bun run format`, `git diff --check`; esperado PASS. O rerun de `bun run db:migrate` também passou. Commits de implementação: `9f46545`, `baa6184`, `de1de69`, `6d8c1cc`, `eb94190`, `9884c97`.
 
 ```bash
 git add packages/db/src/audit.ts packages/db/src/index.ts packages/db/test/audit.integration.test.ts tests/isolation/rls.test.ts
