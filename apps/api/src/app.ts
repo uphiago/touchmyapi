@@ -84,6 +84,13 @@ export function createApp(dependencies: ApiDependencies): App {
       credentials: true,
     }),
   );
+  api.use(
+    "/api/v1/invitations/*",
+    cors({
+      origin: dependencies.config.corsOrigin,
+      credentials: true,
+    }),
+  );
   if (dependencies.auth) {
     mountAuthRoutes(api, dependencies.auth, dependencies.config.environment);
   } else {

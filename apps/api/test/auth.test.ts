@@ -44,6 +44,7 @@ function createAuthFixture(
   const resolved: string[] = [];
   const rotated: string[] = [];
   const revoked: string[] = [];
+  const acceptedInvitations: Array<Parameters<NonNullable<AuthStore["acceptInvitation"]>>[0]> = [];
   const sessions = new Map<string, AuthSession>();
   const adapter: GoogleOidcAdapter = {
     clientId: "google-client-id",
@@ -86,6 +87,19 @@ function createAuthFixture(
       revoked.push(hash);
       sessions.delete(hash);
     },
+    acceptInvitation: async (input) => {
+      acceptedInvitations.push(input);
+      const session: AuthSession = {
+        userId: "user-1",
+        accountId: "account-2",
+        email: "user@example.test",
+        role: "viewer",
+        plan: "free_unverified",
+        iaEnabled: true,
+      };
+      sessions.set(input.replacementSessionHash, session);
+      return session;
+    },
   };
   const dependencies: ApiDependencies = {
     config,
@@ -107,6 +121,7 @@ function createAuthFixture(
     resolved,
     rotated,
     revoked,
+    acceptedInvitations,
     adapter,
     store,
   };
@@ -296,6 +311,33 @@ describe("Google OAuth boundary", () => {
     });
     expect(logout.status).toBe(204);
     expect(fixture.revoked).toHaveLength(0);
+  });
+
+  it("accepts an invitation only from the explicit body and rotates the session cookie", async () => {
+    const fixture = createAuthFixture();
+    const sessionToken = "A".repeat(43);
+    const rawInvitationToken = "B".repeat(43);
+    const response = await fixture.app.request("http://localhost/api/v1/invitations/accept", {
+      method: "POST",
+      headers: {
+        Cookie: `${sessionCookieName}=${sessionToken}`,
+        Origin: "https://console.example.test",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ token: rawInvitationToken }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      account: { id: "account-2", role: "viewer" },
+      user: { id: "user-1" },
+    });
+    expect(fixture.acceptedInvitations).toHaveLength(1);
+    expect(fixture.acceptedInvitations[0]?.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(fixture.acceptedInvitations[0]?.tokenHash).not.toContain(rawInvitationToken);
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "https://console.example.test",
+    );
+    expect(response.headers.get("set-cookie")).toContain(`${sessionCookieName}=`);
   });
 });
 

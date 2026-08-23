@@ -1,4 +1,5 @@
 import { ApiError } from "./error";
+import { invitationAcceptSchema } from "@touchmyapi/contracts";
 import type { Hono } from "hono";
 import type { ApiRequestEnv } from "./request-id";
 import type { ApiEnvironment } from "./config";
@@ -59,6 +60,13 @@ export type AuthStore = Readonly<{
     replacementExpiresAt: Date;
   }) => Promise<AuthSession | undefined>;
   revokeSession: (sessionHash: string) => Promise<void>;
+  /** Optional until the database-backed membership slice is wired in production. */
+  acceptInvitation?: (input: {
+    sessionHash: string;
+    tokenHash: string;
+    replacementSessionHash: string;
+    replacementExpiresAt: Date;
+  }) => Promise<AuthSession | undefined>;
 }>;
 
 export type AuthDependencies = Readonly<{
@@ -124,6 +132,10 @@ async function hashSession(token: string): Promise<string> {
     digest.fill(0);
   }
 }
+
+/** Public only for the typed API adapter; raw session tokens never cross this boundary. */
+export const hashSessionToken = hashSession;
+export const generateSessionToken = randomToken;
 
 async function sealTransient(value: TransientState, key: Uint8Array): Promise<string> {
   if (key.byteLength !== 32) throw new Error("invalid transient key");
@@ -362,6 +374,40 @@ export function registerAuthRoutes(
     }
   });
 
+  api.post("/api/v1/invitations/accept", async (context) => {
+    try {
+      const token = readSessionToken(context.req.raw, sessionCookieName);
+      if (!token || !auth.store.acceptInvitation) {
+        throw new ApiError(400, "invalid_invitation", "Invalid invitation");
+      }
+      const body = invitationAcceptSchema.parse(await context.req.json());
+      const sessionHash = await hashSession(token);
+      const tokenHash = await hashInvitationBody(body.token);
+      const replacementToken = randomToken();
+      const replacementHash = await hashSession(replacementToken);
+      const replacementExpiresAt = new Date(Date.now() + auth.sessionMaxAgeSeconds * 1000);
+      const session = await auth.store.acceptInvitation({
+        sessionHash,
+        tokenHash,
+        replacementSessionHash: replacementHash,
+        replacementExpiresAt,
+      });
+      if (!session) throw new ApiError(400, "invalid_invitation", "Invalid invitation");
+      const response = context.json({
+        account: { id: session.accountId, role: session.role },
+        user: { id: session.userId },
+      });
+      addCookie(
+        response,
+        cookieHeader(sessionCookieName, replacementToken, auth.sessionMaxAgeSeconds, secure),
+      );
+      return response;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(400, "invalid_invitation", "Invalid invitation");
+    }
+  });
+
   api.get("/api/v1/auth/me", async (context) => {
     try {
       const token = readSessionToken(context.req.raw, sessionCookieName);
@@ -397,6 +443,10 @@ export function registerAuthRoutes(
       throw new ApiError(503, "auth_unavailable", "Authentication unavailable");
     }
   });
+}
+
+async function hashInvitationBody(token: string): Promise<string> {
+  return hashSession(token);
 }
 
 export const mountAuthRoutes = registerAuthRoutes;
