@@ -12,7 +12,7 @@ export type TenantAccount = {
 export type TenantAccountCapability<R extends RuntimeRole = RuntimeRole> = Readonly<{
   readCurrent(): Promise<TenantAccount | null>;
 }> &
-  (R extends "reporting_rls" ? object : { setIaEnabled(enabled: boolean): Promise<void> });
+  (R extends "api_rls" ? { setIaEnabled(enabled: boolean): Promise<void> } : object);
 
 /** The only account operation exposed to a tenant callback in T016. */
 export function createTenantAccountCapability<R extends RuntimeRole>(
@@ -31,13 +31,14 @@ export function createTenantAccountCapability<R extends RuntimeRole>(
       return (rows[0] as TenantAccount | undefined) ?? null;
     },
   };
-  if (context.role !== "reporting_rls") {
+  if (context.role === "api_rls") {
     capability.setIaEnabled = async (enabled: boolean): Promise<void> => {
       const { backend, accountId } = getActiveTenantExecutor(context);
-      await backend.unsafe(
-        "update public.account set settings_ia_enabled = $1 where id = $2::uuid",
+      const rows = await backend.unsafe(
+        "update public.account set settings_ia_enabled = $1 where id = $2::uuid and status = 'active' and deleted_at is null returning id",
         [enabled, accountId],
       );
+      if (rows.length === 0) throw new Error("active tenant account required");
     };
   }
   return Object.freeze(capability) as TenantAccountCapability<R>;

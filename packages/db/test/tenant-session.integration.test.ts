@@ -168,6 +168,24 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant closed capability boundary", () => {
     await expectCleanBorrowedConnection();
   });
 
+  it("exposes setIaEnabled only to api_rls", async () => {
+    await adminDb.unsafe("revoke update on public.account from worker_rls");
+    try {
+      await withTenant(db, fixture.accountA, "worker_rls", async (tenant) => {
+        await adminDb.unsafe("grant update on public.account to worker_rls");
+        expect("setIaEnabled" in tenant.account).toBe(false);
+        expect(Object.keys(tenant.account)).toEqual(["readCurrent"]);
+        expect((await tenant.account.readCurrent())?.id).toBe(fixture.accountA);
+      });
+    } finally {
+      await adminDb.unsafe("revoke update on public.account from worker_rls");
+    }
+    await withTenant(db, fixture.accountA, "reporting_rls", async (tenant) => {
+      expect("setIaEnabled" in tenant.account).toBe(false);
+      expect(Object.keys(tenant.account)).toEqual(["readCurrent"]);
+    });
+  });
+
   it("expires a captured context after success, rollback, and callback failure", async () => {
     let successfulCapture!: TenantContext;
     await withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
@@ -272,11 +290,13 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant closed capability boundary", () => {
     const suffix = randomUUID().replaceAll("-", "");
     const probeTable = `tma_t016_probe_${suffix}`;
     const identifier = quoteIdentifier(probeTable);
-    await adminDb.unsafe(`create table public.${identifier} (secret text not null)`);
-    await adminDb.unsafe(
-      `insert into public.${identifier} (secret) values ('should-not-be-readable')`,
-    );
+    let created = false;
     try {
+      await adminDb.unsafe(`create table public.${identifier} (secret text not null)`);
+      created = true;
+      await adminDb.unsafe(
+        `insert into public.${identifier} (secret) values ('should-not-be-readable')`,
+      );
       await withTenant(db, fixture.accountA, "api_rls", async (tenant) => {
         await adminDb.unsafe(`grant select on public.${identifier} to api_rls`);
         expect("unsafe" in tenant).toBe(false);
@@ -286,8 +306,10 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant closed capability boundary", () => {
         expect(await tenant.account.readCurrent()).toMatchObject({ id: fixture.accountA });
       });
     } finally {
-      await adminDb.unsafe(`revoke select on public.${identifier} from api_rls`);
-      await adminDb.unsafe(`drop table public.${identifier}`);
+      if (created) {
+        await adminDb.unsafe(`revoke select on public.${identifier} from api_rls`);
+        await adminDb.unsafe(`drop table public.${identifier}`);
+      }
     }
     await expectCleanBorrowedConnection();
   });
@@ -328,6 +350,47 @@ describe.skipIf(!RUN_DB_TESTS)("withTenant closed capability boundary", () => {
     await withTenant(db, fixture.accountA, "reporting_rls", async (tenant) => {
       expect("setIaEnabled" in tenant.account).toBe(false);
     });
+  });
+
+  it("rejects setIaEnabled for revoked and deleted accounts", async () => {
+    const [before] = await adminDb`
+      select status, settings_ia_enabled, deleted_at
+      from public.account where id = ${fixture.accountA}
+    `;
+    try {
+      await adminDb`update public.account set status = 'revoked' where id = ${fixture.accountA}`;
+      await expect(
+        withTenant(db, fixture.accountA, "api_rls", async (tenant) =>
+          tenant.account.setIaEnabled(false),
+        ),
+      ).rejects.toThrow("active tenant account required");
+      await adminDb`update public.account set status = 'active', deleted_at = now() where id = ${fixture.accountA}`;
+      await expect(
+        withTenant(db, fixture.accountA, "api_rls", async (tenant) =>
+          tenant.account.setIaEnabled(false),
+        ),
+      ).rejects.toThrow("active tenant account required");
+    } finally {
+      await adminDb`
+        update public.account
+        set status = ${before?.status ?? "active"},
+            settings_ia_enabled = ${before?.settings_ia_enabled ?? true},
+            deleted_at = ${before?.deleted_at ?? null}
+        where id = ${fixture.accountA}
+      `;
+    }
+  });
+
+  it("keeps parallel tenant transactions isolated on one opaque database", async () => {
+    const [accountA, accountB] = await Promise.all([
+      withTenant(db, fixture.accountA, "api_rls", async (tenant) => tenant.account.readCurrent()),
+      withTenant(db, fixture.accountB, "worker_rls", async (tenant) =>
+        tenant.account.readCurrent(),
+      ),
+    ]);
+    expect(accountA?.id).toBe(fixture.accountA);
+    expect(accountB?.id).toBe(fixture.accountB);
+    await expectCleanBorrowedConnection();
   });
 
   it("returns callback values without exposing a transaction object", async () => {
