@@ -1,0 +1,21 @@
+packages/secrets/test/aead.test.ts
+  s_bc54431df54bf2::t_003a0def989d68 87-100
+packages/secrets/src/aead.ts
+  s_bc54431df54bf2::t_02abb51a71ace2 53,57-58,72,140,169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "e0fe8da9657317c06865a5b60607cffe80c77e10",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
