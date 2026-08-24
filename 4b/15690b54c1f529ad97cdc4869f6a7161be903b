@@ -1,0 +1,31 @@
+.github/workflows/ci.yml
+  s_bc54431df54bf2::t_489d629173068b 89-92
+  s_bc54431df54bf2::t_21e0a224084da0 82-85
+  s_bc54431df54bf2::t_dd0286fd93a48a 76-77
+  s_bc54431df54bf2::t_fa0405b68caf04 81
+  s_bc54431df54bf2::t_7f08e7e18c8a6f 93
+.github/workflows/build-deploy.yml
+  s_bc54431df54bf2::t_fa0405b68caf04 55
+  s_bc54431df54bf2::t_21e0a224084da0 56-59
+  s_bc54431df54bf2::t_7f08e7e18c8a6f 67
+  s_bc54431df54bf2::t_dd0286fd93a48a 50-51
+  s_bc54431df54bf2::t_489d629173068b 63-66
+scripts/dev-local.ts
+  s_bc54431df54bf2::t_cb2edff46261c5 48-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "4b15690b54c1f529ad97cdc4869f6a7161be903b",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
