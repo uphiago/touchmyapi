@@ -1,0 +1,67 @@
+scripts/dev-local.ts
+  s_bc54431df54bf2::t_4036a49344296d 9-10,44-66,80
+apps/admin/src/App.test.tsx
+  s_bc54431df54bf2::t_809ff89f72942c 1-34
+  s_bc54431df54bf2::t_4d1a7f666fc716 35-59
+apps/api/src/admin-server.ts
+  s_bc54431df54bf2::t_59ccbe57ed7984 1-7,11-19
+  s_bc54431df54bf2::t_c368adcc72bd6c 8-10
+apps/admin/package.json
+  s_bc54431df54bf2::t_3e14b9199a781c 1-22
+tests/contract/foundation-config.test.ts
+  s_bc54431df54bf2::t_81a9bda286b0d1 106-110,120-124
+packages/contracts/test/admin.test.ts
+  s_bc54431df54bf2::t_bf3d2dd3215ac7 1-66
+apps/admin/src/app.css
+  s_bc54431df54bf2::t_3e14b9199a781c 1
+  s_bc54431df54bf2::t_d9cb76e42016ab 2-387
+packages/contracts/src/admin.ts
+  s_bc54431df54bf2::t_b322f6b8ada296 1-122
+  s_bc54431df54bf2::t_317ec100c68561 123-128
+packages/contracts/src/index.ts
+  s_bc54431df54bf2::t_b322f6b8ada296 88-107
+vitest.config.ts
+  s_bc54431df54bf2::t_058f94e944bcdb 25
+apps/api/package.json
+  s_bc54431df54bf2::t_59ccbe57ed7984 8,10
+apps/api/src/admin-local.ts
+  s_bc54431df54bf2::t_59ccbe57ed7984 1-158
+  s_bc54431df54bf2::t_e7f9f903cff02f 159-184
+apps/admin/vite.config.ts
+  s_bc54431df54bf2::t_3e14b9199a781c 1-8
+apps/admin/src/App.tsx
+  s_bc54431df54bf2::t_3e14b9199a781c 1,3-33,37-43,63-65,85-86,94,98,101-103,111,125,169-170,203,274-276,312
+  s_bc54431df54bf2::t_4036a49344296d 2,240
+  s_bc54431df54bf2::t_d5d2eeb19858f4 34-36,44-62,66-84,87-93,95-97,99-100,104-110,112-124,126-168,171-202,204-239,241-273,277-311
+apps/admin/src/main.tsx
+  s_bc54431df54bf2::t_3e14b9199a781c 1-10
+apps/admin/src/api-client.ts
+  s_bc54431df54bf2::t_3e14b9199a781c 1-69
+apps/api/test/admin-local.test.ts
+  s_bc54431df54bf2::t_c1a6049adc46c0 1-106
+  s_bc54431df54bf2::t_ddd08acd93440e 107-113
+scripts/local-smoke.ts
+  s_bc54431df54bf2::t_87565df8fa1c79 52-132,137-138,146-156,187
+apps/admin/index.html
+  s_bc54431df54bf2::t_3e14b9199a781c 1-13
+package.json
+  s_bc54431df54bf2::t_4036a49344296d 15,17
+bun.lock
+  s_bc54431df54bf2::t_552e2be0680ef6 20-34,93-96,286-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "215f04f6db79591c63338c75d99fd009ac1795a4",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
