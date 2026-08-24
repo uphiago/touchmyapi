@@ -32,6 +32,7 @@ const AUTH_FUNCTIONS = [
     "identity_provider,text,citext,text,timestamp with time zone,inet,text",
   ],
   ["auth_complete_google_login", "text,citext,text,timestamp with time zone,inet,text"],
+  ["auth_session_snapshot", "text"],
   ["auth_resolve_session", "text"],
   ["auth_rotate_session", "text,text,timestamp with time zone"],
   ["auth_revoke_session", "text"],
@@ -206,6 +207,44 @@ describeDb("PostgreSQL least-privilege roles", () => {
     expect(memberships).toEqual([]);
   });
 
+  it("keeps the auth connector login-only with one settable bootstrap membership", async () => {
+    const [role] = await db`
+      select rolname, rolsuper, rolbypassrls, rolinherit, rolcanlogin,
+             rolcreatedb, rolcreaterole, rolreplication
+      from pg_roles where rolname = 'auth_connector'
+    `;
+    expect(role).toEqual({
+      rolname: "auth_connector",
+      rolsuper: false,
+      rolbypassrls: false,
+      rolinherit: false,
+      rolcanlogin: true,
+      rolcreatedb: false,
+      rolcreaterole: false,
+      rolreplication: false,
+    });
+    const memberships = await db`
+      select parent.rolname as parent_name
+      from pg_auth_members membership
+      join pg_roles parent on parent.oid = membership.roleid
+      join pg_roles member on member.oid = membership.member
+      where member.rolname = 'auth_connector'
+      order by parent.rolname
+    `;
+    expect(memberships).toEqual([{ parent_name: "auth_bootstrap" }]);
+    const directPrivileges = await db`
+      select
+        exists (select 1 from information_schema.table_privileges
+                where grantee = 'auth_connector' and table_schema = 'public') as table_access,
+        exists (select 1 from pg_proc function
+                cross join lateral aclexplode(coalesce(function.proacl, acldefault('f', function.proowner))) acl
+                where function.pronamespace = 'public'::regnamespace
+                  and acl.grantee = 'auth_connector'::regrole
+                  and acl.privilege_type = 'EXECUTE') as function_access
+    `;
+    expect(directPrivileges).toEqual([{ table_access: false, function_access: false }]);
+  });
+
   it("owns every project table and helper only under the migration owner", async () => {
     const tables = await db`
       select c.relname, r.rolname as owner
@@ -234,10 +273,11 @@ describeDb("PostgreSQL least-privilege roles", () => {
       where n.nspname = 'public'
         and p.proname in ('rls_tenant_matches', 'rls_bootstrap_context',
                           'auth_complete_provider_login', 'auth_complete_google_login',
-                          'auth_resolve_session', 'auth_rotate_session', 'auth_revoke_session')
+                          'auth_session_snapshot', 'auth_resolve_session',
+                          'auth_rotate_session', 'auth_revoke_session')
       order by p.proname, args
     `;
-    expect(functions).toHaveLength(7);
+    expect(functions).toHaveLength(8);
     expect(new Set(functions.map((row) => row.owner))).toEqual(new Set([String(tables[0]?.owner)]));
   });
 

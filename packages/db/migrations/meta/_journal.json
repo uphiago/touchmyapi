@@ -141,6 +141,13 @@
       "when": 1787520000000,
       "tag": "0019_provider_auth_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787521000000,
+      "tag": "0020_auth_session_snapshot",
+      "breakpoints": true
     }
   ]
 }

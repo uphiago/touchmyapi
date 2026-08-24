@@ -2,6 +2,27 @@ export * from "../schema";
 export { createTenantDatabase } from "./connection-internal";
 export { createSystemAuditDatabase } from "./connection-internal";
 export type { SystemAuditDatabase, TenantDatabase } from "./connection-internal";
+export {
+  closeAuthDatabase,
+  createAuthDatabase,
+  type AuthDatabase,
+} from "./auth-connection-internal";
+export {
+  acceptAuthInvitation,
+  completeProviderLogin,
+  listSessionAccounts,
+  resolveAuthSession,
+  revokeAuthSession,
+  rotateAuthSession,
+  switchAuthAccount,
+  type AcceptAuthInvitationInput,
+  type AuthInvitationAcceptance,
+  type AuthProvider,
+  type AuthSessionRecord,
+  type CompleteProviderLoginInput,
+  type RotateAuthSessionInput,
+  type SwitchAuthAccountInput,
+} from "./auth-session";
 export { createInvitationToken, hashInvitationToken, invitationTokenPattern } from "./invitations";
 export { ensureQueueState } from "./queue-bootstrap";
 export type { QueueBootstrapOptions } from "./queue-bootstrap";

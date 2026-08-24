@@ -189,6 +189,7 @@ git commit -m "feat: add secure GitHub OAuth flow"
 
 **Files:**
 
+- Create: `packages/db/migrations/0020_auth_session_snapshot.sql`
 - Create: `packages/db/src/auth-session.ts`
 - Create: `packages/db/src/auth-connection-internal.ts`
 - Create: `packages/db/test/auth-session.integration.test.ts`
@@ -238,7 +239,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/db/src packages/db/test/auth-session.integration.test.ts apps/api/src/postgres-auth-store.ts apps/api/test/postgres-auth-store.test.ts apps/api/package.json bun.lock
+git add packages/db/migrations/0020_auth_session_snapshot.sql packages/db/migrations/meta/_journal.json packages/db/src packages/db/test/auth-session.integration.test.ts apps/api/src/postgres-auth-store.ts apps/api/test/postgres-auth-store.test.ts apps/api/package.json bun.lock
 git commit -m "feat: persist customer authentication sessions"
 ```
 
