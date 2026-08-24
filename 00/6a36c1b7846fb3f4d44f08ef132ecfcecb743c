@@ -1,0 +1,124 @@
+apps/web/src/results.test.tsx
+  s_bc54431df54bf2::t_5b8cf581928bf9 24-50
+apps/worker-control/src/service.ts
+  s_bc54431df54bf2::t_34efa0cf136f30 191,198
+  s_bc54431df54bf2::t_7f3b2baf3429a8 202,207,216-218
+  s_bc54431df54bf2::t_2bb6e974d4f134 60-63,166-167,184,196,199,215,219
+scripts/rollback-ovh.sh
+  s_bc54431df54bf2::t_564bfbe43d6a7d 15
+apps/worker-control/src/config.ts
+  s_bc54431df54bf2::t_29cf27ced44e80 19,124
+docs/superpowers/README.md
+  s_bc54431df54bf2::t_16698dee1e76f4 1-13
+tests/e2e/local-stack.test.ts
+  s_bc54431df54bf2::t_4a79556729e600 1-95
+packages/reporting/src/storage.ts
+  s_bc54431df54bf2::t_29cf27ced44e80 78,102,123,131-142,152
+  s_bc54431df54bf2::t_91c95ecb2e865a 7,58-61,176-191
+  s_bc54431df54bf2::t_9a59a4503c8fb2 192
+apps/api/src/local-persistent.ts
+  s_bc54431df54bf2::t_37e2da1658ebdd 32
+package.json
+  s_bc54431df54bf2::t_4a79556729e600 29
+apps/web/index.html
+  s_bc54431df54bf2::t_b6226bc7c4a291 8
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_413dec20cd4d55 3,24,38-42
+  s_bc54431df54bf2::t_9a77d2f81ce60a 22,44,208
+  s_bc54431df54bf2::t_4c0248fb3188b6 209-210
+  s_bc54431df54bf2::t_ab3a177e16e5fb 43
+tests/unit/test-topology.test.ts
+  s_bc54431df54bf2::t_7661d05436b450 8,12
+apps/worker-control/src/runtime.ts
+  s_bc54431df54bf2::t_91c95ecb2e865a 167-175,183-184
+  s_bc54431df54bf2::t_d1420d18aa69e4 185
+apps/web/src/results.tsx
+  s_bc54431df54bf2::t_5b8cf581928bf9 66-75
+apps/web/src/public-host.test.tsx
+  s_bc54431df54bf2::t_2461b2e2a9ad10 2,4-13
+docs/reviews/2026-08-24-public-entrypoint.md
+  s_bc54431df54bf2::t_1f61d0f11bf9ac 26-27,29-31
+  s_bc54431df54bf2::t_0e617e97b14cdd 1-25,28,32-38
+scripts/deploy-ovh.sh
+  s_bc54431df54bf2::t_e33d6fd9658065 65
+  s_bc54431df54bf2::t_7b684dba266c2f 36-45,47-53
+  s_bc54431df54bf2::t_564bfbe43d6a7d 46,76-81
+  s_bc54431df54bf2::t_9b3e995b30d717 82
+docs/reviews/2026-08-24-passive-delivery-v1.md
+  s_bc54431df54bf2::t_38e86990e5f45b 26-31
+infra/edge/Caddyfile
+  s_bc54431df54bf2::t_8435fadc0bbc92 1-29
+apps/web/src/App.tsx
+  s_bc54431df54bf2::t_5b8cf581928bf9 551
+  s_bc54431df54bf2::t_b6226bc7c4a291 23,251,274-281,434-437,593
+specs/001-touchmyapi-platform/contracts/index.md
+  s_bc54431df54bf2::t_413dec20cd4d55 5
+packages/reporting/test/reporting.unit.test.ts
+  s_bc54431df54bf2::t_f74d1bbc3ff687 89,145,147-162
+  s_bc54431df54bf2::t_a7db02551f28a9 59-70,72-75,77-78,86,164
+  s_bc54431df54bf2::t_29cf27ced44e80 132,135,143
+  s_bc54431df54bf2::t_c4fcf5f1929223 88,146,163,165
+README.md
+  s_bc54431df54bf2::t_9a77d2f81ce60a 12
+  s_bc54431df54bf2::t_ec676dcc672275 14
+  s_bc54431df54bf2::t_413dec20cd4d55 5-9
+packages/db/test/worker-delivery.unit.test.ts
+  s_bc54431df54bf2::t_a7db02551f28a9 1-19
+  s_bc54431df54bf2::t_347c2e432b12b0 20-23
+apps/web/src/public-host.ts
+  s_bc54431df54bf2::t_b6226bc7c4a291 1-5
+packages/db/src/worker-delivery.ts
+  s_bc54431df54bf2::t_4bff65b8a7e639 81-104,369,384,415
+docs/operations/ovh-deployment.md
+  s_bc54431df54bf2::t_413dec20cd4d55 64,66-71,101-103,113,122-123,134
+  s_bc54431df54bf2::t_1f61d0f11bf9ac 141
+vitest.config.ts
+  s_bc54431df54bf2::t_4a79556729e600 62
+.github/workflows/build-deploy.yml
+  s_bc54431df54bf2::t_99293c17452d9f 49-65,199-200
+  s_bc54431df54bf2::t_fc3a67d42e622e 197-198
+apps/worker-control/test/worker-service.test.ts
+  s_bc54431df54bf2::t_2bb6e974d4f134 189-222
+docs/product/user-journeys.md
+  s_bc54431df54bf2::t_413dec20cd4d55 7,9-10,24
+specs/001-touchmyapi-platform/spec.md
+  s_bc54431df54bf2::t_4c0248fb3188b6 7
+packages/reporting/src/sanitize.ts
+  s_bc54431df54bf2::t_4bff65b8a7e639 116-120
+tests/contract/deployment.test.ts
+  s_bc54431df54bf2::t_99293c17452d9f 30-32
+  s_bc54431df54bf2::t_f17b6126056871 94-103,105,109-110
+  s_bc54431df54bf2::t_95d1337f663085 77
+  s_bc54431df54bf2::t_7b44c71cc00fe6 104
+  s_bc54431df54bf2::t_e4ae116ec48187 108
+  s_bc54431df54bf2::t_7b684dba266c2f 82,84
+  s_bc54431df54bf2::t_b0e44a3a7cc363 83,106-107
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_1f61d0f11bf9ac 232
+  s_bc54431df54bf2::t_b6cdcddccaf219 233
+  s_bc54431df54bf2::t_413dec20cd4d55 239
+  s_bc54431df54bf2::t_4c0248fb3188b6 192
+docs/reviews/2026-08-24-total-review.md
+  s_bc54431df54bf2::t_898c23b9af6422 1-59
+scripts/deploy-edge-ovh.sh
+  s_bc54431df54bf2::t_e4ae116ec48187 44,47
+  s_bc54431df54bf2::t_8435fadc0bbc92 1-8,18-43,46,49,51-53
+  s_bc54431df54bf2::t_7b44c71cc00fe6 45,48,50
+  s_bc54431df54bf2::t_564bfbe43d6a7d 9-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "006a36c1b7846fb3f4d44f08ef132ecfcecb743c",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
