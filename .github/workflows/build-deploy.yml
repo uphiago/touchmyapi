@@ -177,7 +177,18 @@ jobs:
           do
             curl --fail --silent --show-error --max-time 20 "$url" >/dev/null
           done
-          curl --fail --silent --show-error --max-time 20 https://touchmyapi.com/ |
-            grep -F 'TouchMyAPI' >/dev/null
-          curl --fail --silent --show-error --max-time 20 -D - -o /dev/null https://www.touchmyapi.com/ |
-            tr -d '\r' | grep -Fx 'location: https://touchmyapi.com/'
+          apex_headers=$(mktemp)
+          apex_body=$(mktemp)
+          app_headers=$(mktemp)
+          app_body=$(mktemp)
+          curl --fail --silent --show-error --max-time 20 -D "$apex_headers" \
+            -o "$apex_body" https://touchmyapi.com/
+          curl --fail --silent --show-error --max-time 20 -D "$app_headers" \
+            -o "$app_body" https://app.touchmyapi.com/
+          grep -F 'TouchMyAPI / Authorized assessments' "$apex_body" >/dev/null
+          grep -F 'assets/' "$apex_body" >/dev/null
+          tr -d '\r' < "$apex_headers" | grep -Fix 'cache-control: no-store'
+          tr -d '\r' < "$app_headers" | grep -Fix 'cache-control: no-store'
+          curl --fail --silent --show-error --max-time 20 -D - -o /dev/null \
+            https://www.touchmyapi.com/ |
+            tr -d '\r' | grep -Fix 'location: https://touchmyapi.com/'
