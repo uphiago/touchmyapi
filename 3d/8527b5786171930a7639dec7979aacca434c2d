@@ -1,0 +1,21 @@
+.github/workflows/ci.yml
+  s_bc54431df54bf2::t_6a8b9619e50d35 11,54,57
+tests/contract/foundation-config.test.ts
+  s_bc54431df54bf2::t_687044c7be870b 126-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "3d8527b5786171930a7639dec7979aacca434c2d",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
