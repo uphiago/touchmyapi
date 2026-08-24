@@ -4,7 +4,8 @@ WORKDIR /app
 COPY --chown=bun:bun . .
 RUN bun install --frozen-lockfile \
   && bun build apps/api/src/server.ts apps/api/src/admin-server.ts \
-    --outdir apps/api/dist --target bun --production
+    --outdir apps/api/dist --target bun --production \
+  && ! grep -q '#standard-fonts/' apps/api/dist/server.js
 
 ENV NODE_ENV=production \
     LOCAL_MOCKS=0 \

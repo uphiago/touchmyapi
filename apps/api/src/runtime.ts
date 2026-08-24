@@ -17,7 +17,7 @@ import { createPostgresAssessmentStore } from "./postgres-assessment-store";
 import { createPostgresAuthStore } from "./postgres-auth-store";
 import { createPostgresMembershipStore } from "./postgres-membership-store";
 import { createPostgresDeliveryStore } from "./postgres-delivery-store";
-import { S3CompatiblePrivateReportStorage } from "@touchmyapi/reporting";
+import { S3CompatiblePrivateReportStorage } from "@touchmyapi/reporting/storage";
 
 export type ApiRuntime = Readonly<{
   app: ReturnType<typeof createApp>;
