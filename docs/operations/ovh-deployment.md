@@ -37,4 +37,4 @@ Run “Build and deploy TouchMyAPI” manually or push a reviewed `v*` tag. The 
 
 Application rollback uses a previously published 40-character SHA and the same script from that release directory. Database rollback is never automatic; use a reviewed forward migration. Do not replace `shared/.env`, discover host keys with `ssh-keyscan`, or bypass strict host verification.
 
-The base/runtime approach follows the official Bun container guidance (`oven/bun`, frozen lockfile, non-root runtime), while the workflow pins all referenced actions to full commit SHAs.
+The base/runtime approach follows the [official Bun container guidance](https://bun.sh/guides/ecosystem/docker) and [frozen-lockfile guidance](https://bun.sh/docs/pm/cli/install), while the workflow follows GitHub's [secure-use guidance](https://docs.github.com/en/actions/reference/security/secure-use) and pins all referenced actions to full commit SHAs.

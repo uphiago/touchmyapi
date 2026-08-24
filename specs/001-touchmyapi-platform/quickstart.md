@@ -22,6 +22,9 @@ This guide validates the code that exists today. It does not claim that the full
 - T071–T080 multi-user foundation: additive memberships/invitations, role capability policy, active-account session list/switch, hash-only invitation acceptance, lifecycle/RLS acceptance, and server-driven workspace UI
 - T081–T086 PostgreSQL queue/outbox infrastructure: transactional enqueue, fair fenced claims, lease recovery, reconciliation, and standalone outbox controls
 - Development-only account-scoped assessment draft → queue routes and web panel, backed by an explicit in-memory local mock
+- T095 customer operations cockpit with Overview/Assessments/Team/Workspace navigation and guided authorization-first draft flow
+- T096–T097 separate development-only admin API/UI on `3001/5174`, dedicated cookie/origin/store, grant-before-action simulation, and cross-session denial smoke
+- T098–T099 non-root production images, private PostgreSQL Compose topology, migration-before-cutover, and SHA-pinned GitHub Actions → OVH release automation
 
 No real assessment execution, external target access, billing mutation, AI execution, report generation, or runner exists in this checkpoint. Queue/outbox persistence is implemented, but the production assessment store, verification gate, and worker dispatch remain open under T087. The local draft → queue route is intentionally available only through `LOCAL_MOCKS=1` development composition. T016 and T017 are accepted: the tenant wrapper is an opaque database handle with fixed capabilities, and the audit writer provides redacted monotonic tenant/system chains with FORCE-RLS lock authorities and no raw SQL export. T018 is accepted as the isolated external-credential AEAD boundary, T019 as the passive catalog boundary, T020 as the API boundary, and T021 as the fakeable Google auth boundary. The real OIDC composition requires explicit production credentials and is not exercised by tests.
 
@@ -54,7 +57,9 @@ bun run verify:workspace
 bun test
 bun run typecheck
 bun run --cwd apps/web build
+bun run --cwd apps/admin build
 docker compose --profile local -f infra/docker/compose.yml config
+bun scripts/validate-production-compose.ts
 ```
 
 The foundation implementation plan used `bun --cwd apps/web run build`. With Bun 1.4.0, use the equivalent `bun run --cwd apps/web build` shown in the runnable sequence. CI must run this complete validation sequence, including the Compose config check, before accepting changes.
@@ -81,18 +86,17 @@ No command above starts an assessment or contacts an external target.
 
 The repository provides one reproducible local path. It starts loopback-only
 PostgreSQL, applies migrations to the local `touchmyapi` database, then starts
-the API and Vite web shell with inherited logs:
+the customer API/web and isolated admin API/web with inherited logs:
 
 ```bash
 bun run dev:local
 ```
 
-Development mode sets `LOCAL_MOCKS=1` only for the child API and
-`VITE_LOCAL_MOCKS=1` only for the child web process. The API exposes a local
+Development mode sets `LOCAL_MOCKS=1` only for the customer API and
+`LOCAL_ADMIN_MOCKS=1` only for the admin API. The customer API exposes a local
 demo session with two accounts and memberships, so the switcher, membership
 screens, and assessment draft → queue panel are usable without Google
-credentials. This composition is not used by production mode, does not persist
-or deliver real invitations, and does not contact targets.
+credentials. The admin mock uses its own CORS origin, cookie, and in-memory store. This composition is not used by production mode, does not persist or deliver real invitations, and does not contact targets.
 
 In a second terminal, wait for both processes and run the smoke check:
 
@@ -104,17 +108,15 @@ Expected output contains:
 
 ```text
 [smoke] PASS API health http://127.0.0.1:3000/health
+[smoke] PASS admin API health http://127.0.0.1:3001/health
 [smoke] PASS web shell http://127.0.0.1:5173
+[smoke] PASS admin web shell http://127.0.0.1:5174
 [smoke] PASS assessment draft → queued <account-id>
+[smoke] PASS admin grant → distinct approval → bounded simulation
 [smoke] local stack is responding
 ```
 
-The approved T095–T100 checkpoint extends this same command with a separate
-development-only admin API and application at `http://127.0.0.1:3001` and
-`http://127.0.0.1:5174`. Until T096/T097 are checked, those two ports are not
-part of the runnable quickstart. They will use a dedicated admin cookie, CORS
-origin, and server-side mock store; customer sessions will not authenticate to
-them. See
+The completed T095–T100 checkpoint includes the separate development-only admin API and application at `http://127.0.0.1:3001` and `http://127.0.0.1:5174`. They use a dedicated admin cookie, CORS origin, and server-side mock store; customer sessions cannot authenticate to them and admin sessions cannot authenticate to customer routes. See
 `docs/superpowers/specs/2026-08-23-user-admin-console-design.md` and
 `docs/superpowers/plans/2026-08-23-user-admin-ovh-implementation.md`.
 
@@ -123,9 +125,7 @@ PostgreSQL container independently, use `bun run local:logs`. Stop only the
 application processes with `Ctrl-C`; stop the local container without deleting
 its volume with `bun run local:down`.
 
-The smoke check only contacts loopback services. It bootstraps the development
-session, creates and queues one mock assessment, and never sends an invitation
-token, executes a real assessment, or contacts an external target.
+The smoke check only contacts loopback services. It bootstraps both development sessions, proves cross-cookie denial, creates and queues one mock assessment, performs one grant-gated simulated admin action, and never executes a real assessment or contacts an external target.
 
 ## Run the API and web shell manually
 
