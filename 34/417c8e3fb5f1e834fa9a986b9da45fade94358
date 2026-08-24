@@ -1,0 +1,20 @@
+docs/superpowers/plans/2026-08-23-github-workspace-v1.md
+  s_bc54431df54bf2::t_c5e4d04e490e90 1-157,159-515,517-593
+  s_bc54431df54bf2::t_bae05e21388965 158,516
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "34417c8e3fb5f1e834fa9a986b9da45fade94358",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
