@@ -34,7 +34,7 @@ Date: 2026-08-24
 
 ## Verification evidence
 
-- Unit: 34 files, 336 tests passed.
+- Unit: 34 files, 337 tests passed.
 - Contract: 15 files, 63 tests passed.
 - Local smoke: API, admin API, customer web, admin web, worker readiness,
   PostgreSQL draft → queue → completed delivery, three private reports, and the
@@ -57,3 +57,12 @@ Date: 2026-08-24
   entitlements, persistent staff OIDC/WebAuthn/JIT, account deletion workflow,
   and private agent remain later task milestones. Production must not claim that
   a queued assessment contacted a target until the runner milestone is accepted.
+
+## Current production verification
+
+- `main` is at merge commit `7a5584c7ebcaf14f34d3798041a3b85f5e42354`.
+- GitHub Actions run `32734304405` completed validation, image builds, OVH
+  cutover, migration, and public-edge smoke successfully.
+- `touchmyapi.com` returns the public landing with `HTTP 200` and
+  `Cache-Control: no-store`; `app.touchmyapi.com` returns the private sign-in
+  entry with the same cache protection.
