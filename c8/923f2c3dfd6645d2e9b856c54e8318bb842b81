@@ -1,0 +1,19 @@
+docs/superpowers/specs/2026-08-23-github-workspace-v1-design.md
+  s_bc54431df54bf2::t_5c2fcf0460ed8b 1-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "c8923f2c3dfd6645d2e9b856c54e8318bb842b81",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
