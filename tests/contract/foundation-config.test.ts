@@ -127,7 +127,10 @@ describe("foundation configuration contracts", () => {
   it("keeps CI database gates on the test-only loopback contract", () => {
     const workflow = read(".github/workflows/ci.yml");
 
-    expect(workflow).toContain("@127.0.0.1:5432/touchmyapi_test");
+    expect(workflow).toContain("@127.0.0.1:5432/touchmyapi_ci_integration_test");
+    expect(workflow).toContain("@127.0.0.1:5432/touchmyapi_ci_isolation_test");
+    expect(workflow).toContain("CREATE DATABASE touchmyapi_ci_integration_test");
+    expect(workflow).toContain("CREATE DATABASE touchmyapi_ci_isolation_test");
     expect(workflow).not.toContain("@localhost:5432/touchmyapi_test");
     expect(workflow).toContain("bun run test:integration --maxWorkers=1");
     expect(workflow).toContain("bun run test:isolation --maxWorkers=1");

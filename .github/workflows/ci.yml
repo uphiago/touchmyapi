@@ -8,7 +8,6 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgres://touchmyapi_migrate:touchmyapi_migrate@127.0.0.1:5432/touchmyapi_test
       RUN_DB_TESTS: "1"
       NODE_ENV: test
     services:
@@ -41,8 +40,21 @@ jobs:
       - name: Verify workspace
         run: bun run verify:workspace
 
+      - name: Create isolated test databases
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=touchmyapi_migrate postgres:16 \
+            psql -h 127.0.0.1 -U touchmyapi_migrate -d postgres -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE touchmyapi_ci_integration_test'
+          docker run --rm --network host \
+            -e PGPASSWORD=touchmyapi_migrate postgres:16 \
+            psql -h 127.0.0.1 -U touchmyapi_migrate -d postgres -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE touchmyapi_ci_isolation_test'
+
       - name: Apply database migrations
-        run: bun run db:migrate
+        run: |
+          DATABASE_URL=postgres://touchmyapi_migrate:touchmyapi_migrate@127.0.0.1:5432/touchmyapi_ci_integration_test bun run db:migrate
+          DATABASE_URL=postgres://touchmyapi_migrate:touchmyapi_migrate@127.0.0.1:5432/touchmyapi_ci_isolation_test bun run db:migrate
 
       - name: Run unit tests
         run: bun run test:unit
@@ -52,9 +64,13 @@ jobs:
 
       - name: Run integration tests
         run: bun run test:integration --maxWorkers=1
+        env:
+          DATABASE_URL: postgres://touchmyapi_migrate:touchmyapi_migrate@127.0.0.1:5432/touchmyapi_ci_integration_test
 
       - name: Run isolation tests
         run: bun run test:isolation --maxWorkers=1
+        env:
+          DATABASE_URL: postgres://touchmyapi_migrate:touchmyapi_migrate@127.0.0.1:5432/touchmyapi_ci_isolation_test
 
       - name: Run e2e gate
         run: bun run test:e2e
