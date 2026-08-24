@@ -1,0 +1,91 @@
+apps/web/src/app-shell.tsx
+  s_bc54431df54bf2::t_3aa5b7dbcba092 82-86
+  s_bc54431df54bf2::t_d630ebfe8d9387 67,75
+  s_bc54431df54bf2::t_1622b687d63847 4,10-11,14-23,33-34,36,45-46,48,90-92,106
+apps/web/src/App.tsx
+  s_bc54431df54bf2::t_8da91fd82c5a24 97,109,241-243,416-418
+  s_bc54431df54bf2::t_15a6e9027ad457 11,41-42,64-65,133-134,306,338-366,454-455
+  s_bc54431df54bf2::t_eb06c2d76f21b5 7-8,17-18,29,45,52,68,71-74,81-82,100,104,106-108,110-114,116,130,138-159,181,192-193,195,213-215,217-218,238-239,244-246,273-294,305,329,368,394-415,419-436,442,458
+  s_bc54431df54bf2::t_9baebadaccde4f 367,369
+apps/web/src/assessments.test.tsx
+  s_bc54431df54bf2::t_2f8e40d7c5ad44 88-112
+  s_bc54431df54bf2::t_daf6b05a96936c 4,30-57
+  s_bc54431df54bf2::t_0acd49ff48176d 113
+apps/admin/src/app.css
+  s_bc54431df54bf2::t_96bd142593dca2 496,499-500
+  s_bc54431df54bf2::t_89ae673f4b2c98 148-151,187-221,224,230-237,264,267-268,270-272,274-277,281-283,297-341,417-433,501
+packages/ui/api-client.ts
+  s_bc54431df54bf2::t_8d189fcdf2a1af 5-7
+  s_bc54431df54bf2::t_c219b7c1479b83 12-13,26-27,53-58,150-169
+  s_bc54431df54bf2::t_1afa937c43291a 16-17,43-45,76,107-118
+  s_bc54431df54bf2::t_4ba5f5613532c3 148-149
+apps/api/test/local-development.test.ts
+  s_bc54431df54bf2::t_76dbd49398fc89 66-72,97-128
+  s_bc54431df54bf2::t_ae5fa20b3bf6bb 28-62
+  s_bc54431df54bf2::t_d63edbef744416 129-130
+apps/web/src/memberships.test.tsx
+  s_bc54431df54bf2::t_284c2741258691 131-139,148
+apps/web/src/memberships.tsx
+  s_bc54431df54bf2::t_05e219d3dbd977 2-7,18-19,38-39,70-73,75-123
+  s_bc54431df54bf2::t_d175a515ea9f8a 15,36,131-182,184-209,211-229
+  s_bc54431df54bf2::t_44b4599de34708 124-125
+apps/web/src/assessments.tsx
+  s_bc54431df54bf2::t_8da91fd82c5a24 8,15-46,114,148
+  s_bc54431df54bf2::t_c73fbabc440f5a 9-10,111-113,115-119,136-146,207,218-222,231-236,248-249
+  s_bc54431df54bf2::t_e3cf93ea342cec 47-110,121,212,237-247
+apps/admin/src/App.tsx
+  s_bc54431df54bf2::t_415d53c389dd44 78,81,86-98,101-115,124-126,129-131,139-145,148-154,163-170,193,296
+  s_bc54431df54bf2::t_c1a62f60c4d841 194-195,200,204-208,213-215,218,231-277
+  s_bc54431df54bf2::t_ee1147785c1457 2,23-35,43-69,71-76,79,175,292-293,297
+  s_bc54431df54bf2::t_e3cc520edcf599 77,80,171,176,190-192,278-291,294-295,298,412-416
+apps/web/src/assessment-wizard.tsx
+  s_bc54431df54bf2::t_e3cf93ea342cec 17,129-132
+apps/api/src/local-development.ts
+  s_bc54431df54bf2::t_e4801010b8c097 118,125,127-129,149-150,152-161,163-166,170-171,173-180,186-189
+  s_bc54431df54bf2::t_3cc3658489f824 16-18,21-28,33,49-59
+  s_bc54431df54bf2::t_6536e0c7261021 65-69,76,92,94,97,102-106,110,113
+  s_bc54431df54bf2::t_96ee9e2bd5152c 60
+apps/web/src/landing.tsx
+  s_bc54431df54bf2::t_d630ebfe8d9387 73-82,86-90
+  s_bc54431df54bf2::t_d2d8998ceb0736 1-72,83-85,91-153
+apps/web/src/app.css
+  s_bc54431df54bf2::t_7eddacfca1d394 1010-1042,1573-1580
+  s_bc54431df54bf2::t_91edc1a1f86887 403-472,1442-1443
+  s_bc54431df54bf2::t_67a7766d753ff9 747-834
+  s_bc54431df54bf2::t_23b1b1898bfbfd 1-2,5,473,1114-1427,1444-1452,1493-1499,1581,1603-1636
+  s_bc54431df54bf2::t_76e1e3a4527fbf 1428
+apps/web/src/landing.test.tsx
+  s_bc54431df54bf2::t_e88cce58b209e4 1-42
+scripts/local-smoke.ts
+  s_bc54431df54bf2::t_e392c8d2e363e0 37
+apps/admin/src/App.test.tsx
+  s_bc54431df54bf2::t_68a8adae2c88fa 50
+  s_bc54431df54bf2::t_2f8e40d7c5ad44 49,51,61-75
+apps/web/src/App.test.tsx
+  s_bc54431df54bf2::t_e88cce58b209e4 14-17,31,53-56,70,79-137
+  s_bc54431df54bf2::t_2f8e40d7c5ad44 40-41
+  s_bc54431df54bf2::t_6824998382bea3 138
+apps/web/src/account-switcher.tsx
+  s_bc54431df54bf2::t_3aa5b7dbcba092 36
+  s_bc54431df54bf2::t_da5ea3922841b0 37
+apps/web/src/overview.tsx
+  s_bc54431df54bf2::t_c73fbabc440f5a 8,47,50,55,67-74
+  s_bc54431df54bf2::t_8da91fd82c5a24 5,14-44,75-93
+  s_bc54431df54bf2::t_2ddce983b5acdd 94-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "70ebc39fb4c5e35211a3e7723d201e864c89adad",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
