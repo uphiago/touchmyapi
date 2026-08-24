@@ -1,0 +1,21 @@
+tests/contract/foundation-config.test.ts
+  s_bc54431df54bf2::t_45a90b1021eeec 170-171
+scripts/local-smoke.ts
+  s_bc54431df54bf2::t_45a90b1021eeec 13,26,28,30-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d233b60836c48c3f23a5845c814f99e87da32611",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
