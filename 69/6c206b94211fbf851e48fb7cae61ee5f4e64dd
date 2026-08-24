@@ -1,0 +1,30 @@
+packages/contracts/src/index.ts
+  s_bc54431df54bf2::t_0a6e7c82c7c7e7 21-29
+apps/api/src/config.ts
+  s_bc54431df54bf2::t_0a6e7c82c7c7e7 9-27,47-94,119-171,174
+  s_bc54431df54bf2::t_c43b75e5c434b2 172-173,175-194
+packages/contracts/test/auth.test.ts
+  s_bc54431df54bf2::t_f79a8c88aa47da 1-36
+packages/contracts/src/auth.ts
+  s_bc54431df54bf2::t_0a6e7c82c7c7e7 1-40
+tests/contract/foundation-config.test.ts
+  s_bc54431df54bf2::t_f79a8c88aa47da 5,11-32,73-78
+.env.example
+  s_bc54431df54bf2::t_0a6e7c82c7c7e7 13-15,18-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "696c206b94211fbf851e48fb7cae61ee5f4e64dd",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
