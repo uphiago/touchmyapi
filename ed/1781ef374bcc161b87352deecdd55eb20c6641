@@ -1,0 +1,25 @@
+docs/reviews/2026-08-24-current-status.md
+  s_bc54431df54bf2::t_464c2b7f3ee427 1-56
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_464c2b7f3ee427 175
+README.md
+  s_bc54431df54bf2::t_05568c0560718f 39
+docs/reviews/2026-08-24-total-review.md
+  s_bc54431df54bf2::t_464c2b7f3ee427 37,60-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ed1781ef374bcc161b87352deecdd55eb20c6641",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
