@@ -31,7 +31,30 @@ export {
 
 export { playbookSchema, type Playbook } from "./playbook";
 
-export { jobSpecSchema, artifactManifestSchema, type JobSpec, type ArtifactManifest } from "./job";
+export {
+  jobSpecSchema,
+  artifactManifestSchema,
+  passiveObservationSchema,
+  type JobSpec,
+  type ArtifactManifest,
+  type PassiveObservation,
+} from "./job";
+
+export {
+  assessmentDeliveryResponseSchema,
+  notificationListResponseSchema,
+  notificationSchema,
+  reportListResponseSchema,
+  reportDownloadResponseSchema,
+  reportMetadataSchema,
+  type AssessmentDeliveryResponse,
+  type Notification,
+  type NotificationListResponse,
+  type ReportListResponse,
+  type ReportDownloadResponse,
+  type ReportMetadata,
+} from "./delivery";
+export { redactedObjectSchema, type RedactedObject } from "./redacted";
 
 export { reportExportSchema, type ReportExport } from "./export";
 export { billingEventSchema, type BillingEvent } from "./billing";

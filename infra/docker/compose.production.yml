@@ -39,6 +39,9 @@ services:
       AUTH_DATABASE_URL: ${AUTH_DATABASE_URL:?AUTH_DATABASE_URL is required}
       API_DATABASE_URL: ${API_DATABASE_URL:?API_DATABASE_URL is required}
       AUDIT_DATABASE_URL: ${AUDIT_DATABASE_URL:?AUDIT_DATABASE_URL is required}
+      QUEUE_DATABASE_URL: ${QUEUE_DATABASE_URL:?QUEUE_DATABASE_URL is required}
+      WORKER_DATABASE_URL: ${WORKER_DATABASE_URL:?WORKER_DATABASE_URL is required}
+      REPORTING_DATABASE_URL: ${REPORTING_DATABASE_URL:?REPORTING_DATABASE_URL is required}
       LOCAL_MOCKS: "0"
       LOCAL_ADMIN_MOCKS: "0"
 
@@ -54,6 +57,11 @@ services:
       AUTH_DATABASE_URL: ${AUTH_DATABASE_URL:?AUTH_DATABASE_URL is required}
       API_DATABASE_URL: ${API_DATABASE_URL:?API_DATABASE_URL is required}
       AUDIT_DATABASE_URL: ${AUDIT_DATABASE_URL:?AUDIT_DATABASE_URL is required}
+      OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-}
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-auto}
+      OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:-}
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}
       GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
       GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
       GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL:-}
@@ -137,6 +145,49 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+
+  # The runner adapter is not production-capable until the isolated sandbox
+  # implementation is available. Keep the worker artifact and health boundary
+  # in Compose, but exclude it from the default cutover.
+  worker:
+    image: ghcr.io/uphiago/touchmyapi-worker:${TOUCHMYAPI_IMAGE_TAG:?TOUCHMYAPI_IMAGE_TAG is required}
+    profiles: [execution]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      RUNNER_MODE: ${RUNNER_MODE:-isolated}
+      QUEUE_DATABASE_URL: ${QUEUE_DATABASE_URL:?QUEUE_DATABASE_URL is required}
+      WORKER_DATABASE_URL: ${WORKER_DATABASE_URL:?WORKER_DATABASE_URL is required}
+      WORKER_ID: ${WORKER_ID:-ovh-worker}
+      WORKER_PORT: "3002"
+      OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-}
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-auto}
+      OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:-}
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}
+    ports:
+      - "127.0.0.1:${WORKER_PORT:-3002}:3002"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "const r=await fetch('http://127.0.0.1:3002/ready');if(!r.ok)process.exit(1)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 volumes:
   postgres_data:

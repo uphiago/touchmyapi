@@ -51,6 +51,22 @@ export {
   reconcileQueueState,
 } from "./queue-control";
 export type { OutboxClaim, QueueClaim, QueueHeartbeat } from "./queue-control";
+export {
+  publishSucceededJob,
+  publishTerminalJob,
+  readClaimedWorkerJob,
+  readSucceededRunnerResult,
+  readSucceededReportContext,
+  recordClaimedRunnerResult,
+  type ClaimedJobRef,
+  type ClaimedWorkerJob,
+  type DeliveryFindingInput,
+  type PublishSucceededJobInput,
+  type ReportPublicationInput,
+  type RunnerResultInput,
+  type SucceededJobRef,
+  type SucceededReportContext,
+} from "./worker-delivery";
 
 export { withTenant } from "./tenant-session";
 export type { RuntimeRole, TenantContext } from "./tenant-session";
@@ -63,6 +79,15 @@ export {
   type CreateAssessmentInput,
   type QueueAssessmentInput,
 } from "./tenant-assessment";
+export {
+  listTenantNotifications,
+  listTenantReports,
+  readTenantReportObjectKey,
+  markTenantNotificationRead,
+  readTenantAssessmentDelivery,
+  type TenantAssessmentDelivery,
+  type TenantFinding,
+} from "./tenant-delivery";
 export { withSystemAudit } from "./system-audit-session";
 export type { SystemAuditContext } from "./system-audit-session";
 export {

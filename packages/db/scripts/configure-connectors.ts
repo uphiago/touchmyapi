@@ -1,6 +1,12 @@
 import postgres from "postgres";
 
-type ConnectorRole = "auth_connector" | "api_connector" | "audit_system_connector";
+type ConnectorRole =
+  | "auth_connector"
+  | "api_connector"
+  | "audit_system_connector"
+  | "queue_connector"
+  | "worker_connector"
+  | "reporting_connector";
 
 export type ConnectorCredential = Readonly<{
   role: ConnectorRole;
@@ -12,6 +18,9 @@ const CONNECTORS = [
   ["AUTH_DATABASE_URL", "auth_connector"],
   ["API_DATABASE_URL", "api_connector"],
   ["AUDIT_DATABASE_URL", "audit_system_connector"],
+  ["QUEUE_DATABASE_URL", "queue_connector"],
+  ["WORKER_DATABASE_URL", "worker_connector"],
+  ["REPORTING_DATABASE_URL", "reporting_connector"],
 ] as const;
 
 function required(env: Readonly<Record<string, string | undefined>>, name: string): string {

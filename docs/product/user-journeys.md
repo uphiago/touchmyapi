@@ -31,7 +31,7 @@ The credential-free local stack exposes five named workspaces so every customer 
 4. A separate final review shows target, scope, playbook, authorization, and queue consequences.
 5. The API rechecks membership, entitlement, DNS facts, playbook and policy. PostgreSQL atomically records the queued job and redacted outbox event.
 6. The customer sees server-returned lifecycle state. A queue receipt never claims completion.
-7. Worker execution, findings publication, notifications, PDF/JSON generation and signed downloads remain the next delivery milestone; local mode does not contact a target.
+7. In local mode, the fixture worker claims the queued job, publishes deterministic findings, inserts one completion notification, and generates three private report objects without contacting a target. Production worker execution remains disabled until the isolated runner and execution-profile readiness gates pass.
 
 ## Delivery by plan
 
@@ -43,7 +43,7 @@ The API/report boundary, not the browser, removes fields a plan cannot receive.
 | `free_verified` / current UI label `verified` | Finding title, category and severity; detail remains blocked |
 | `pro` / `lifetime` | Validated findings, redacted evidence, safe reproduction, impact, remediation, technical PDF, executive PDF, versioned JSON and comparable history |
 
-The UI currently explains this contract but does not manufacture findings or reports before the worker/report milestones exist.
+The local UI consumes server-generated delivery state and reports; it never manufactures findings or unlocks detail. Production remains unavailable for worker/report execution while T106 is incomplete.
 
 ## Staff journey
 
@@ -57,5 +57,5 @@ Production staff routes remain fail-closed until separate staff OIDC, WebAuthn M
 - OAuth provider absent: landing says provider setup is required.
 - Signed in without a workspace: retry and invitation acceptance remain available.
 - Invitation delivery adapter absent: creation fails before persistence; no undeliverable invitation is claimed.
-- Runner/reporting absent: queued is shown as queued and delivery as pending, never completed.
+- Production runner/reporting unavailable: queued is shown as queued and delivery as pending, never completed. The development-only fixture path may show completed delivery because it is explicitly local and target-free.
 - Production admin persistence/MFA absent: the admin API returns unavailable; local simulation is never enabled in production.

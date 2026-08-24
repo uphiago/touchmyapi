@@ -206,11 +206,12 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 - [x] T086 [INFRA] Implement transactional outbox through standalone typed functions and `apps/worker-control/src/outbox-dispatcher.ts`: fixed claim/heartbeat/ack/fail/reap signatures, short leases/fencing, bounded retries, redacted errors, terminal failure, at-least-once event keys, and outbox-only locks. `NOTIFY` remains optional and non-authoritative.
 - [ ] T087 [US1] Integrate typed queue/enqueue/control primitives into T024/T025/T027/T029 and gate (`tests/integration/{queue-recovery,assessment-concurrency}.test.ts`, review): T024 selects `stale_recovered`, T025 consumes active index, T027/T029 integrate without duplicate semantics, tenant enqueue remains policy-gated, completion/fail/reaper/reconcile preserve global→tenant→job order with stale-fence no-op, standalone outbox uses outbox-only locks, and admin queue actions use separate JIT connector; FR-024/025 and SC-004/014/015 evidence.
 
-Checkpoint: the local mock journey is wired through account-scoped assessment
-list/create/queue routes and the web console. Production PostgreSQL assessment
-draft/list/policy/queue persistence is now wired through the real runtime;
-verification, worker claim/dispatch, terminal publication and reports remain
-open for T027/T029/T087 and US3. See `docs/product/user-journeys.md`.
+Checkpoint: the account-scoped assessment list/create/queue routes and web console
+use PostgreSQL locally and in production. The local fixture worker now proves
+claim, fencing, deterministic analysis, terminal publication, notifications and
+private reports without target contact. Production target execution remains open
+for T027/T029/T087/T106 until the isolated runner and verification gates exist.
+See `docs/product/user-journeys.md`.
 
 ### Phase 2C admin control plane (T088–T094, after queue and billing read dependencies)
 
@@ -238,7 +239,7 @@ open for T027/T029/T087 and US3. See `docs/product/user-journeys.md`.
 - [x] T103 [US1/US5] Deliver the public landing and role-aware customer journey for owner/admin/operator/viewer/billing, named local persona workspaces, team lifecycle controls, explicit final queue review, and server-gated delivery matrix. See `docs/product/user-journeys.md`.
 - [x] T104 [US6] Turn the local staff console into an operational triage surface with account search, queue workflow, explicit ticket/reason/TTL capability form, distinct mock approval, audit, read-only billing and truthful production gate.
 - [x] T105 [INFRA] Harden GitHub Actions → OVH for the real runtime: four required public origins, SHA images, migrations, fixed-role connector credential configuration, internal runtime smoke, public edge smoke, host-only secret preservation and rollback metadata.
-- [ ] T106 [US1/US3] Complete real passive worker execution through fenced queue claim, deterministic analysis, terminal findings/notification, plan-filtered delivery, PDFs/JSON and private object storage. This is the remaining customer-delivery milestone, not simulated by the browser.
+- [ ] T106 [US1/US3] Complete production passive worker execution through fenced queue claim, deterministic analysis, terminal findings/notification, plan-filtered delivery, PDFs/JSON and private object storage. The [passive delivery v1 review](../../docs/reviews/2026-08-24-passive-delivery-v1.md) proves the local queue → analysis → completion → notification → three-private-report path without target contact; production remains pending until the isolated runner, execution-profile readiness, and full delivery acceptance evidence are complete.
 - [ ] T107 [US6] Complete production staff OIDC + WebAuthn MFA + persistent JIT approvals/admin queue functions under T088–T094; local simulation must remain development-only.
 
 ---

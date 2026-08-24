@@ -45,6 +45,7 @@ jobs:
           docker build -f apps/api/Dockerfile -t touchmyapi-api:validate .
           docker build --build-arg VITE_API_BASE_URL=https://api.example.invalid -f apps/web/Dockerfile -t touchmyapi-web:validate .
           docker build --build-arg VITE_ADMIN_API_BASE_URL=https://admin-api.example.invalid -f apps/admin/Dockerfile -t touchmyapi-admin:validate .
+          docker build -f apps/worker-control/Dockerfile -t touchmyapi-worker:validate .
       - name: Check repository diff
         run: git diff --check
 
@@ -58,7 +59,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [api, web, admin]
+        include:
+          - image: api
+            dockerfile: apps/api/Dockerfile
+          - image: web
+            dockerfile: apps/web/Dockerfile
+          - image: admin
+            dockerfile: apps/admin/Dockerfile
+          - image: worker
+            dockerfile: apps/worker-control/Dockerfile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
@@ -82,7 +91,7 @@ jobs:
       - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
-          file: apps/${{ matrix.image }}/Dockerfile
+          file: ${{ matrix.dockerfile }}
           push: true
           build-args: |
             VITE_API_BASE_URL=${{ vars.CUSTOMER_API_ORIGIN }}
@@ -104,6 +113,8 @@ jobs:
           OVH_SSH_KEY: ${{ secrets.OVH_SSH_KEY }}
         run: |
           set -eu
+          test -n "$OVH_HOST_KEY"
+          test -n "$OVH_SSH_KEY"
           install -d -m 0700 "$HOME/.ssh"
           printf '%s\n' "$OVH_HOST_KEY" > "$HOME/.ssh/known_hosts"
           printf '%s\n' "$OVH_SSH_KEY" > "$HOME/.ssh/ovh"
@@ -115,6 +126,8 @@ jobs:
           OVH_USER: ${{ secrets.OVH_USER }}
         run: |
           set -eu
+          test -n "$OVH_HOST"
+          test -n "$OVH_USER"
           remote="${OVH_USER}@${OVH_HOST}"
           ssh -i "$HOME/.ssh/ovh" -o StrictHostKeyChecking=yes "$remote" \
             "install -d -m 0750 \"\$HOME/touchmyapi/releases/${GITHUB_SHA}\" \"\$HOME/touchmyapi/shared\""
@@ -124,20 +137,27 @@ jobs:
       - name: Authenticate OVH registry client
         env:
           GHCR_PAT: ${{ secrets.GHCR_PAT }}
+          GHCR_USER: ${{ github.repository_owner }}
           OVH_HOST: ${{ secrets.OVH_HOST }}
           OVH_USER: ${{ secrets.OVH_USER }}
         run: |
           set -eu
+          test -n "$GHCR_PAT"
+          test -n "$GHCR_USER"
+          test -n "$OVH_HOST"
+          test -n "$OVH_USER"
           printf '%s' "$GHCR_PAT" |
             ssh -i "$HOME/.ssh/ovh" -o StrictHostKeyChecking=yes \
               "${OVH_USER}@${OVH_HOST}" \
-              'docker login ghcr.io -u uphiago --password-stdin >/dev/null'
+              "docker login ghcr.io -u '$GHCR_USER' --password-stdin >/dev/null"
       - name: Migrate, cut over, and smoke
         env:
           OVH_HOST: ${{ secrets.OVH_HOST }}
           OVH_USER: ${{ secrets.OVH_USER }}
         run: |
           set -eu
+          test -n "$OVH_HOST"
+          test -n "$OVH_USER"
           ssh -i "$HOME/.ssh/ovh" -o StrictHostKeyChecking=yes \
             "${OVH_USER}@${OVH_HOST}" \
             "cd \"\$HOME/touchmyapi/releases/${GITHUB_SHA}\" && TOUCHMYAPI_IMAGE_TAG='${GITHUB_SHA}' sh scripts/deploy-ovh.sh"

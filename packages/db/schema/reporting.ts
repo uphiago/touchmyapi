@@ -8,6 +8,7 @@ export const finding = pgTable(
     id: id(),
     accountId: uuid("account_id").notNull(),
     assessmentId: uuid("assessment_id").notNull(),
+    sourceKey: text("source_key").notNull(),
     title: text("title").notNull(),
     category: text("category").notNull(),
     severity: severity("severity").notNull(),
@@ -21,6 +22,11 @@ export const finding = pgTable(
   },
   (table) => [
     unique("finding_account_id_id_unique").on(table.accountId, table.id),
+    unique("finding_assessment_source_unique").on(
+      table.accountId,
+      table.assessmentId,
+      table.sourceKey,
+    ),
     foreignKey({
       name: "finding_assessment_fk",
       columns: [table.accountId, table.assessmentId],
@@ -43,6 +49,7 @@ export const report = pgTable(
   },
   (table) => [
     unique("report_account_id_id_unique").on(table.accountId, table.id),
+    unique("report_assessment_kind_unique").on(table.accountId, table.assessmentId, table.kind),
     foreignKey({
       name: "report_assessment_fk",
       columns: [table.accountId, table.assessmentId],

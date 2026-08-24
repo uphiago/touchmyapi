@@ -89,6 +89,9 @@ describe("foundation configuration contracts", () => {
     expect(env).toMatch(/^AUTH_DATABASE_URL=\s*$/m);
     expect(env).toMatch(/^API_DATABASE_URL=\s*$/m);
     expect(env).toMatch(/^AUDIT_DATABASE_URL=\s*$/m);
+    expect(env).toMatch(/^QUEUE_DATABASE_URL=\s*$/m);
+    expect(env).toMatch(/^WORKER_DATABASE_URL=\s*$/m);
+    expect(env).toMatch(/^REPORTING_DATABASE_URL=\s*$/m);
     expect(env).toMatch(/^STRIPE_SECRET_KEY=\s*$/m);
     expect(env).toMatch(/^STRIPE_WEBHOOK_SECRET=\s*$/m);
     expect(env).toMatch(/^OBJECT_STORAGE_ACCESS_KEY_ID=\s*$/m);
@@ -164,6 +167,8 @@ describe("foundation configuration contracts", () => {
     expect(smoke).toContain("tma-admin-session");
     expect(smoke).toContain("customer cookie accepted by admin");
     expect(smoke).toContain("admin cookie accepted by customer");
+    expect(smoke).toContain('item.role === "owner"');
+    expect(smoke).toContain("`${apiBaseUrl}/api/v1/account/switch`");
   });
 
   it("keeps CI database gates on the test-only loopback contract", () => {

@@ -7,6 +7,7 @@ import { getRequestId, requestIdMiddleware, type ApiRequestEnv } from "./request
 import { mountAuthRoutes, type AuthDependencies } from "./auth";
 import { registerMembershipRoutes, type MembershipDependencies } from "./memberships";
 import { registerAssessmentRoutes, type AssessmentDependencies } from "./assessments";
+import { registerDeliveryRoutes, type DeliveryDependencies } from "./delivery";
 
 export type AuditRecord = Readonly<{
   action: "request";
@@ -29,6 +30,7 @@ export type ApiDependencies = Readonly<{
   auth?: AuthDependencies;
   membership?: MembershipDependencies;
   assessment?: AssessmentDependencies;
+  delivery?: DeliveryDependencies;
 }>;
 
 type App = Hono<ApiRequestEnv>;
@@ -110,6 +112,9 @@ export function createApp(dependencies: ApiDependencies): App {
     }
     if (dependencies.assessment) {
       registerAssessmentRoutes(api, dependencies.assessment, dependencies.config.environment);
+    }
+    if (dependencies.delivery) {
+      registerDeliveryRoutes(api, dependencies.delivery, dependencies.config.environment);
     }
   } else {
     api.all("/api/v1/auth/*", () => {

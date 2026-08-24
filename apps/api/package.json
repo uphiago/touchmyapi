@@ -16,6 +16,7 @@
     "@touchmyapi/db": "workspace:*",
     "@touchmyapi/playbooks": "workspace:*",
     "@touchmyapi/policy": "workspace:*",
+    "@touchmyapi/reporting": "workspace:*",
     "hono": "^4.6.0",
     "openid-client": "^6.8.1"
   }

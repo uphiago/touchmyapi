@@ -15,6 +15,7 @@ describe("OVH release boundary", () => {
     expect(workflow).toContain("environment: production");
     expect(workflow).toContain("packages: write");
     expect(workflow).toContain("${{ github.sha }}");
+    expect(workflow).toContain("worker");
     expect(workflow).not.toMatch(/uses:\s+[^\s]+@(v\d+|main|master)\b/);
     for (const variable of [
       "CUSTOMER_API_ORIGIN",
@@ -54,6 +55,9 @@ describe("OVH release boundary", () => {
       "AUTH_DATABASE_URL",
       "API_DATABASE_URL",
       "AUDIT_DATABASE_URL",
+      "QUEUE_DATABASE_URL",
+      "WORKER_DATABASE_URL",
+      "REPORTING_DATABASE_URL",
       "AUTH_TRANSIENT_KEY",
       "GITHUB_OAUTH_CLIENT_ID",
       "GITHUB_OAUTH_CLIENT_SECRET",
@@ -70,14 +74,24 @@ describe("OVH release boundary", () => {
     expect(deploy.indexOf("up -d")).toBeLessThan(deploy.indexOf("smoke-remote.sh"));
     expect(deploy).toContain("shared/.env");
     expect(deploy).toContain("^[0-9a-f]{40}$");
+    expect(deploy).toContain("insufficient disk headroom");
+    expect(deploy).toContain("--profile execution pull worker");
+    expect(deploy).toContain("touchmyapi-worker");
     expect(read("scripts/smoke-remote.sh")).toContain("/api/v1/auth/providers");
+    expect(read("scripts/smoke-remote.sh")).toContain("unexpectedly running");
+    expect(compose).toContain("profiles: [execution]");
+    expect(compose).toContain("no-new-privileges:true");
+    expect(compose).not.toContain("/var/run/docker.sock");
   });
 
-  it("configures only the three fixed least-privilege login roles without logging secrets", () => {
+  it("configures only fixed least-privilege login roles without logging secrets", () => {
     const connectorScript = read("packages/db/scripts/configure-connectors.ts");
     expect(connectorScript).toContain("auth_connector");
     expect(connectorScript).toContain("api_connector");
     expect(connectorScript).toContain("audit_system_connector");
+    expect(connectorScript).toContain("queue_connector");
+    expect(connectorScript).toContain("worker_connector");
+    expect(connectorScript).toContain("reporting_connector");
     expect(connectorScript).toContain("ALTER ROLE");
     expect(connectorScript).not.toContain("console.log");
     expect(connectorScript).not.toMatch(
@@ -86,12 +100,25 @@ describe("OVH release boundary", () => {
   });
 
   it("packages each application without repository secrets", () => {
-    for (const path of ["apps/api/Dockerfile", "apps/web/Dockerfile", "apps/admin/Dockerfile"]) {
+    for (const path of [
+      "apps/api/Dockerfile",
+      "apps/web/Dockerfile",
+      "apps/admin/Dockerfile",
+      "apps/worker-control/Dockerfile",
+    ]) {
       const dockerfile = read(path);
       expect(dockerfile).toContain("oven/bun:1.4.0-slim");
       expect(dockerfile).toContain("USER bun");
       expect(dockerfile).not.toMatch(/COPY\s+\.env/);
     }
     expect(read(".dockerignore")).toContain(".env");
+  });
+
+  it("provides an immutable previous-release rollback without changing host secrets", () => {
+    const rollback = read("scripts/rollback-ovh.sh");
+    expect(rollback).toContain("previous-sha");
+    expect(rollback).toContain("deploy-ovh.sh");
+    expect(rollback).toMatch(/\[0-9a-f\]\{40\}/);
+    expect(rollback).not.toMatch(/rm\s+-rf/);
   });
 });
