@@ -1,5 +1,9 @@
 import { useState } from "react";
-import type { AssessmentCreate, TargetCategory } from "../../../packages/contracts/src";
+import {
+  assessmentAuthorizationTermsVersion,
+  type AssessmentCreate,
+  type TargetCategory,
+} from "../../../packages/contracts/src";
 
 export const assessmentWizardSteps = [
   { key: "category", label: "Category" },
@@ -33,7 +37,16 @@ export function AssessmentWizard({ open, busy, onClose, onCreate }: AssessmentWi
       .split("\n")
       .map((entry) => entry.trim())
       .filter(Boolean);
-    await onCreate({ targetCategory, target, scope, playbookId: "surface-public-posture" });
+    await onCreate({
+      targetCategory,
+      target,
+      scope,
+      playbookId: "surface-public-posture",
+      authorization: {
+        accepted: true,
+        termsVersion: assessmentAuthorizationTermsVersion,
+      },
+    });
     setTarget("");
     setScopeText("");
     setAuthorized(false);

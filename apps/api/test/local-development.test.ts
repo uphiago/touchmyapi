@@ -65,7 +65,12 @@ describe("local development composition", () => {
     const created = await app.request(`http://localhost/api/v1/accounts/${accountId}/assessments`, {
       method: "POST",
       headers: { Cookie: cookie, "Content-Type": "application/json" },
-      body: JSON.stringify({ targetCategory: "surface", target: "example.test", scope: [] }),
+      body: JSON.stringify({
+        targetCategory: "surface",
+        target: "example.test",
+        scope: [],
+        authorization: { accepted: true, termsVersion: "terms@1" },
+      }),
     });
     expect(created.status).toBe(201);
     const draft = (await created.json()).assessment;

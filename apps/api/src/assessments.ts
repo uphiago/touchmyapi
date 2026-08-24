@@ -6,8 +6,14 @@ import {
   type AssessmentCreate,
 } from "../../../packages/contracts/src";
 import type { Hono, Context } from "hono";
+import {
+  canMembershipCapability,
+  evaluateMembership,
+  type MembershipCapability,
+} from "@touchmyapi/policy";
 import { ApiError } from "./error";
 import { hashSessionToken, readSessionToken, type AuthStore } from "./auth";
+import { AssessmentPolicyDeniedError } from "./postgres-assessment-store";
 import type { ApiEnvironment } from "./config";
 import type { ApiRequestEnv } from "./request-id";
 
@@ -23,6 +29,7 @@ export type AssessmentStore = Readonly<{
     sessionHash: string;
     accountId: string;
     assessmentId: string;
+    userId: string;
   }) => Promise<Assessment | undefined>;
 }>;
 
@@ -47,7 +54,10 @@ async function sessionForAccount(
   dependencies: AssessmentDependencies,
   accountId: string,
   environment: ApiEnvironment,
-): Promise<{ sessionHash: string; userId: string }> {
+): Promise<{
+  sessionHash: string;
+  session: NonNullable<Awaited<ReturnType<AuthStore["resolveSession"]>>>;
+}> {
   const cookieName =
     dependencies.allowInsecureCookies === true && environment === "development"
       ? "tma-session"
@@ -62,7 +72,25 @@ async function sessionForAccount(
   if (session.membershipStatus !== "active") {
     throw new ApiError(403, "membership_required", "Membership required");
   }
-  return { sessionHash, userId: session.userId };
+  return { sessionHash, session };
+}
+
+function requireAssessmentCapability(
+  session: NonNullable<Awaited<ReturnType<AuthStore["resolveSession"]>>>,
+  capability: MembershipCapability,
+): void {
+  try {
+    const membership = evaluateMembership({
+      accountId: session.accountId,
+      userId: session.userId,
+      role: session.role as Parameters<typeof evaluateMembership>[0]["role"],
+      status: session.membershipStatus,
+    });
+    if (canMembershipCapability(membership, capability)) return;
+  } catch {
+    // Invalid server-side membership facts fail closed below.
+  }
+  throw new ApiError(403, "membership_required", "Membership capability required");
 }
 
 function isInputError(error: unknown): boolean {
@@ -83,12 +111,13 @@ export function registerAssessmentRoutes(
   api.get("/api/v1/accounts/:accountId/assessments", async (context) => {
     try {
       const accountId = accountIdFrom(context);
-      const { sessionHash } = await sessionForAccount(
+      const { sessionHash, session } = await sessionForAccount(
         context,
         dependencies,
         accountId,
         environment,
       );
+      requireAssessmentCapability(session, "assessment:read");
       const assessments = await dependencies.store.list({ sessionHash, accountId });
       return context.json(assessmentListResponseSchema.parse({ assessments }));
     } catch (error) {
@@ -100,17 +129,18 @@ export function registerAssessmentRoutes(
   api.post("/api/v1/accounts/:accountId/assessments", async (context) => {
     try {
       const accountId = accountIdFrom(context);
-      const { sessionHash, userId } = await sessionForAccount(
+      const { sessionHash, session } = await sessionForAccount(
         context,
         dependencies,
         accountId,
         environment,
       );
+      requireAssessmentCapability(session, "assessment:create");
       const request = assessmentCreateSchema.parse(await context.req.json());
       const assessment = await dependencies.store.create({
         sessionHash,
         accountId,
-        userId,
+        userId: session.userId,
         request,
       });
       return context.json(assessmentMutationResponseSchema.parse({ assessment }), 201);
@@ -124,12 +154,13 @@ export function registerAssessmentRoutes(
   api.post("/api/v1/accounts/:accountId/assessments/:assessmentId/queue", async (context) => {
     try {
       const accountId = accountIdFrom(context);
-      const { sessionHash } = await sessionForAccount(
+      const { sessionHash, session } = await sessionForAccount(
         context,
         dependencies,
         accountId,
         environment,
       );
+      requireAssessmentCapability(session, "assessment:create");
       const assessmentId = context.req.param("assessmentId");
       if (!assessmentId || !UUID.test(assessmentId)) {
         throw new ApiError(400, "invalid_assessment", "Invalid assessment");
@@ -138,11 +169,15 @@ export function registerAssessmentRoutes(
         sessionHash,
         accountId,
         assessmentId: assessmentId.toLowerCase(),
+        userId: session.userId,
       });
       if (!assessment) throw new ApiError(404, "assessment_not_found", "Assessment not found");
       return context.json(assessmentMutationResponseSchema.parse({ assessment }));
     } catch (error) {
       if (error instanceof ApiError) throw error;
+      if (error instanceof AssessmentPolicyDeniedError) {
+        throw new ApiError(403, "assessment_policy_denied", "Assessment blocked by policy");
+      }
       throw new ApiError(503, "assessment_unavailable", "Assessment service unavailable");
     }
   });

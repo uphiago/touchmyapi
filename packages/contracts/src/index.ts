@@ -1,4 +1,6 @@
 export {
+  assessmentAuthorizationSchema,
+  assessmentAuthorizationTermsVersion,
   assessmentCreateSchema,
   assessmentListResponseSchema,
   assessmentMutationResponseSchema,

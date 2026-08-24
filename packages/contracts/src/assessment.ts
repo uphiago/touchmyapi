@@ -24,12 +24,24 @@ export const targetCategorySchema = z.enum(["web", "api", "surface", "genai", "i
 
 export type TargetCategory = z.infer<typeof targetCategorySchema>;
 
-export const assessmentCreateSchema = z.object({
-  targetCategory: targetCategorySchema,
-  target: z.string().trim().min(1).max(2048),
-  scope: z.array(z.string().trim().min(1).max(512)).max(100).default([]),
-  playbookId: z.string().trim().min(1).max(128).default("surface-public-posture"),
-});
+export const assessmentAuthorizationTermsVersion = "terms@1" as const;
+
+export const assessmentAuthorizationSchema = z
+  .object({
+    accepted: z.literal(true),
+    termsVersion: z.literal(assessmentAuthorizationTermsVersion),
+  })
+  .strict();
+
+export const assessmentCreateSchema = z
+  .object({
+    targetCategory: targetCategorySchema,
+    target: z.string().trim().min(1).max(2048),
+    scope: z.array(z.string().trim().min(1).max(512)).max(100).default([]),
+    playbookId: z.string().trim().min(1).max(128).default("surface-public-posture"),
+    authorization: assessmentAuthorizationSchema,
+  })
+  .strict();
 
 export const assessmentSchema = z.object({
   id: z.string().uuid(),

@@ -1,4 +1,10 @@
-import type { AccountSummary, MembershipRole, MembershipStatus } from "@touchmyapi/contracts";
+import type {
+  AccountSummary,
+  Invitation,
+  Membership,
+  MembershipRole,
+  MembershipStatus,
+} from "@touchmyapi/contracts";
 import { getRawAuthDatabase, type AuthDatabase } from "./auth-connection-internal";
 import type { RawDbConnection } from "./connection-internal";
 
@@ -49,6 +55,23 @@ export type AuthInvitationAcceptance = Readonly<{
   session: AuthSessionRecord;
   rotated: boolean;
 }>;
+
+export type AuthAccountInput = Readonly<{ sessionHash: string; accountId: string }>;
+
+export type CreateAuthInvitationInput = AuthAccountInput &
+  Readonly<{
+    email: string;
+    role: MembershipRole;
+    tokenHash: string;
+    expiresAt: Date;
+  }>;
+
+export type UpdateAuthMembershipInput = AuthAccountInput &
+  Readonly<{
+    userId: string;
+    role?: MembershipRole;
+    status?: MembershipStatus;
+  }>;
 
 type Principal = Readonly<{ backendPid: number; sessionPrincipal: string }>;
 
@@ -158,6 +181,41 @@ function mapSession(row: Record<string, unknown> | undefined): AuthSessionRecord
   });
 }
 
+function iso(value: unknown): string {
+  return new Date(value as string | Date).toISOString();
+}
+
+function mapMembership(row: Record<string, unknown> | undefined): Membership | undefined {
+  if (!row) return undefined;
+  return Object.freeze({
+    id: String(row.id),
+    accountId: String(row.account_id),
+    userId: String(row.user_id),
+    role: String(row.role) as MembershipRole,
+    status: String(row.status) as MembershipStatus,
+    invitedByUserId: row.invited_by_user_id ? String(row.invited_by_user_id) : null,
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+    removedAt: row.removed_at ? iso(row.removed_at) : null,
+  });
+}
+
+function mapInvitation(row: Record<string, unknown> | undefined): Invitation | undefined {
+  if (!row) return undefined;
+  return Object.freeze({
+    id: String(row.id),
+    accountId: String(row.account_id),
+    email: String(row.email),
+    proposedRole: String(row.proposed_role) as MembershipRole,
+    status: String(row.status) as Invitation["status"],
+    expiresAt: iso(row.expires_at),
+    acceptedAt: row.accepted_at ? iso(row.accepted_at) : null,
+    createdAt: iso(row.created_at),
+    invitedByUserId: String(row.invited_by_user_id),
+    acceptedByUserId: row.accepted_by_user_id ? String(row.accepted_by_user_id) : null,
+  });
+}
+
 async function snapshot(
   connection: RawDbConnection,
   sessionHash: string,
@@ -237,6 +295,52 @@ export async function listSessionAccounts(
       status: String(row.status) as MembershipStatus,
       active: Boolean(row.active),
     }));
+  });
+}
+
+export async function listAuthMemberships(
+  database: AuthDatabase,
+  input: AuthAccountInput,
+): Promise<readonly Membership[]> {
+  return withAuthRole(database, async (connection) => {
+    const rows = await connection.unsafe(
+      "select * from public.auth_list_memberships($1::text,$2::uuid)",
+      [input.sessionHash, input.accountId],
+    );
+    return rows.map((row) => mapMembership(row as Record<string, unknown>)!);
+  });
+}
+
+export async function createAuthInvitation(
+  database: AuthDatabase,
+  input: CreateAuthInvitationInput,
+): Promise<Invitation | undefined> {
+  return withAuthRole(database, async (connection) => {
+    const rows = await connection.unsafe(
+      "select * from public.auth_create_invitation_snapshot($1::text,$2::uuid,$3::public.citext,$4::public.membership_role,$5::text,$6::timestamptz)",
+      [
+        input.sessionHash,
+        input.accountId,
+        input.email,
+        input.role,
+        input.tokenHash,
+        input.expiresAt,
+      ],
+    );
+    return mapInvitation(rows[0] as Record<string, unknown> | undefined);
+  });
+}
+
+export async function updateAuthMembership(
+  database: AuthDatabase,
+  input: UpdateAuthMembershipInput,
+): Promise<Membership | undefined> {
+  return withAuthRole(database, async (connection) => {
+    const rows = await connection.unsafe(
+      "select * from public.auth_update_membership_secure($1::text,$2::uuid,$3::uuid,$4::public.membership_role,$5::public.membership_status)",
+      [input.sessionHash, input.accountId, input.userId, input.role ?? null, input.status ?? null],
+    );
+    return mapMembership(rows[0] as Record<string, unknown> | undefined);
   });
 }
 
