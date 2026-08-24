@@ -1,0 +1,306 @@
+packages/reporting/src/bundle.ts
+  s_bc54431df54bf2::t_d8884ab15c1243 25,29,32-35,48,55
+  s_bc54431df54bf2::t_d6ef2becb2f885 19-20
+  s_bc54431df54bf2::t_5d1f50d6578e8e 1-18,21-24,26-28,30-31,36-47,49-54,56-59
+  s_bc54431df54bf2::t_fb7c571f17a9d7 60-62
+docs/operations/ovh-deployment.md
+  s_bc54431df54bf2::t_a499ff2c4ee2a7 48-49,54-59
+  s_bc54431df54bf2::t_f5e4573f057935 84-99
+  s_bc54431df54bf2::t_9b1991423de696 3,17-21,43-47
+  s_bc54431df54bf2::t_008319c93ea11d 75-83,100-104,143-147
+  s_bc54431df54bf2::t_daf5e5d38cb69a 62
+  s_bc54431df54bf2::t_d9006e05486457 148
+apps/web/src/App.tsx
+  s_bc54431df54bf2::t_0d451599d321ec 335-336,339,353-360,369-370
+  s_bc54431df54bf2::t_2f82c8a8968f5a 37,69,140
+  s_bc54431df54bf2::t_5f331a1b6b7b61 9,13-14,23,38-41,54-56,70-73,86-88,128-139,141-148,150-151
+  s_bc54431df54bf2::t_b9ae11efa66e0e 57,89,149,397-405,537
+  s_bc54431df54bf2::t_ea1c385ac206de 274,337-338,340-342,377-382
+  s_bc54431df54bf2::t_9b36ad42f93fa2 1,268,276,278,282,293,297,308,313,367,371-376
+  s_bc54431df54bf2::t_aecaeaf37bb446 260-264,272-273,275,277,279-281,283-292,294-296,298-307,309-311,351-352,361-366,368,383-395,535,554
+  s_bc54431df54bf2::t_b914bc0ea24e83 396,534,536,538,555-557,601-605,618-621
+tests/contract/delivery-contract.test.ts
+  s_bc54431df54bf2::t_1e1506335728bb 7,87-101
+  s_bc54431df54bf2::t_3f7045e84ff6bc 1-6,9-86,102-139
+  s_bc54431df54bf2::t_d9dec6d269772f 8
+packages/reporting/test/reporting.unit.test.ts
+  s_bc54431df54bf2::t_30fdb63fe1cef4 1-2,11-86,88,91,96-118,120-123,127-128
+  s_bc54431df54bf2::t_5d1f50d6578e8e 3-10,131-136
+  s_bc54431df54bf2::t_b5e6b5f3c1a266 87,89-90,92-95,129-130,137-140
+  s_bc54431df54bf2::t_57a2a47a934922 119,124-126
+packages/db/test/worker-delivery.integration.test.ts
+  s_bc54431df54bf2::t_67233ebe7b82bf 10,226-287
+  s_bc54431df54bf2::t_dca57a0bdf3f58 12,159-163
+  s_bc54431df54bf2::t_7c3a4d7fa7476d 175-179,183-188,197,206,213
+  s_bc54431df54bf2::t_65f498889fd208 1-9,11,13-64,68-158,164-174,180-182,189-196,200,202,210-212,214-215,220-222,224-225,288-290
+  s_bc54431df54bf2::t_8b2fe5708e798c 65-67,203-205,207-209,223
+  s_bc54431df54bf2::t_381773c0eb9197 198-199,201,216-219
+  s_bc54431df54bf2::t_5f0a1ac9d58e5e 291-311
+packages/analysis/test/passive-analysis.unit.test.ts
+  s_bc54431df54bf2::t_40b827364ac1dd 1-7,9-30,34-97
+  s_bc54431df54bf2::t_f5e0f35cc8a130 8,31-33
+tests/contract/deployment.test.ts
+  s_bc54431df54bf2::t_0a9f861edd3436 18,77-78,81-84,103-108,116-122
+  s_bc54431df54bf2::t_a34a72b6d43f96 58-60,87,92-94
+  s_bc54431df54bf2::t_0d47d361d27960 79
+  s_bc54431df54bf2::t_b13e280f3a4932 123
+apps/worker-control/src/service.ts
+  s_bc54431df54bf2::t_42c3525a4899b7 26-27,29,31,60-64,67-81,108-133,136,190-197
+  s_bc54431df54bf2::t_3b81e021320b71 3-8,51,53-59,175-181,187
+  s_bc54431df54bf2::t_e36ac10270d216 1-2,9-25,28,30,32-50,52,65-66,82-107,134-135,137-174,182-186,188-189,198-209
+  s_bc54431df54bf2::t_18f0448ef4f443 210-212
+apps/api/src/runtime.ts
+  s_bc54431df54bf2::t_09b9757bf0dedc 19,127
+  s_bc54431df54bf2::t_dfbdc9c7898539 20,31-48,128
+  s_bc54431df54bf2::t_43559937b56f00 129-131
+packages/db/schema/reporting.ts
+  s_bc54431df54bf2::t_7a50f0be1ccec4 11,25-29,52
+apps/web/src/results.test.tsx
+  s_bc54431df54bf2::t_d6486465a6cbd5 43,101,111
+  s_bc54431df54bf2::t_49895435be1c39 1-42,44-100,102-110,112-113
+packages/analysis/src/index.ts
+  s_bc54431df54bf2::t_f5e0f35cc8a130 1-47,56-194
+  s_bc54431df54bf2::t_80b9e561e4e22d 48-55
+  s_bc54431df54bf2::t_43ad47e26fe823 195-196
+packages/reporting/src/storage.ts
+  s_bc54431df54bf2::t_57a2a47a934922 119-136
+  s_bc54431df54bf2::t_30fdb63fe1cef4 1-118,137-241
+apps/web/index.html
+  s_bc54431df54bf2::t_b0670c01d22679 7
+packages/db/test/schema.integration.test.ts
+  s_bc54431df54bf2::t_01f217fbdc9a08 250,253,258,260,443,447,456
+docs/product/user-journeys.md
+  s_bc54431df54bf2::t_f3e9f6f0a55a0a 34,46,60
+packages/db/scripts/configure-connectors.ts
+  s_bc54431df54bf2::t_938ae6973e63e1 3-9,21-23
+apps/worker-control/src/server.ts
+  s_bc54431df54bf2::t_dc45e67edccf4c 1-37
+packages/db/test/queue-control.integration.test.ts
+  s_bc54431df54bf2::t_86d8fecf68bbc1 67-71,91-105,107
+  s_bc54431df54bf2::t_e2f32b4faf9457 41
+infra/docker/compose.production.yml
+  s_bc54431df54bf2::t_938ae6973e63e1 42-44
+  s_bc54431df54bf2::t_eb720c28b170ce 60-64
+  s_bc54431df54bf2::t_6d54a27d6b2b79 149-172,178-191
+  s_bc54431df54bf2::t_280829be5f826c 173-177
+apps/worker-control/package.json
+  s_bc54431df54bf2::t_5c7f99df9feea0 1-13,16-17
+  s_bc54431df54bf2::t_80b9e561e4e22d 14-15
+packages/reporting/src/index.ts
+  s_bc54431df54bf2::t_5d1f50d6578e8e 6-7
+  s_bc54431df54bf2::t_30fdb63fe1cef4 1-5,8-13
+scripts/dev-local.ts
+  s_bc54431df54bf2::t_8605b23ed052ee 11-25,48-58,60-61,67-74,90-100
+  s_bc54431df54bf2::t_497ef1d2539723 101-103,128
+apps/worker-control/test/fixture-runner.test.ts
+  s_bc54431df54bf2::t_5c7f99df9feea0 1-19,22-33
+  s_bc54431df54bf2::t_42c3525a4899b7 20-21
+packages/contracts/src/job.ts
+  s_bc54431df54bf2::t_838ce130d609e3 80
+  s_bc54431df54bf2::t_04a1828898b7de 23-47,92
+packages/analysis/package.json
+  s_bc54431df54bf2::t_40b827364ac1dd 1-14
+scripts/validate-production-compose.ts
+  s_bc54431df54bf2::t_938ae6973e63e1 15-20
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_daf5e5d38cb69a 209-214
+  s_bc54431df54bf2::t_cc388a84157ce8 242
+packages/db/migrations/0027_passive_delivery.sql
+  s_bc54431df54bf2::t_c67b428bc416a3 1-169
+apps/api/src/local-development.ts
+  s_bc54431df54bf2::t_d3ba9360a9fc5b 247-255
+  s_bc54431df54bf2::t_35fc2f0e67766b 10,243
+  s_bc54431df54bf2::t_09b9757bf0dedc 11,209
+  s_bc54431df54bf2::t_e95f6ffe9f5dcf 70-76,84
+packages/reporting/src/sanitize.ts
+  s_bc54431df54bf2::t_30fdb63fe1cef4 1-123
+apps/worker-control/src/config.ts
+  s_bc54431df54bf2::t_c805b5426f3b7d 1-12,20-93,117-118
+  s_bc54431df54bf2::t_a44587f9db151e 13-19,94-116
+  s_bc54431df54bf2::t_41b333e77eff53 119-125
+packages/db/migrations/0028_queue_connector_schema_usage.sql
+  s_bc54431df54bf2::t_2726217b493edc 1-4
+packages/reporting/src/pdf-executive.ts
+  s_bc54431df54bf2::t_d8884ab15c1243 4,26
+  s_bc54431df54bf2::t_30fdb63fe1cef4 1-3,5-25,27
+  s_bc54431df54bf2::t_113cf6a57f0d2f 28-31
+packages/db/test/delivery-schema.integration.test.ts
+  s_bc54431df54bf2::t_86d8fecf68bbc1 1-77
+  s_bc54431df54bf2::t_ffba2efb3d6677 78-80
+apps/api/src/local-persistent.ts
+  s_bc54431df54bf2::t_35fc2f0e67766b 1-4,7-25,34,39-45
+  s_bc54431df54bf2::t_12abec8289299b 6,26-33,37
+  s_bc54431df54bf2::t_09b9757bf0dedc 5,35-36,38
+tests/contract/foundation-config.test.ts
+  s_bc54431df54bf2::t_a34a72b6d43f96 92-94
+apps/api/src/app.ts
+  s_bc54431df54bf2::t_aaa189b595aa30 10,33,116-117
+  s_bc54431df54bf2::t_15bec779d11084 118
+packages/contracts/src/index.ts
+  s_bc54431df54bf2::t_b19cb06c9248c9 57
+  s_bc54431df54bf2::t_155384bbae4997 48,54
+  s_bc54431df54bf2::t_04a1828898b7de 34-47,49-53,55-56
+packages/reporting/package.json
+  s_bc54431df54bf2::t_30fdb63fe1cef4 1-16,23-24
+  s_bc54431df54bf2::t_25337fbb5e0615 17-19
+  s_bc54431df54bf2::t_57422091f69ed3 20-22
+apps/api/src/postgres-delivery-store.ts
+  s_bc54431df54bf2::t_09b9757bf0dedc 1-4,6-8,10-13,15-18,21-66,71-95,115-117
+  s_bc54431df54bf2::t_1e75eaab066ab8 19,98
+  s_bc54431df54bf2::t_94d85f4122a0b8 99-113
+  s_bc54431df54bf2::t_12abec8289299b 5,14,20,67-70,96-97,114
+  s_bc54431df54bf2::t_334efed68d1d33 9
+apps/web/src/app.css
+  s_bc54431df54bf2::t_4869ad19e03272 1779-1782,1886-1898
+  s_bc54431df54bf2::t_65020755c2b30e 1429-1707
+.env.example
+  s_bc54431df54bf2::t_a499ff2c4ee2a7 46-47
+  s_bc54431df54bf2::t_938ae6973e63e1 16-20
+  s_bc54431df54bf2::t_a44587f9db151e 53
+packages/db/scripts/seed-local.ts
+  s_bc54431df54bf2::t_35fc2f0e67766b 1-13,19-31,67-94
+  s_bc54431df54bf2::t_607b64955ef1a0 14-18,36-65
+  s_bc54431df54bf2::t_5a92b4a88221f4 32-35,66
+apps/worker-control/test/config.test.ts
+  s_bc54431df54bf2::t_421c0d9c199c17 1-43
+vitest.config.ts
+  s_bc54431df54bf2::t_01f217fbdc9a08 5,15-16,49-55,57-60
+  s_bc54431df54bf2::t_2a7e9ae7fd0d72 6,56,61
+  s_bc54431df54bf2::t_8fac567b1647bf 24-26
+  s_bc54431df54bf2::t_672029479f50cb 23,36,48
+apps/api/src/delivery.ts
+  s_bc54431df54bf2::t_1e75eaab066ab8 56-62,185-197
+  s_bc54431df54bf2::t_aaa189b595aa30 1-5,7-10,12-42,48-55,63-170
+  s_bc54431df54bf2::t_12abec8289299b 6,11,43-47,171-184
+packages/ui/api-client.ts
+  s_bc54431df54bf2::t_1cac97547f9740 30,47,259-260
+  s_bc54431df54bf2::t_6fea1d16c6154b 32,36,84-87,89-92,94-98,269-278
+  s_bc54431df54bf2::t_dd628db675bf92 39-46
+  s_bc54431df54bf2::t_e3a6551adcf2a3 28-29,31,33-35,88,93,237-258,261-268
+packages/reporting/src/json-export.ts
+  s_bc54431df54bf2::t_30fdb63fe1cef4 1-19
+apps/api/package.json
+  s_bc54431df54bf2::t_12abec8289299b 19
+apps/worker-control/src/fixture-runner.ts
+  s_bc54431df54bf2::t_42c3525a4899b7 6,18-19
+  s_bc54431df54bf2::t_e36ac10270d216 1-5,7-17,20-78
+apps/api/src/server.ts
+  s_bc54431df54bf2::t_35fc2f0e67766b 3,8-16
+  s_bc54431df54bf2::t_2983a2354a0278 17,19,23
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_c67b428bc416a3 193-199
+  s_bc54431df54bf2::t_2726217b493edc 200-206
+apps/api/test/delivery.test.ts
+  s_bc54431df54bf2::t_3d97ed2d323185 1-9,11-60,65-123,149-150
+  s_bc54431df54bf2::t_1bcd00699cac83 10,61-64,124-148
+packages/reporting/src/pdf-technical.ts
+  s_bc54431df54bf2::t_d8884ab15c1243 4,14
+  s_bc54431df54bf2::t_30fdb63fe1cef4 1-3,5-13,15
+  s_bc54431df54bf2::t_bff56fc8879da9 16-19
+apps/worker-control/Dockerfile
+  s_bc54431df54bf2::t_6af4308822a7ee 1-13
+.github/workflows/build-deploy.yml
+  s_bc54431df54bf2::t_8881c5c56fcba9 116-117,129-130,140,145-148,152,159-160
+  s_bc54431df54bf2::t_46906282027843 48
+  s_bc54431df54bf2::t_970c73ec280af5 62-70,94
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_70389f78ef77c6 165-171,174,177,181
+  s_bc54431df54bf2::t_b41d75142aac69 33-34,36,49,118,123,137,190,194,196-198
+  s_bc54431df54bf2::t_60077ce6931711 64
+packages/db/schema/audit.ts
+  s_bc54431df54bf2::t_7a50f0be1ccec4 83,90
+apps/worker-control/src/runtime.ts
+  s_bc54431df54bf2::t_42c3525a4899b7 10,12,84-85,87-95,200-203
+  s_bc54431df54bf2::t_e7509a04005c19 14,24-28,71,81,127-140,142-193
+  s_bc54431df54bf2::t_d8884ab15c1243 141
+  s_bc54431df54bf2::t_dc45e67edccf4c 1-9,11,13,15-23,29-70,72-80,82-83,86,96-126,194-199,204-220
+docs/reviews/2026-08-24-passive-delivery-v1.md
+  s_bc54431df54bf2::t_92844239783977 1-48
+packages/db/src/tenant-delivery.ts
+  s_bc54431df54bf2::t_09b9757bf0dedc 1-150,161
+  s_bc54431df54bf2::t_155384bbae4997 162-181
+  s_bc54431df54bf2::t_d3ba9360a9fc5b 151-160
+apps/worker-control/test/worker-service.test.ts
+  s_bc54431df54bf2::t_3b81e021320b71 74,176
+  s_bc54431df54bf2::t_176549336b91f0 31-32,52-59,75,106-148,179-205
+  s_bc54431df54bf2::t_5c7f99df9feea0 1-30,33-51,60-73,76-105,149-175,177-178,206-208
+  s_bc54431df54bf2::t_0f1cf3cb3f743c 209-215
+packages/db/src/worker-delivery.ts
+  s_bc54431df54bf2::t_be6ed044b40fea 64-68,235-259
+  s_bc54431df54bf2::t_66565ca84910cf 7,193-194,207-234,417,419-430,432-442,444-451,454
+  s_bc54431df54bf2::t_35f07986ee8a65 187-192
+  s_bc54431df54bf2::t_4a3aef45f2d7b5 456-485
+  s_bc54431df54bf2::t_b19cb06c9248c9 1-6,8-54,56-57,81-186,195-206,310-339,351-392,404-416,418,452-453,455
+  s_bc54431df54bf2::t_d22cdf83f3b580 55,58-63,69-80,260-309,340-350,393-403,431,443
+  s_bc54431df54bf2::t_3da464104dda07 486-490
+packages/db/test/configure-connectors.test.ts
+  s_bc54431df54bf2::t_a34a72b6d43f96 14-18,25-27,33-35,46-50
+  s_bc54431df54bf2::t_7c358a7bd88b09 53
+scripts/smoke-remote.sh
+  s_bc54431df54bf2::t_c0c73c21a77ed9 18-24
+packages/db/schema/execution.ts
+  s_bc54431df54bf2::t_7a50f0be1ccec4 71,84-88
+packages/reporting/src/pdf.ts
+  s_bc54431df54bf2::t_222e77bd14b047 1-63,66-103
+  s_bc54431df54bf2::t_57422091f69ed3 64-65
+scripts/deploy-ovh.sh
+  s_bc54431df54bf2::t_c44f83fc807e2c 19-29,44
+  s_bc54431df54bf2::t_60608cb9817c33 30-35
+  s_bc54431df54bf2::t_0d47d361d27960 63
+apps/web/public/favicon.svg
+  s_bc54431df54bf2::t_b0670c01d22679 1-4
+scripts/local-smoke.ts
+  s_bc54431df54bf2::t_0f49e268d2dbbe 35-38
+  s_bc54431df54bf2::t_60f766de15156e 103,113-134,136-138
+  s_bc54431df54bf2::t_6bed02cf5bb778 135
+  s_bc54431df54bf2::t_e95f6ffe9f5dcf 85
+  s_bc54431df54bf2::t_68ce892b9c50a7 98-102,104-112,139
+  s_bc54431df54bf2::t_3ebf87cf04da3b 55-84,86-97,230-235
+  s_bc54431df54bf2::t_6cd4ae42684a1c 227
+apps/web/src/results.tsx
+  s_bc54431df54bf2::t_c89e86ffb4ac85 94-99,103-106,110-112,114,126-133,135-136,138-149
+  s_bc54431df54bf2::t_fcbfabd31f648b 1-18,20-89,93,113,115-118,122-125,134,137,150-179,184-185,191-216,220-242,253,262-280,282-289,293,300-303,308-315,320-331,335-341,346-350,357-362,364-367
+  s_bc54431df54bf2::t_d6486465a6cbd5 19,90-92,100-102,107-109,119-121,180-183,186-190,217-219,243-252,254-261,281,290-292,294-299,304-307,316-319,332-334,342-345,351-356,363
+README.md
+  s_bc54431df54bf2::t_daf5e5d38cb69a 21-24,33,120
+  s_bc54431df54bf2::t_70389f78ef77c6 77,81-87,90,93,97
+  s_bc54431df54bf2::t_fc3108e0fd6b86 7,13-20,25-27,59
+  s_bc54431df54bf2::t_c683d28376e168 49
+packages/contracts/src/delivery.ts
+  s_bc54431df54bf2::t_04a1828898b7de 1-94,102-106
+  s_bc54431df54bf2::t_155384bbae4997 95-101,107
+  s_bc54431df54bf2::t_bbfb1b8cf83dbe 108-110
+packages/db/test/tenant-delivery.integration.test.ts
+  s_bc54431df54bf2::t_7078dc2f25e24a 1-131,136-139
+  s_bc54431df54bf2::t_d0696ce760d700 132-135
+  s_bc54431df54bf2::t_83ca6957c56a10 140-159
+scripts/rollback-ovh.sh
+  s_bc54431df54bf2::t_c44f83fc807e2c 1-15
+packages/db/test/queue-schema.integration.test.ts
+  s_bc54431df54bf2::t_1ee1cc0eeac1c4 112-117
+packages/db/src/index.ts
+  s_bc54431df54bf2::t_d22cdf83f3b580 59,65,68
+  s_bc54431df54bf2::t_4a3aef45f2d7b5 56
+  s_bc54431df54bf2::t_09b9757bf0dedc 82-84,86-90
+  s_bc54431df54bf2::t_155384bbae4997 85
+  s_bc54431df54bf2::t_b19cb06c9248c9 54-55,57,60-64,66,69
+  s_bc54431df54bf2::t_be6ed044b40fea 58,67
+bun.lock
+  s_bc54431df54bf2::t_089d959854bce8 40-43,63-79,99-105,114-115,118,120-123,171-172,263-266,273-300,353-354,357-358,365-366,369,377-378,437-438,459-460,463-464,469-470,493-494,497-499,519-520,533-534,565-566,583-584,595-596,623-626,631-632,655-656,659-664,685-686,705-706,727-728,731-734,739-740,747-748,751-752,765-766,773-774,777-778,785-786,789-790,797-798,801-802,809-810,821-822,853-854,865-866,869-870,887-888,899-902,907-908,911-912,933-934,943-946,949-952,975-976
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "66e1db7316a812dc332e24ff3e08a38367469420",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
