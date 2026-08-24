@@ -45,6 +45,7 @@ async function run(
   if (exitCode !== 0) throw new Error(`${command} ${args.join(" ")} exited with ${exitCode}`);
 }
 
+await run("docker", ["compose", "--profile", "local", "-f", composeFile, "up", "-d", "minio"]);
 await run("docker", [
   "compose",
   "--profile",
@@ -57,7 +58,6 @@ await run("docker", [
   "--wait-timeout",
   "120",
   "postgres",
-  "minio",
 ]);
 await run("bun", ["run", "db:migrate"], { DATABASE_URL: databaseUrl });
 await run("bun", ["packages/db/scripts/configure-connectors.ts"], connectorEnv);
