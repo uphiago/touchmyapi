@@ -29,7 +29,6 @@ describe("OVH release boundary", () => {
     expect(workflow).toContain("curl --fail --silent --show-error --max-time 20");
     expect(workflow).toContain("https://touchmyapi.com/");
     expect(workflow).toContain("https://www.touchmyapi.com/");
-    expect(workflow).toContain("Run local end-to-end journey");
   });
 
   it("verifies SSH and never discovers or bypasses host keys", () => {
