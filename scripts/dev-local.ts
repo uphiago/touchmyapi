@@ -45,7 +45,9 @@ async function run(
   if (exitCode !== 0) throw new Error(`${command} ${args.join(" ")} exited with ${exitCode}`);
 }
 
-await run("docker", ["compose", "--profile", "local", "-f", composeFile, "up", "-d", "minio"]);
+if (process.env.TOUCHMYAPI_EXTERNAL_MINIO !== "1") {
+  await run("docker", ["compose", "--profile", "local", "-f", composeFile, "up", "-d", "minio"]);
+}
 await run("docker", [
   "compose",
   "--profile",
