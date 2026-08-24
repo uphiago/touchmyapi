@@ -61,6 +61,19 @@ describe("API boundary", () => {
     expect(disallowed.headers.get("access-control-allow-origin")).toBeNull();
   });
 
+  it("returns an explicit unavailable boundary for account discovery without auth wiring", async () => {
+    const app = createTestApp({ record: async () => undefined });
+    const response = await app.request("http://localhost/api/v1/accounts", {
+      headers: { Origin: config.corsOrigin },
+    });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("access-control-allow-origin")).toBe(config.corsOrigin);
+    expect(await response.json()).toEqual({
+      error: { code: "auth_unavailable", message: "Service Unavailable" },
+    });
+  });
+
   it("audits auth CORS preflight exactly once", async () => {
     const records: AuditRecord[] = [];
     const app = createTestApp({
