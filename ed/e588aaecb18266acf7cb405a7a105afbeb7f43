@@ -1,0 +1,54 @@
+packages/db/migrations/0026_api_connector.sql
+  s_bc54431df54bf2::t_6214da3d24f8fa 1-34
+packages/contracts/test/membership.test.ts
+  s_bc54431df54bf2::t_284c2741258691 128-134,139
+  s_bc54431df54bf2::t_03aeaa93736156 43,52
+packages/db/test/roles.isolation.test.ts
+  s_bc54431df54bf2::t_94528a83ee622c 42-46,49,254-288
+  s_bc54431df54bf2::t_272cb5f74fea17 289-290
+apps/api/src/runtime.ts
+  s_bc54431df54bf2::t_acf7bc8b232db6 47-48,58-59
+  s_bc54431df54bf2::t_6214da3d24f8fa 1-46,49-57,60-100
+packages/db/src/auth-session.ts
+  s_bc54431df54bf2::t_03aeaa93736156 194
+apps/api/src/app.ts
+  s_bc54431df54bf2::t_a8c216048e4830 136
+apps/api/src/config.ts
+  s_bc54431df54bf2::t_0da671d91bb3c3 156-166,169
+apps/api/src/postgres-membership-store.ts
+  s_bc54431df54bf2::t_5e6f0599e4ed61 23,39
+apps/api/test/runtime.integration.test.ts
+  s_bc54431df54bf2::t_e5ddc50f2e9a0f 2-5
+  s_bc54431df54bf2::t_b6312d5dab5aaa 1,6-84
+packages/db/src/connection-internal.ts
+  s_bc54431df54bf2::t_6214da3d24f8fa 32-37,51-55
+  s_bc54431df54bf2::t_a34e517a506779 56
+packages/db/src/index.ts
+  s_bc54431df54bf2::t_6214da3d24f8fa 2-7
+packages/contracts/src/membership.ts
+  s_bc54431df54bf2::t_3aa5b7dbcba092 124
+  s_bc54431df54bf2::t_03aeaa93736156 20
+packages/db/migrations/0025_auth_membership_contact.sql
+  s_bc54431df54bf2::t_03aeaa93736156 1-59
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_6214da3d24f8fa 186-192
+  s_bc54431df54bf2::t_03aeaa93736156 179-185
+apps/api/src/server.ts
+  s_bc54431df54bf2::t_6214da3d24f8fa 3,6-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ede588aaecb18266acf7cb405a7a105afbeb7f43",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
