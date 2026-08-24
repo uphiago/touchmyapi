@@ -260,11 +260,11 @@ describe("non-escalating limits", () => {
   });
 
   it.each([
-    undefined,
-    [],
-    ["scope_target", "scope_target"],
-    ["scope_target", "internet"],
-    ["internet"],
+    [undefined],
+    [[]],
+    [["scope_target", "scope_target"]],
+    [["scope_target", "internet"]],
+    [["internet"]],
   ])("denies malformed playbook egress %j", (egress) => {
     const input = validInput();
     (input.playbook as Record<string, unknown>).egress = egress;
@@ -288,11 +288,14 @@ describe("non-escalating limits", () => {
     }
   });
 
-  it.each([null, [], "limits", 42, true])("fails closed for malformed root %j", (input) => {
-    expect(() => reduceLimits(input as never)).not.toThrow();
-    expect(reduceLimits(input as never)).toEqual({
-      ok: false,
-      code: "invalid_authoritative_limit",
-    });
-  });
+  it.each([[null], [[]], ["limits"], [42], [true]])(
+    "fails closed for malformed root %j",
+    (input) => {
+      expect(() => reduceLimits(input as never)).not.toThrow();
+      expect(reduceLimits(input as never)).toEqual({
+        ok: false,
+        code: "invalid_authoritative_limit",
+      });
+    },
+  );
 });

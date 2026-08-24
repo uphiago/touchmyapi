@@ -17,6 +17,7 @@ export const membershipSchema = z
     id: uuidSchema,
     accountId: uuidSchema,
     userId: uuidSchema,
+    email: emailSchema.optional(),
     role: membershipRoleSchema,
     status: membershipStatusSchema,
     invitedByUserId: uuidSchema.nullable().optional(),
@@ -120,6 +121,7 @@ export type InvitationCreateResponse = z.infer<typeof invitationCreateResponseSc
 export const accountSummarySchema = z
   .object({
     accountId: uuidSchema,
+    displayName: z.string().min(1).max(120).optional(),
     role: membershipRoleSchema,
     status: membershipStatusSchema,
     active: z.boolean(),

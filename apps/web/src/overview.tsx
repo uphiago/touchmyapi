@@ -2,21 +2,57 @@ import type { AccountSummary, Assessment } from "../../../packages/contracts/src
 
 export type OverviewProps = Readonly<{
   activeAccount: AccountSummary;
+  plan: string;
   assessments: readonly Assessment[];
   memberCount: number;
+  canCreate?: boolean;
   onNewAssessment: () => void;
 }>;
 
 const activeStates = new Set(["queued", "running", "analyzing"]);
 
+const roleGuidance: Record<
+  AccountSummary["role"],
+  { title: string; next: string; guardrail: string }
+> = {
+  owner: {
+    title: "Your owner workflow",
+    next: "Confirm team access, create the first authorized assessment, then review delivery access.",
+    guardrail: "Owner changes are protected by the last-owner transaction rule.",
+  },
+  admin: {
+    title: "Your admin workflow",
+    next: "Manage collaborators and keep assessment operations moving inside the approved scope.",
+    guardrail: "Billing entitlements and staff operations remain outside this role.",
+  },
+  operator: {
+    title: "Your operator workflow",
+    next: "Create authorized drafts, perform the final queue review, and follow server state.",
+    guardrail: "Team access, billing, policy and queue internals remain server controlled.",
+  },
+  viewer: {
+    title: "Your viewer workflow",
+    next: "Follow assessment state and consume only the delivery returned for this plan.",
+    guardrail: "This role cannot create, queue, invite, or change workspace access.",
+  },
+  billing: {
+    title: "Your billing workflow",
+    next: "Review the current plan and payment state without accessing assessment data.",
+    guardrail: "Only verified Stripe webhooks can change entitlements.",
+  },
+};
+
 export function Overview({
   activeAccount,
+  plan,
   assessments,
   memberCount,
+  canCreate = true,
   onNewAssessment,
 }: OverviewProps) {
   const active = assessments.filter((assessment) => activeStates.has(assessment.status)).length;
   const drafts = assessments.filter((assessment) => assessment.status === "draft").length;
+  const guidance = roleGuidance[activeAccount.role];
   return (
     <div className="view-stack">
       <section className="page-intro">
@@ -28,13 +64,35 @@ export function Overview({
             into a clear operator workflow.
           </p>
         </div>
-        <button
-          className="button button--primary button--inline"
-          type="button"
-          onClick={onNewAssessment}
-        >
-          <span aria-hidden="true">＋</span> New assessment
-        </button>
+        {canCreate ? (
+          <button
+            className="button button--primary button--inline"
+            type="button"
+            onClick={onNewAssessment}
+          >
+            <span aria-hidden="true">＋</span> New assessment
+          </button>
+        ) : (
+          <span className="access-mode">Read-only access</span>
+        )}
+      </section>
+      <section className="journey-card" aria-label={`${activeAccount.role} workflow`}>
+        <div>
+          <span className="eyebrow">Role-aware next step</span>
+          <h2>{guidance.title}</h2>
+          <p>{guidance.next}</p>
+        </div>
+        <dl>
+          <div>
+            <dt>Plan</dt>
+            <dd>{plan.replaceAll("_", " ")}</dd>
+          </div>
+          <div>
+            <dt>Delivery</dt>
+            <dd>Delivery is plan-filtered by the server</dd>
+          </div>
+        </dl>
+        <small>{guidance.guardrail}</small>
       </section>
       <section className="metric-grid" aria-label="Workspace summary">
         <article className="metric">

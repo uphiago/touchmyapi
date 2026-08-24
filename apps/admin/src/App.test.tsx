@@ -46,6 +46,9 @@ describe("admin console", () => {
     }
     expect(markup).toContain("LOCAL STAFF SIMULATION");
     expect(markup).toContain("No customer impersonation");
+    expect(markup).toContain("Operational triage");
+    expect(markup).toContain("1m oldest queued item");
+    expect(markup).toContain("Review queue");
   });
 
   it("keeps billing read-only and makes grant-before-action explicit", () => {
@@ -55,5 +58,20 @@ describe("admin console", () => {
     const grants = renderToStaticMarkup(<AdminConsole snapshot={snapshot} activeView="access" />);
     expect(grants).toContain("Request capability grant");
     expect(grants).toContain("distinct mock approver");
+    expect(grants).toContain("Operational ticket");
+    expect(grants).toContain("Reason for access");
+  });
+
+  it("turns accounts and queue into operator workspaces instead of static tables", () => {
+    const accounts = renderToStaticMarkup(
+      <AdminConsole snapshot={snapshot} activeView="accounts" />,
+    );
+    expect(accounts).toContain("Search safe metadata");
+    expect(accounts).toContain("Open queue view");
+
+    const queue = renderToStaticMarkup(<AdminConsole snapshot={snapshot} activeView="queue" />);
+    expect(queue).toContain("Queue triage");
+    expect(queue).toContain("Request bounded action");
+    expect(queue).toContain("Never retries customer work directly from the browser");
   });
 });

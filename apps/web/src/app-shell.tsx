@@ -1,14 +1,25 @@
 import type { AccountSummary } from "../../../packages/contracts/src";
 
 export type ApiStatus = "checking" | "online" | "unavailable";
-export type CustomerView = "overview" | "assessments" | "team" | "workspace";
+export type CustomerView = "overview" | "assessments" | "team" | "billing" | "workspace";
 
 const navigation: readonly { key: CustomerView; label: string; index: string }[] = [
   { key: "overview", label: "Overview", index: "01" },
   { key: "assessments", label: "Assessments", index: "02" },
   { key: "team", label: "Team", index: "03" },
-  { key: "workspace", label: "Workspace", index: "04" },
+  { key: "billing", label: "Billing", index: "04" },
+  { key: "workspace", label: "Workspace", index: "05" },
 ];
+
+function navigationFor(role: AccountSummary["role"] | undefined) {
+  if (role === "billing") {
+    return navigation.filter((item) => ["overview", "billing", "workspace"].includes(item.key));
+  }
+  if (role === "owner" || role === "admin") {
+    return navigation.filter((item) => item.key !== "billing");
+  }
+  return navigation.filter((item) => ["overview", "assessments", "workspace"].includes(item.key));
+}
 
 function shortId(value: string): string {
   return `${value.slice(0, 8)}…${value.slice(-4)}`;
@@ -19,7 +30,10 @@ export type AppShellProps = Readonly<{
   localMocks: boolean;
   activeView: CustomerView;
   activeAccount?: AccountSummary;
+  email: string;
+  plan: string;
   onNavigate: (view: CustomerView) => void;
+  onLogout: () => void | Promise<void>;
   children: React.ReactNode;
 }>;
 
@@ -28,7 +42,10 @@ export function AppShell({
   localMocks,
   activeView,
   activeAccount,
+  email,
+  plan,
   onNavigate,
+  onLogout,
   children,
 }: AppShellProps) {
   const statusLabel =
@@ -47,7 +64,7 @@ export function AppShell({
           </div>
         </div>
         <nav className="primary-nav" aria-label="Customer console">
-          {navigation.map((item) => (
+          {navigationFor(activeAccount?.role).map((item, index) => (
             <button
               className={`nav-item${activeView === item.key ? " nav-item--active" : ""}`}
               type="button"
@@ -55,17 +72,24 @@ export function AppShell({
               aria-current={activeView === item.key ? "page" : undefined}
               onClick={() => onNavigate(item.key)}
             >
-              <span>{item.index}</span>
+              <span>{String(index + 1).padStart(2, "0")}</span>
               {item.label}
             </button>
           ))}
         </nav>
         <div className="rail-context">
           <span className="context-label">Active workspace</span>
-          <strong>{activeAccount ? shortId(activeAccount.accountId) : "No workspace"}</strong>
+          <strong>
+            {activeAccount
+              ? (activeAccount.displayName ?? shortId(activeAccount.accountId))
+              : "No workspace"}
+          </strong>
           <span>
             {activeAccount ? `${activeAccount.role} · ${activeAccount.status}` : "Sign in required"}
           </span>
+          <button className="rail-signout" type="button" onClick={() => void onLogout()}>
+            Sign out
+          </button>
         </div>
       </aside>
       <div className="app-surface">
@@ -79,7 +103,7 @@ export function AppShell({
           <div>
             <span className="topbar-kicker">Customer console</span>
             <span className="topbar-context">
-              {activeAccount ? `Role: ${activeAccount.role}` : "Workspace session unavailable"}
+              {email} · {activeAccount?.role ?? "no role"} · {plan.replaceAll("_", " ")}
             </span>
           </div>
           <div className={`api-indicator api-indicator--${status}`} aria-label={statusLabel}>

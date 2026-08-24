@@ -1,7 +1,38 @@
 export * from "../schema";
-export { createTenantDatabase } from "./connection-internal";
-export { createSystemAuditDatabase } from "./connection-internal";
+export {
+  closeSystemAuditDatabase,
+  closeTenantDatabase,
+  createSystemAuditDatabase,
+  createTenantDatabase,
+} from "./connection-internal";
 export type { SystemAuditDatabase, TenantDatabase } from "./connection-internal";
+export {
+  closeAuthDatabase,
+  createAuthDatabase,
+  type AuthDatabase,
+} from "./auth-connection-internal";
+export {
+  acceptAuthInvitation,
+  completeProviderLogin,
+  createAuthInvitation,
+  listAuthMemberships,
+  listSessionAccounts,
+  resolveAuthSession,
+  revokeAuthSession,
+  rotateAuthSession,
+  switchAuthAccount,
+  updateAuthMembership,
+  type AcceptAuthInvitationInput,
+  type AuthInvitationAcceptance,
+  type AuthAccountInput,
+  type AuthProvider,
+  type AuthSessionRecord,
+  type CompleteProviderLoginInput,
+  type CreateAuthInvitationInput,
+  type RotateAuthSessionInput,
+  type SwitchAuthAccountInput,
+  type UpdateAuthMembershipInput,
+} from "./auth-session";
 export { createInvitationToken, hashInvitationToken, invitationTokenPattern } from "./invitations";
 export { ensureQueueState } from "./queue-bootstrap";
 export type { QueueBootstrapOptions } from "./queue-bootstrap";
@@ -23,6 +54,15 @@ export type { OutboxClaim, QueueClaim, QueueHeartbeat } from "./queue-control";
 
 export { withTenant } from "./tenant-session";
 export type { RuntimeRole, TenantContext } from "./tenant-session";
+export {
+  createAssessment,
+  listAssessments,
+  queueAssessment,
+  readAssessmentPolicySnapshot,
+  type AssessmentPolicySnapshot,
+  type CreateAssessmentInput,
+  type QueueAssessmentInput,
+} from "./tenant-assessment";
 export { withSystemAudit } from "./system-audit-session";
 export type { SystemAuditContext } from "./system-audit-session";
 export {

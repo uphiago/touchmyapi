@@ -51,7 +51,7 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 - [x] T018 [P] Implement `packages/secrets/src/aead.ts`: version-2 AES-256-GCM envelope AEAD encrypt/decrypt for external credentials at rest (key per `key_id`, key-ID AAD, bounded inputs, explicit legacy rejection, rotation hooks) (spec FR-010; see `docs/reviews/2026-08-23-t018-credential-aead.md`)
 - [x] T019 [P] Implement `packages/playbooks/src/index.ts`: strict playbook schema validation + policy-aligned `surface-public-posture@1.0.0` passive contract (closed actions, canonical order, detached `slicePassive`, no execution/network behavior) (see `docs/reviews/2026-08-23-t019-passive-playbook.md`)
 - [x] T020 Implement `apps/api/src/server.ts`: dependency-injected Hono boundary with exact-origin CORS, server-owned request IDs, stable error envelopes, pre-handler redaction-safe audit gating, fail-closed mutation behavior, and no assessment handlers (see `docs/reviews/2026-08-23-t020-api-boundary.md`)
-- [x] T021 Implement Google-only OAuth PKCE boundary in `apps/api/src/auth.ts` and `apps/api/src/oidc-adapter.ts`: `openid-client` Authorization Code + PKCE (login/callback/logout), encrypted transient state, HttpOnly Secure SameSite session cookies, hash-only rotation + revocation, and fake-adapter tests (spec FR-001/FR-002); GitHub/X remain model-disabled (see `docs/reviews/2026-08-23-t021-google-oidc.md`)
+- [x] T021 Implement the historical Google-only OAuth PKCE foundation in `apps/api/src/auth.ts` and `apps/api/src/oidc-adapter.ts`: `openid-client` Authorization Code + PKCE (login/callback/logout), encrypted transient state, HttpOnly Secure SameSite session cookies, hash-only rotation + revocation, and fake-adapter tests. T101 later changes the selected customer provider to GitHub without weakening this boundary (see `docs/reviews/2026-08-23-t021-google-oidc.md`).
 - **Checkpoint reached**: Foundation T010–T021 is accepted with green unit/contract/API/OAuth gates. User stories remain blocked until the documented Phase 2A membership and queue prerequisites complete.
 
 ---
@@ -208,8 +208,9 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 
 Checkpoint: the local mock journey is wired through account-scoped assessment
 list/create/queue routes and the web console. Production PostgreSQL assessment
-store, verification gate, and worker dispatch remain intentionally open for
-T027/T029/T087; see `docs/reviews/2026-08-23-queue-integration.md`.
+draft/list/policy/queue persistence is now wired through the real runtime;
+verification, worker claim/dispatch, terminal publication and reports remain
+open for T027/T029/T087 and US3. See `docs/product/user-journeys.md`.
 
 ### Phase 2C admin control plane (T088–T094, after queue and billing read dependencies)
 
@@ -229,6 +230,16 @@ T027/T029/T087; see `docs/reviews/2026-08-23-queue-integration.md`.
 - [x] T098 [P] [INFRA] Add production packaging (`apps/{api,web,admin}/Dockerfile`, `.dockerignore`, `infra/docker/compose.production.yml`): non-root/read-only application runtimes where supported, immutable image tag input, PostgreSQL without public port, separate customer/admin origins, local mocks disabled, health checks, and one-shot migration before application cutover.
 - [x] T099 [INFRA] Add the Barbarossa-pattern GitHub/OVH release (`.github/workflows/build-deploy.yml`, `scripts/{deploy-ovh,smoke-remote}.sh`, `docs/operations/ovh-deployment.md`): PR validation, manual/`v*` release only, SHA-pinned actions and images, minimal permissions, GitHub `production` environment, verified host key/strict SSH, host-provisioned `.env` preservation, serialized deploy, bounded image pruning, migration-before-cutover, remote smoke, and prior-SHA rollback metadata. External OVH/GitHub secrets, Cloudflare DNS, Caddy TLS/reverse proxy, and the first immutable production cutover were proven by Actions run `32677174275`; R2 remains disabled at the account boundary and is not part of the current runtime.
 - [x] T100 Run the console/admin/deploy checkpoint review (`docs/reviews/2026-08-23-console-admin-ovh-checkpoint.md`): customer/admin production builds, local browser captures at desktop/mobile, customer and admin smoke, workflow/Compose regression tests, full fast gates, and separately migrated PostgreSQL integration/isolation suites. Mark only T095–T100 complete; T087 and T088–T094 remain governed by their full acceptance criteria.
+
+### Phase 2E provider/runtime/product-journey checkpoint (T101–T107)
+
+- [x] T101 [US1] Add provider-neutral GitHub OAuth Authorization Code + PKCE, immutable subject provisioning, first-owner workspace bootstrap, persistent hash-only session, account discovery/switch, and honest provider discovery.
+- [x] T102 [US1] Compose the production customer runtime with separate `auth_connector`, `api_connector`, and `audit_system_connector` URLs; preflight all three boundaries before listening; persist membership and passive assessment draft/list/queue through policy and RLS.
+- [x] T103 [US1/US5] Deliver the public landing and role-aware customer journey for owner/admin/operator/viewer/billing, named local persona workspaces, team lifecycle controls, explicit final queue review, and server-gated delivery matrix. See `docs/product/user-journeys.md`.
+- [x] T104 [US6] Turn the local staff console into an operational triage surface with account search, queue workflow, explicit ticket/reason/TTL capability form, distinct mock approval, audit, read-only billing and truthful production gate.
+- [x] T105 [INFRA] Harden GitHub Actions → OVH for the real runtime: four required public origins, SHA images, migrations, fixed-role connector credential configuration, internal runtime smoke, public edge smoke, host-only secret preservation and rollback metadata.
+- [ ] T106 [US1/US3] Complete real passive worker execution through fenced queue claim, deterministic analysis, terminal findings/notification, plan-filtered delivery, PDFs/JSON and private object storage. This is the remaining customer-delivery milestone, not simulated by the browser.
+- [ ] T107 [US6] Complete production staff OIDC + WebAuthn MFA + persistent JIT approvals/admin queue functions under T088–T094; local simulation must remain development-only.
 
 ---
 

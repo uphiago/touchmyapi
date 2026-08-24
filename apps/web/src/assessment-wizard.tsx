@@ -1,5 +1,9 @@
 import { useState } from "react";
-import type { AssessmentCreate, TargetCategory } from "../../../packages/contracts/src";
+import {
+  assessmentAuthorizationTermsVersion,
+  type AssessmentCreate,
+  type TargetCategory,
+} from "../../../packages/contracts/src";
 
 export const assessmentWizardSteps = [
   { key: "category", label: "Category" },
@@ -10,7 +14,7 @@ export const assessmentWizardSteps = [
   { key: "review", label: "Review" },
 ] as const;
 
-const categories: readonly TargetCategory[] = ["surface", "web", "api", "genai", "internal"];
+const categories: readonly TargetCategory[] = ["surface"];
 
 export type AssessmentWizardProps = Readonly<{
   open: boolean;
@@ -33,7 +37,16 @@ export function AssessmentWizard({ open, busy, onClose, onCreate }: AssessmentWi
       .split("\n")
       .map((entry) => entry.trim())
       .filter(Boolean);
-    await onCreate({ targetCategory, target, scope, playbookId: "surface-public-posture" });
+    await onCreate({
+      targetCategory,
+      target,
+      scope,
+      playbookId: "surface-public-posture",
+      authorization: {
+        accepted: true,
+        termsVersion: assessmentAuthorizationTermsVersion,
+      },
+    });
     setTarget("");
     setScopeText("");
     setAuthorized(false);
@@ -113,6 +126,10 @@ export function AssessmentWizard({ open, busy, onClose, onCreate }: AssessmentWi
             <span className="step-index">05 / Playbook</span>
             <strong className="readonly-value">surface-public-posture</strong>
             <p>Server-resolved safe default for this checkpoint.</p>
+            <small className="availability-note">
+              Web, API, GenAI and internal active playbooks stay unavailable until verification and
+              runner controls are enabled.
+            </small>
           </section>
           <section className="wizard-field wizard-field--wide authorization-check">
             <span className="step-index">06 / Authorization &amp; Review</span>

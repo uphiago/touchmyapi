@@ -21,16 +21,20 @@ const provider: KeyProvider = {
 };
 
 const expectStableError = async (operation: Promise<unknown>, ...secrets: string[]) => {
-  await expect(operation).rejects.toSatisfy((error: unknown) => {
-    if (!(error instanceof Error)) return false;
-    if (
-      error.message !== "credential decryption failed" &&
-      error.message !== "credential encryption failed"
-    )
-      return false;
-    const rendered = String(error);
-    return secrets.every((secret) => !rendered.includes(secret));
-  });
+  let rejection: unknown;
+  try {
+    await operation;
+  } catch (error) {
+    rejection = error;
+  }
+
+  expect(rejection).toBeInstanceOf(Error);
+  if (!(rejection instanceof Error)) return;
+  expect(["credential decryption failed", "credential encryption failed"]).toContain(
+    rejection.message,
+  );
+  const rendered = String(rejection);
+  for (const secret of secrets) expect(rendered).not.toContain(secret);
 };
 
 describe("credential AEAD", () => {

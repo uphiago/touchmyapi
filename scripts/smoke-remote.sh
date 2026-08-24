@@ -10,6 +10,7 @@ compose() {
 }
 
 compose exec -T api bun -e "const r=await fetch('http://127.0.0.1:3000/health');if(!r.ok)process.exit(1)"
+compose exec -T api bun -e "const r=await fetch('http://127.0.0.1:3000/api/v1/auth/providers');const b=await r.json();if(!r.ok||!Array.isArray(b.providers))process.exit(1)"
 compose exec -T admin-api bun -e "const r=await fetch('http://127.0.0.1:3001/health');if(!r.ok)process.exit(1)"
 compose exec -T web bun -e "const r=await fetch('http://127.0.0.1:8080/');if(!r.ok||!(await r.text()).includes('TouchMyAPI'))process.exit(1)"
 compose exec -T admin bun -e "const r=await fetch('http://127.0.0.1:8080/');if(!r.ok||!(await r.text()).includes('TouchMyAPI'))process.exit(1)"

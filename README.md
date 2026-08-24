@@ -1,20 +1,22 @@
 # TouchMyAPI
 
-TouchMyAPI is a platform for authorized security assessments. The executable foundation currently includes the Bun monorepo, shared Zod contracts, the pure default-deny policy engine (T010–T013), the PostgreSQL 16 domain schema (T014), least-privilege runtime roles with forced RLS and narrow auth bootstrap functions (T015), a Hono health endpoint, a React/Vite shell, and loopback-only local PostgreSQL infrastructure.
+TouchMyAPI is a multi-user platform for authorized security assessments. Its current executable slice includes GitHub OAuth with PKCE, server-selected workspaces and five roles, forced-RLS PostgreSQL persistence, policy-gated passive assessment draft → durable queue, a customer console, a separate local staff console, and immutable GitHub Actions → OVH releases.
 
 ## Project status
 
-T020 and T021 are accepted, the T071–T080 multi-user membership foundation is implemented, and queue/outbox infrastructure T081–T086 is live on the phase-2 branch. T095–T100 add the customer operations cockpit, a strictly separate development-only admin demonstration, four-process local smoke, production containers, and a hardened GitHub Actions → OVH release pipeline. Production assessment persistence/verification/worker dispatch (T087) and the persistent staff OIDC/WebAuthn/JIT control plane (T088–T094) remain open.
+The current branch adds provider-neutral GitHub identity provisioning, persistent sessions/memberships/assessments, a dedicated `api_connector`, role-aware customer journeys, plan-delivery guidance, and a useful but explicitly local staff workflow. Queue/outbox primitives are durable. Worker execution, completed findings/reports, Stripe webhook entitlement, active HTTP verification, the private agent, and persistent staff OIDC/WebAuthn/JIT remain open in [platform tasks](specs/001-touchmyapi-platform/tasks.md).
 
 The authoritative handoff is the [foundation checkpoint](docs/reviews/2026-08-22-foundation-checkpoint.md). Status checkboxes live in [platform tasks](specs/001-touchmyapi-platform/tasks.md); architecture and operational decisions remain in the linked plan, spec, research, data model, contracts, and quickstart under `specs/001-touchmyapi-platform/`.
 
 ## Current security boundary
 
-The foundation does **not** execute assessments or contact external targets. Queue/outbox primitives are durable but no worker dispatches a real target yet; Stripe webhooks, sandboxed runners, reports, AI orchestration, and the private agent remain unimplemented. Customer mocks require `LOCAL_MOCKS=1`; staff mocks require the separate `LOCAL_ADMIN_MOCKS=1` composition, origin, cookie, and server state. Both are development-only. Production admin routes fail closed until T088–T094 exist. See the [console/admin/OVH checkpoint](docs/reviews/2026-08-23-console-admin-ovh-checkpoint.md) and [OVH runbook](docs/operations/ovh-deployment.md).
+The platform does **not yet execute or contact targets**. Production can persist an authorized passive draft and queue intent, but no worker claims it. Customer/staff mocks require explicit development flags and are hard-disabled in production. Production may run with `AUTH_PROVIDER=disabled` while the GitHub OAuth App is absent; the landing then shows an honest setup state. Production admin remains unavailable until T088–T094.
+
+The canonical persona, navigation, assessment and result rules are in [product journeys](docs/product/user-journeys.md). Deployment and rollback are in the [OVH runbook](docs/operations/ovh-deployment.md).
 
 For a local end-to-end smoke run, use `bun run dev:local`. It starts PostgreSQL, migrations, customer API/web on `127.0.0.1:3000/5173`, and admin API/web on `127.0.0.1:3001/5174`, all with attached logs. Run `bun run local:smoke` in another terminal. `bun run local:logs` tails PostgreSQL and `bun run local:down` stops local Compose services without deleting volumes.
 
-The smoke validates browser CORS/credentials, customer draft → queued, cross-cookie rejection, and admin grant → distinct approval → bounded simulation. It never contacts an external target or performs a real queue action.
+The local session exposes named owner, admin, operator, viewer and billing workspaces. The smoke validates browser CORS/credentials, customer draft → queued, cross-cookie rejection, and admin grant → distinct approval → bounded simulation. It never contacts an external target or performs a real queue action.
 
 ## Prerequisites
 

@@ -33,7 +33,8 @@ export function AccountSwitcher({ accounts, busy, onSwitch }: AccountSwitcherPro
         {accounts.length === 0 ? <option value="">No active accounts</option> : null}
         {accounts.map((account) => (
           <option key={account.accountId} value={account.accountId}>
-            {account.accountId} · {label(account.role)} · {label(account.status)}
+            {account.displayName ?? account.accountId} · {label(account.role)} ·{" "}
+            {label(account.status)}
           </option>
         ))}
       </select>

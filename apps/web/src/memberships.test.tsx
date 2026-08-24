@@ -128,7 +128,15 @@ describe("membership workspace components", () => {
   it("renders the server-selected account and role/status labels", () => {
     const markup = renderToStaticMarkup(
       <AccountSwitcher
-        accounts={[account(false), { ...account(true), accountId: otherAccountId, role: "viewer" }]}
+        accounts={[
+          account(false),
+          {
+            ...account(true),
+            accountId: otherAccountId,
+            displayName: "Observer workspace",
+            role: "viewer",
+          },
+        ]}
         busy={false}
         onSwitch={() => undefined}
       />,
@@ -137,6 +145,7 @@ describe("membership workspace components", () => {
     expect(markup).toContain(`value="${otherAccountId}" selected`);
     expect(markup).toContain("viewer");
     expect(markup).toContain("active");
+    expect(markup).toContain("Observer workspace");
   });
 
   it("renders membership role/status from the server and never renders an invitation token", () => {

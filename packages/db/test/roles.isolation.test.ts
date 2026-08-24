@@ -27,15 +27,26 @@ const MEMBERSHIP_TABLES = ["account_invitation", "account_membership"] as const;
 const QUEUE_TABLES = ["outbox_event", "queue_global_state", "queue_tenant_state"] as const;
 const AUDIT_STATE_TABLE = "audit_account_state" as const;
 const AUTH_FUNCTIONS = [
+  [
+    "auth_complete_provider_login",
+    "identity_provider,text,citext,text,timestamp with time zone,inet,text",
+  ],
   ["auth_complete_google_login", "text,citext,text,timestamp with time zone,inet,text"],
+  ["auth_session_snapshot", "text"],
   ["auth_resolve_session", "text"],
   ["auth_rotate_session", "text,text,timestamp with time zone"],
   ["auth_revoke_session", "text"],
   ["auth_list_accounts", "text"],
   ["auth_switch_account", "text,uuid,text,timestamp with time zone"],
   ["auth_create_invitation", "text,uuid,citext,membership_role,text,timestamp with time zone"],
+  [
+    "auth_create_invitation_snapshot",
+    "text,uuid,citext,membership_role,text,timestamp with time zone",
+  ],
+  ["auth_list_memberships", "text,uuid"],
   ["auth_accept_invitation", "text,text,text,timestamp with time zone"],
   ["auth_update_membership", "text,uuid,uuid,membership_role,membership_status"],
+  ["auth_update_membership_secure", "text,uuid,uuid,membership_role,membership_status"],
 ] as const;
 const RUNTIME_ROLES = ["api_rls", "worker_rls", "reporting_rls"] as const;
 const PRIVILEGES = ["select", "insert", "update", "delete"] as const;
@@ -202,6 +213,81 @@ describeDb("PostgreSQL least-privilege roles", () => {
     expect(memberships).toEqual([]);
   });
 
+  it("keeps the auth connector login-only with one settable bootstrap membership", async () => {
+    const [role] = await db`
+      select rolname, rolsuper, rolbypassrls, rolinherit, rolcanlogin,
+             rolcreatedb, rolcreaterole, rolreplication
+      from pg_roles where rolname = 'auth_connector'
+    `;
+    expect(role).toEqual({
+      rolname: "auth_connector",
+      rolsuper: false,
+      rolbypassrls: false,
+      rolinherit: false,
+      rolcanlogin: true,
+      rolcreatedb: false,
+      rolcreaterole: false,
+      rolreplication: false,
+    });
+    const memberships = await db`
+      select parent.rolname as parent_name
+      from pg_auth_members membership
+      join pg_roles parent on parent.oid = membership.roleid
+      join pg_roles member on member.oid = membership.member
+      where member.rolname = 'auth_connector'
+      order by parent.rolname
+    `;
+    expect(memberships).toEqual([{ parent_name: "auth_bootstrap" }]);
+    const directPrivileges = await db`
+      select
+        exists (select 1 from information_schema.table_privileges
+                where grantee = 'auth_connector' and table_schema = 'public') as table_access,
+        exists (select 1 from pg_proc function
+                cross join lateral aclexplode(coalesce(function.proacl, acldefault('f', function.proowner))) acl
+                where function.pronamespace = 'public'::regnamespace
+                  and acl.grantee = 'auth_connector'::regrole
+                  and acl.privilege_type = 'EXECUTE') as function_access
+    `;
+    expect(directPrivileges).toEqual([{ table_access: false, function_access: false }]);
+  });
+
+  it("keeps the API connector login-only with one settable tenant membership", async () => {
+    const [role] = await db`
+      select rolname, rolsuper, rolbypassrls, rolinherit, rolcanlogin,
+             rolcreatedb, rolcreaterole, rolreplication
+      from pg_roles where rolname = 'api_connector'
+    `;
+    expect(role).toEqual({
+      rolname: "api_connector",
+      rolsuper: false,
+      rolbypassrls: false,
+      rolinherit: false,
+      rolcanlogin: true,
+      rolcreatedb: false,
+      rolcreaterole: false,
+      rolreplication: false,
+    });
+    const memberships = await db`
+      select parent.rolname as parent_name
+      from pg_auth_members membership
+      join pg_roles parent on parent.oid = membership.roleid
+      join pg_roles member on member.oid = membership.member
+      where member.rolname = 'api_connector'
+    `;
+    expect(memberships).toEqual([{ parent_name: "api_rls" }]);
+    const [privileges] = await db`
+      select
+        exists (select 1 from information_schema.table_privileges
+                where grantee = 'api_connector' and table_schema = 'public') as table_access,
+        exists (select 1 from pg_proc function
+                cross join lateral aclexplode(coalesce(function.proacl, acldefault('f', function.proowner))) acl
+                where function.pronamespace = 'public'::regnamespace
+                  and acl.grantee = 'api_connector'::regrole
+                  and acl.privilege_type = 'EXECUTE') as function_access
+    `;
+    expect(privileges).toEqual({ table_access: false, function_access: false });
+  });
+
   it("owns every project table and helper only under the migration owner", async () => {
     const tables = await db`
       select c.relname, r.rolname as owner
@@ -228,11 +314,13 @@ describeDb("PostgreSQL least-privilege roles", () => {
       join pg_namespace n on n.oid = p.pronamespace
       join pg_roles r on r.oid = p.proowner
       where n.nspname = 'public'
-        and p.proname in ('rls_tenant_matches', 'rls_bootstrap_context', 'auth_complete_google_login',
-                          'auth_resolve_session', 'auth_rotate_session', 'auth_revoke_session')
+        and p.proname in ('rls_tenant_matches', 'rls_bootstrap_context',
+                          'auth_complete_provider_login', 'auth_complete_google_login',
+                          'auth_session_snapshot', 'auth_resolve_session',
+                          'auth_rotate_session', 'auth_revoke_session')
       order by p.proname, args
     `;
-    expect(functions).toHaveLength(6);
+    expect(functions).toHaveLength(8);
     expect(new Set(functions.map((row) => row.owner))).toEqual(new Set([String(tables[0]?.owner)]));
   });
 
@@ -608,6 +696,9 @@ describeDb("PostgreSQL least-privilege roles", () => {
              has_function_privilege('api_rls', p.oid, 'execute') as api_execute,
              has_function_privilege('worker_rls', p.oid, 'execute') as worker_execute,
              has_function_privilege('reporting_rls', p.oid, 'execute') as reporting_execute,
+             has_function_privilege('queue_control', p.oid, 'execute') as queue_control_execute,
+             has_function_privilege('queue_connector', p.oid, 'execute') as queue_connector_execute,
+             has_function_privilege('admin_queue_connector', p.oid, 'execute') as admin_queue_execute,
              has_function_privilege('auth_bootstrap', p.oid, 'execute') as bootstrap_execute
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
@@ -624,6 +715,9 @@ describeDb("PostgreSQL least-privilege roles", () => {
       expect(row?.api_execute).toBe(false);
       expect(row?.worker_execute).toBe(false);
       expect(row?.reporting_execute).toBe(false);
+      expect(row?.queue_control_execute).toBe(false);
+      expect(row?.queue_connector_execute).toBe(false);
+      expect(row?.admin_queue_execute).toBe(false);
       expect(row?.bootstrap_execute).toBe(true);
     }
   });

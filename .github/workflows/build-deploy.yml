@@ -71,10 +71,14 @@ jobs:
         env:
           CUSTOMER_API_ORIGIN: ${{ vars.CUSTOMER_API_ORIGIN }}
           ADMIN_API_ORIGIN: ${{ vars.ADMIN_API_ORIGIN }}
+          CUSTOMER_WEB_ORIGIN: ${{ vars.CUSTOMER_WEB_ORIGIN }}
+          ADMIN_WEB_ORIGIN: ${{ vars.ADMIN_WEB_ORIGIN }}
         run: |
           set -eu
           test -n "$CUSTOMER_API_ORIGIN"
           test -n "$ADMIN_API_ORIGIN"
+          test -n "$CUSTOMER_WEB_ORIGIN"
+          test -n "$ADMIN_WEB_ORIGIN"
       - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
@@ -137,3 +141,19 @@ jobs:
           ssh -i "$HOME/.ssh/ovh" -o StrictHostKeyChecking=yes \
             "${OVH_USER}@${OVH_HOST}" \
             "cd \"\$HOME/touchmyapi/releases/${GITHUB_SHA}\" && TOUCHMYAPI_IMAGE_TAG='${GITHUB_SHA}' sh scripts/deploy-ovh.sh"
+      - name: Verify public edge after cutover
+        env:
+          CUSTOMER_API_ORIGIN: ${{ vars.CUSTOMER_API_ORIGIN }}
+          ADMIN_API_ORIGIN: ${{ vars.ADMIN_API_ORIGIN }}
+          CUSTOMER_WEB_ORIGIN: ${{ vars.CUSTOMER_WEB_ORIGIN }}
+          ADMIN_WEB_ORIGIN: ${{ vars.ADMIN_WEB_ORIGIN }}
+        run: |
+          set -eu
+          for url in \
+            "$CUSTOMER_API_ORIGIN/health" \
+            "$ADMIN_API_ORIGIN/health" \
+            "$CUSTOMER_WEB_ORIGIN/health" \
+            "$ADMIN_WEB_ORIGIN/health"
+          do
+            curl --fail --silent --show-error --max-time 20 "$url" >/dev/null
+          done

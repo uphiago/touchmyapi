@@ -18,17 +18,22 @@ This guide validates the code that exists today. It does not claim that the full
 - Context-bound `@touchmyapi/secrets` AES-256-GCM envelope for external credentials (T018), with versioned key-ID AAD, bounded inputs, generic failures, and no env/log/persistence access
 - Strict passive `@touchmyapi/playbooks` catalog `surface-public-posture@1.0.0` (T019), aligned with the policy engine and containing no execution/network behavior
 - Dependency-injected Hono API boundary (T020) with exact CORS, request IDs, stable errors, audit gating, and no assessment routes in the default production composition
-- Google-only OAuth Authorization Code + PKCE boundary (T021) with encrypted transient state, hash-only rotating sessions, revocation, secure cookies, and a fakeable adapter for tests
+- OAuth Authorization Code + PKCE boundary (T021) with encrypted transient state, hash-only rotating sessions, revocation, secure cookies, and a fakeable provider adapter; the current customer composition is GitHub
 - T071–T080 multi-user foundation: additive memberships/invitations, role capability policy, active-account session list/switch, hash-only invitation acceptance, lifecycle/RLS acceptance, and server-driven workspace UI
 - T081–T086 PostgreSQL queue/outbox infrastructure: transactional enqueue, fair fenced claims, lease recovery, reconciliation, and standalone outbox controls
 - Development-only account-scoped assessment draft → queue routes and web panel, backed by an explicit in-memory local mock
 - T095 customer operations cockpit with Overview/Assessments/Team/Workspace navigation and guided authorization-first draft flow
 - T096–T097 separate development-only admin API/UI on `3001/5174`, dedicated cookie/origin/store, grant-before-action simulation, and cross-session denial smoke
 - T098–T099 non-root production images, private PostgreSQL Compose topology, migration-before-cutover, and SHA-pinned GitHub Actions → OVH release automation
+- Provider-neutral GitHub OAuth + PKCE, first-owner workspace provisioning, persistent hash-only sessions, memberships, and account switching
+- Real customer production composition with dedicated `auth_connector`, `api_connector`, and `audit_system_connector` preflight
+- PostgreSQL-backed passive assessment draft/list/policy/queue and redacted transactional outbox intent
+- Public landing plus role-aware owner/admin/operator/viewer/billing customer flows and plan-delivery guidance
+- Connector credential configuration and four-origin public smoke in the OVH workflow
 
-No real assessment execution, external target access, billing mutation, AI execution, report generation, or runner exists in this checkpoint. Queue/outbox persistence is implemented, but the production assessment store, verification gate, and worker dispatch remain open under T087. The local draft → queue route is intentionally available only through `LOCAL_MOCKS=1` development composition. T016 and T017 are accepted: the tenant wrapper is an opaque database handle with fixed capabilities, and the audit writer provides redacted monotonic tenant/system chains with FORCE-RLS lock authorities and no raw SQL export. T018 is accepted as the isolated external-credential AEAD boundary, T019 as the passive catalog boundary, T020 as the API boundary, and T021 as the fakeable Google auth boundary. The real OIDC composition requires explicit production credentials and is not exercised by tests.
+No real assessment execution, external target access, billing mutation, AI execution, report generation, or runner exists in this checkpoint. Queue/outbox and production passive draft/list/queue persistence are implemented; worker claim/dispatch and terminal delivery remain open under T087/T106. Local mode is credential-free and never contacts targets. Production accepts `AUTH_PROVIDER=disabled` until a GitHub OAuth App exists, or `github` with explicit credentials; mocks remain forbidden.
 
-The historical Foundation Phase 2 remains intentionally limited to T010–T021. The approved Phase 2A extension is being implemented after T021: T071–T079 provide the additive membership foundation, lifecycle boundary, RLS cut, server-driven workspace UI, and expand-contract review. T076 production store/deletion and T080 acceptance remain before the fenced PostgreSQL queue/outbox and separate admin control plane. SSO and SCIM remain out of scope; GitHub/X are model-disabled and provider adapters remain injectable until production credentials are supplied.
+The historical Foundation Phase 2 remains intentionally limited to T010–T021. The approved Phase 2A extension follows T021: T071–T080 provide the additive membership foundation, lifecycle boundary, RLS cut, server-driven workspace UI, and acceptance gate before the fenced PostgreSQL queue/outbox and separate admin control plane. SSO and SCIM remain out of scope; Google/X customer login is modeled-disabled and provider adapters remain injectable until production credentials are supplied.
 
 ## Prerequisites
 
@@ -94,8 +99,9 @@ bun run dev:local
 
 Development mode sets `LOCAL_MOCKS=1` only for the customer API and
 `LOCAL_ADMIN_MOCKS=1` only for the admin API. The customer API exposes a local
-demo session with two accounts and memberships, so the switcher, membership
-screens, and assessment draft → queue panel are usable without Google
+demo session with five named owner/admin/operator/viewer/billing workspaces and
+a five-role team roster, so navigation, server-enforced permissions, membership
+screens, and assessment draft → queue panel are usable without OAuth
 credentials. The admin mock uses its own CORS origin, cookie, and in-memory store. This composition is not used by production mode, does not persist or deliver real invitations, and does not contact targets.
 
 In a second terminal, wait for both processes and run the smoke check:
@@ -172,7 +178,7 @@ docker compose --profile local -f infra/docker/compose.yml exec -T postgres psql
   < infra/docker/postgres/init/002_test_database.sql
 ```
 
-The current DB package proves schema shape, runtime-role privileges, auth-bootstrap isolation, cross-account RLS behavior, T016's closed tenant-capability boundary, and T017's atomic audit writer with API/worker/system chain isolation. T018's focused AEAD suite, T019's catalog→policy authorization suite, T020's API boundary suite, T021's fake-adapter OAuth suite, and the T071–T079 membership gates are green. The aggregate T080 membership acceptance gate is still pending the production store/deletion boundary and full sequential gate.
+The current DB package proves schema shape, runtime-role privileges, exact connector membership, auth-bootstrap isolation, cross-account RLS behavior, the closed tenant-capability boundary, and atomic audit writing with API/worker/system chain isolation. The provider/runtime, membership, queue, role-aware UI and local smoke gates are green. Account deletion, real worker/report delivery and production staff MFA/JIT remain tracked explicitly in tasks.
 
 ## Next validation milestones
 
@@ -183,7 +189,7 @@ The end-to-end scenarios formerly listed here are not runnable yet. Implement th
 
 The multi-user extension is validated after T021 with these additional milestones:
 
-7. The existing global Google `user` identity, explicit `account_membership(account_id,user_id)`, token-hash invitations, role matrix, active-account session rotation, and membership RLS isolation (T071–T080).
+7. The global immutable provider `user` identity, explicit `account_membership(account_id,user_id)`, token-hash invitations, role matrix, active-account session rotation, and membership RLS isolation (T071–T080).
 8. Tenant enqueue uses closed typed `packages/db/src/queue.ts` under `api_rls`/`app.tenant` after membership/policy/entitlement checks; PostgreSQL worker queue control uses `packages/db/src/queue-control.ts` with `queue_connector` `EXECUTE` only, zero table grants, and no enqueue/admin functions. Claims use `SKIP LOCKED`, global→tenant→job ordering for every job/counter mutation, lease/fencing token, heartbeat, retry/backoff, exact fair scheduling, tenant/global limits, and transactional outbox. Standalone outbox uses `outbox_claim/heartbeat/ack/fail/reap` with deterministic outbox-only locks and never touches global/job rows; admin cancel/requeue/account-reaper use separate JIT-gated functions. `LISTEN/NOTIFY` is only a hint (T081–T087).
 9. Separate admin app/API/origin, `staff_identity` and related staff tables, mandatory MFA, JIT reason/ticket/TTL/approval, dual break-glass, policy-aware queue operations, and read-only billing with no secrets/raw evidence/arbitrary SQL/impersonation (T088–T094).
 

@@ -13,12 +13,24 @@ export const LOCAL_SESSION_TOKEN = "L".repeat(43);
 const localAccountId = "00000000-0000-4000-8000-000000000101";
 const secondAccountId = "00000000-0000-4000-8000-000000000102";
 const localUserId = "00000000-0000-4000-8000-000000000103";
+const adminAccountId = "00000000-0000-4000-8000-000000000107";
+const viewerAccountId = "00000000-0000-4000-8000-000000000108";
+const billingAccountId = "00000000-0000-4000-8000-000000000109";
 const timestamp = "2026-08-23T12:00:00.000Z";
+
+const localAccounts = [
+  { accountId: localAccountId, displayName: "Authorized Labs", role: "owner" },
+  { accountId: adminAccountId, displayName: "Team Administration", role: "admin" },
+  { accountId: secondAccountId, displayName: "Assessment Operations", role: "operator" },
+  { accountId: viewerAccountId, displayName: "Read-only Delivery", role: "viewer" },
+  { accountId: billingAccountId, displayName: "Plan & Billing", role: "billing" },
+] as const;
 
 const localMembership: Membership = {
   id: "00000000-0000-4000-8000-000000000105",
   accountId: localAccountId,
   userId: localUserId,
+  email: "local.owner@example.test",
   role: "owner",
   status: "active",
   invitedByUserId: null,
@@ -34,18 +46,34 @@ const secondMembership: Membership = {
   role: "operator",
 };
 
+const localTeam: readonly Membership[] = [
+  localMembership,
+  ...(["admin", "operator", "viewer", "billing"] as const).map((role, index) => ({
+    ...localMembership,
+    id: `00000000-0000-4000-8000-0000000001${10 + index}`,
+    userId: `00000000-0000-4000-8000-0000000002${10 + index}`,
+    email: `local.${role}@example.test`,
+    role,
+    invitedByUserId: localUserId,
+  })),
+];
+
 function ok<T>(value: T): MembershipOperationResult<T> {
   return { ok: true, value };
 }
 
-function sessionFor(accountId: string, role: string): AuthSession {
+function roleFor(accountId: string): (typeof localAccounts)[number]["role"] {
+  return localAccounts.find((account) => account.accountId === accountId)?.role ?? "viewer";
+}
+
+function sessionFor(accountId: string, role = roleFor(accountId)): AuthSession {
   return {
     userId: localUserId,
     accountId,
     email: "local.owner@example.test",
     role,
     membershipStatus: "active",
-    plan: "free_unverified",
+    plan: role === "billing" ? "pro" : "free_unverified",
     iaEnabled: true,
   };
 }
@@ -61,53 +89,44 @@ function localAuthStore(): AuthStore {
   }
 
   return {
-    completeGoogleLogin: async () => sessionFor(activeAccountId, "owner"),
+    completeGoogleLogin: async () => sessionFor(activeAccountId),
     resolveSession: async (sessionHash) =>
-      (await isLocalSession(sessionHash))
-        ? sessionFor(activeAccountId, activeAccountId === localAccountId ? "owner" : "operator")
-        : undefined,
+      (await isLocalSession(sessionHash)) ? sessionFor(activeAccountId) : undefined,
     rotateSession: async ({ replacementSessionHash }) => {
       knownSessionHashes.add(replacementSessionHash);
-      return sessionFor(activeAccountId, activeAccountId === localAccountId ? "owner" : "operator");
+      return sessionFor(activeAccountId);
     },
     revokeSession: async () => undefined,
     listAccounts: async (sessionHash): Promise<readonly AccountSummary[]> => {
       if (!(await isLocalSession(sessionHash))) return [];
-      return [
-        {
-          accountId: localAccountId,
-          role: "owner",
-          status: "active",
-          active: activeAccountId === localAccountId,
-        },
-        {
-          accountId: secondAccountId,
-          role: "operator",
-          status: "active",
-          active: activeAccountId === secondAccountId,
-        },
-      ];
+      return localAccounts.map((account) => ({
+        ...account,
+        status: "active" as const,
+        active: activeAccountId === account.accountId,
+      }));
     },
     switchAccount: async ({ sessionHash, targetAccountId, replacementSessionHash }) => {
       if (!(await isLocalSession(sessionHash))) return undefined;
-      if (targetAccountId !== localAccountId && targetAccountId !== secondAccountId)
-        return undefined;
+      if (!localAccounts.some((account) => account.accountId === targetAccountId)) return undefined;
       activeAccountId = targetAccountId;
       knownSessionHashes.add(replacementSessionHash);
-      return sessionFor(activeAccountId, activeAccountId === localAccountId ? "owner" : "operator");
+      return sessionFor(activeAccountId);
     },
     acceptInvitation: async ({ sessionHash, replacementSessionHash }) => {
       if (!(await isLocalSession(sessionHash))) return undefined;
       knownSessionHashes.add(replacementSessionHash);
-      return { session: sessionFor(activeAccountId, "owner"), rotated: true };
+      return { session: sessionFor(activeAccountId), rotated: true };
     },
   };
 }
 
 function localMembershipStore(): MembershipStore {
   const memberships = new Map<string, Membership[]>([
-    [localAccountId, [localMembership]],
+    [localAccountId, [...localTeam]],
     [secondAccountId, [secondMembership]],
+    [adminAccountId, [{ ...secondMembership, accountId: adminAccountId, role: "admin" }]],
+    [viewerAccountId, [{ ...secondMembership, accountId: viewerAccountId, role: "viewer" }]],
+    [billingAccountId, [{ ...secondMembership, accountId: billingAccountId, role: "billing" }]],
   ]);
   return {
     listMemberships: async ({ accountId }) => ok(memberships.get(accountId) ?? []),
@@ -127,21 +146,47 @@ function localMembershipStore(): MembershipStore {
       return ok(invitation);
     },
     updateMembership: async ({ accountId, userId, role, status }) => {
-      const current = memberships.get(accountId)?.find((entry) => entry.userId === userId);
+      const accountMemberships = memberships.get(accountId) ?? [];
+      const current = accountMemberships.find((entry) => entry.userId === userId);
       if (!current) return { ok: false, code: "membership_required" };
+      if (
+        current.role === "owner" &&
+        current.status === "active" &&
+        ((role !== undefined && role !== "owner") ||
+          (status !== undefined && status !== "active")) &&
+        accountMemberships.filter((entry) => entry.role === "owner" && entry.status === "active")
+          .length === 1
+      ) {
+        return { ok: false, code: "last_owner_protected" };
+      }
       const updated = { ...current, ...(role ? { role } : {}), ...(status ? { status } : {}) };
-      memberships.set(accountId, [updated]);
+      memberships.set(
+        accountId,
+        accountMemberships.map((entry) => (entry.userId === userId ? updated : entry)),
+      );
       return ok(updated);
     },
     removeMembership: async ({ accountId, userId }) => {
-      const current = memberships.get(accountId)?.find((entry) => entry.userId === userId);
+      const accountMemberships = memberships.get(accountId) ?? [];
+      const current = accountMemberships.find((entry) => entry.userId === userId);
       if (!current) return { ok: false, code: "membership_required" };
+      if (
+        current.role === "owner" &&
+        current.status === "active" &&
+        accountMemberships.filter((entry) => entry.role === "owner" && entry.status === "active")
+          .length === 1
+      ) {
+        return { ok: false, code: "last_owner_protected" };
+      }
       const removed = {
         ...current,
         status: "removed" as const,
         removedAt: new Date().toISOString(),
       };
-      memberships.set(accountId, [removed]);
+      memberships.set(
+        accountId,
+        accountMemberships.map((entry) => (entry.userId === userId ? removed : entry)),
+      );
       return ok(removed);
     },
   };

@@ -2,6 +2,7 @@ import { ApiError } from "./error";
 import {
   accountListResponseSchema,
   accountSwitchSchema,
+  authProvidersResponseSchema,
   invitationAcceptSchema,
   type MembershipStatus,
 } from "@touchmyapi/contracts";
@@ -41,6 +42,26 @@ export type GoogleOidcAdapter = {
   exchangeCode: (input: GoogleCodeExchange) => Promise<GoogleIdentityClaims>;
 };
 
+export type OAuthIdentity = Readonly<{
+  provider: "github" | "google";
+  subject: string;
+  email: string;
+}>;
+
+export type GitHubCodeExchange = Readonly<{
+  code: string;
+  verifier: string;
+  redirectUri: string;
+}>;
+
+export type GitHubOAuthAdapter = Readonly<{
+  provider: "github";
+  clientId: string;
+  redirectUri: string;
+  authorizationEndpoint: string;
+  exchangeCode: (input: GitHubCodeExchange) => Promise<OAuthIdentity>;
+}>;
+
 export type AuthSession = Readonly<{
   userId: string;
   accountId: string;
@@ -58,6 +79,15 @@ export type InvitationAcceptance = Readonly<{
 
 export type AuthStore = Readonly<{
   completeGoogleLogin: (input: {
+    providerSubject: string;
+    email: string;
+    sessionHash: string;
+    expiresAt: Date;
+    ip?: string;
+    userAgent?: string;
+  }) => Promise<AuthSession | undefined>;
+  completeProviderLogin?: (input: {
+    provider: OAuthIdentity["provider"];
     providerSubject: string;
     email: string;
     sessionHash: string;
@@ -96,7 +126,8 @@ export type AuthStore = Readonly<{
 }>;
 
 export type AuthDependencies = Readonly<{
-  adapter: GoogleOidcAdapter;
+  adapter?: GoogleOidcAdapter;
+  githubAdapter?: GitHubOAuthAdapter;
   store: AuthStore;
   transientKey: Uint8Array;
   sessionMaxAgeSeconds: number;
@@ -106,6 +137,7 @@ export type AuthDependencies = Readonly<{
 }>;
 
 type TransientState = Readonly<{
+  provider: OAuthIdentity["provider"];
   state: string;
   nonce: string;
   verifier: string;
@@ -224,6 +256,7 @@ async function openTransient(value: string, key: Uint8Array): Promise<TransientS
       ) as TransientState;
       if (
         typeof parsed.state !== "string" ||
+        (parsed.provider !== "google" && parsed.provider !== "github") ||
         typeof parsed.nonce !== "string" ||
         typeof parsed.verifier !== "string" ||
         typeof parsed.returnTo !== "string" ||
@@ -276,6 +309,34 @@ function addCookie(response: Response, value: string): void {
   response.headers.append("set-cookie", value);
 }
 
+function constantTimeEqual(left: string, right: string): boolean {
+  const leftBytes = TEXT.encode(left);
+  const rightBytes = TEXT.encode(right);
+  let mismatch = leftBytes.byteLength ^ rightBytes.byteLength;
+  const length = Math.max(leftBytes.byteLength, rightBytes.byteLength);
+  for (let index = 0; index < length; index += 1) {
+    mismatch |= (leftBytes[index] ?? 0) ^ (rightBytes[index] ?? 0);
+  }
+  leftBytes.fill(0);
+  rightBytes.fill(0);
+  return mismatch === 0;
+}
+
+function validateOAuthIdentity(identity: OAuthIdentity, provider: OAuthIdentity["provider"]): void {
+  if (
+    identity.provider !== provider ||
+    typeof identity.subject !== "string" ||
+    identity.subject.length === 0 ||
+    TEXT.encode(identity.subject).byteLength > 256 ||
+    typeof identity.email !== "string" ||
+    identity.email.length === 0 ||
+    TEXT.encode(identity.email).byteLength > 320 ||
+    !/^[^@\s]+@[^@\s]+\.[^@\s]+$/u.test(identity.email)
+  ) {
+    throw new Error("invalid identity");
+  }
+}
+
 function validateClaims(claims: GoogleIdentityClaims, adapter: GoogleOidcAdapter): void {
   if (
     claims.issuer !== GOOGLE_ISSUER ||
@@ -301,93 +362,202 @@ export function registerAuthRoutes(
   const secure = !(auth.allowInsecureCookies === true && environment === "development");
   const oauthCookieName = secure ? OAUTH_COOKIE : "tma-oauth";
   const sessionCookieName = sessionCookieNameFor(environment, auth.allowInsecureCookies);
-  api.get("/api/v1/auth/login", async (context) => {
-    if ((context.req.query("provider") ?? "google") !== "google") {
-      throw new ApiError(400, "unsupported_provider", "Unsupported provider");
-    }
-    try {
-      if (auth.transientKey.byteLength !== 32) throw new Error("invalid transient key");
-      const state = randomToken();
-      const nonce = randomToken();
-      const verifier = randomToken();
-      const challengeBytes = await sha256(verifier);
-      let challenge: string;
-      try {
-        challenge = encode(challengeBytes);
-      } finally {
-        challengeBytes.fill(0);
-      }
-      const expiresAt = Date.now() + auth.transientMaxAgeSeconds * 1000;
-      const transient = await sealTransient(
-        { state, nonce, verifier, returnTo: auth.successRedirect, expiresAt },
-        auth.transientKey,
-      );
-      const location = new URL(auth.adapter.authorizationEndpoint);
-      location.searchParams.set("client_id", auth.adapter.clientId);
-      location.searchParams.set("redirect_uri", auth.adapter.redirectUri);
-      location.searchParams.set("response_type", "code");
-      location.searchParams.set("scope", "openid email profile");
-      location.searchParams.set("state", state);
-      location.searchParams.set("nonce", nonce);
-      location.searchParams.set("code_challenge", challenge);
-      location.searchParams.set("code_challenge_method", "S256");
-      const response = new Response(null, {
-        status: 302,
-        headers: { location: location.toString() },
-      });
-      addCookie(
-        response,
-        cookieHeader(oauthCookieName, transient, auth.transientMaxAgeSeconds, secure),
-      );
-      return response;
-    } catch {
-      throw new ApiError(503, "auth_unavailable", "Authentication unavailable");
-    }
-  });
+  api.get("/api/v1/auth/providers", (context) =>
+    context.json(
+      authProvidersResponseSchema.parse({
+        providers: auth.githubAdapter ? [{ id: "github", label: "GitHub" }] : [],
+      }),
+    ),
+  );
 
-  api.get("/api/v1/auth/callback", async (context) => {
-    const clear = () => context.header("set-cookie", clearCookie(oauthCookieName, secure));
-    try {
-      const code = context.req.query("code");
-      const state = context.req.query("state");
-      const cookie = readCookie(context.req.raw, oauthCookieName);
-      if (!code || !state || !cookie) throw new Error("invalid callback");
-      if (code.length > 2048 || state.length > 128) throw new Error("invalid callback");
-      const transient = await openTransient(cookie, auth.transientKey);
-      if (state !== transient.state) throw new Error("invalid callback");
-      const claims = await auth.adapter.exchangeCode({
-        code,
-        verifier: transient.verifier,
-        nonce: transient.nonce,
-        redirectUri: auth.adapter.redirectUri,
-      });
-      validateClaims(claims, auth.adapter);
-      if (claims.nonce !== transient.nonce) throw new Error("invalid claims");
-      const sessionToken = randomToken();
-      const sessionHash = await hashSession(sessionToken);
-      const expiresAt = new Date(Date.now() + auth.sessionMaxAgeSeconds * 1000);
-      const session = await auth.store.completeGoogleLogin({
-        providerSubject: claims.subject,
-        email: claims.email,
-        sessionHash,
-        expiresAt,
-      });
-      if (!session) throw new Error("login unavailable");
-      const response = new Response(null, {
-        status: 302,
-        headers: { location: transient.returnTo },
-      });
-      addCookie(
-        response,
-        cookieHeader(sessionCookieName, sessionToken, auth.sessionMaxAgeSeconds, secure),
-      );
-      addCookie(response, clearCookie(oauthCookieName, secure));
-      return response;
-    } catch {
-      clear();
-      throw new ApiError(401, "invalid_oauth_callback", "Authentication failed");
-    }
-  });
+  if (auth.githubAdapter) {
+    const githubAdapter = auth.githubAdapter;
+    api.get("/api/v1/auth/github/start", async () => {
+      try {
+        if (auth.transientKey.byteLength !== 32) throw new Error("invalid transient key");
+        const state = randomToken();
+        const nonce = randomToken();
+        const verifier = randomToken();
+        const challengeBytes = await sha256(verifier);
+        let challenge: string;
+        try {
+          challenge = encode(challengeBytes);
+        } finally {
+          challengeBytes.fill(0);
+        }
+        const transient = await sealTransient(
+          {
+            provider: "github",
+            state,
+            nonce,
+            verifier,
+            returnTo: auth.successRedirect,
+            expiresAt: Date.now() + auth.transientMaxAgeSeconds * 1000,
+          },
+          auth.transientKey,
+        );
+        const location = new URL(githubAdapter.authorizationEndpoint);
+        location.searchParams.set("client_id", githubAdapter.clientId);
+        location.searchParams.set("redirect_uri", githubAdapter.redirectUri);
+        location.searchParams.set("scope", "user:email");
+        location.searchParams.set("state", state);
+        location.searchParams.set("code_challenge", challenge);
+        location.searchParams.set("code_challenge_method", "S256");
+        const response = new Response(null, {
+          status: 302,
+          headers: { location: location.toString() },
+        });
+        addCookie(
+          response,
+          cookieHeader(oauthCookieName, transient, auth.transientMaxAgeSeconds, secure),
+        );
+        return response;
+      } catch {
+        throw new ApiError(503, "auth_unavailable", "Authentication unavailable");
+      }
+    });
+
+    api.get("/api/v1/auth/github/callback", async (context) => {
+      const clear = () => context.header("set-cookie", clearCookie(oauthCookieName, secure));
+      try {
+        const code = context.req.query("code");
+        const state = context.req.query("state");
+        const cookie = readCookie(context.req.raw, oauthCookieName);
+        if (!code || !state || !cookie || context.req.query("error")) {
+          throw new Error("invalid callback");
+        }
+        if (code.length > 2048 || state.length > 128) throw new Error("invalid callback");
+        const transient = await openTransient(cookie, auth.transientKey);
+        if (transient.provider !== "github" || !constantTimeEqual(state, transient.state)) {
+          throw new Error("invalid callback");
+        }
+        const identity = await githubAdapter.exchangeCode({
+          code,
+          verifier: transient.verifier,
+          redirectUri: githubAdapter.redirectUri,
+        });
+        validateOAuthIdentity(identity, "github");
+        if (!auth.store.completeProviderLogin) throw new Error("login unavailable");
+        const sessionToken = randomToken();
+        const sessionHash = await hashSession(sessionToken);
+        const session = await auth.store.completeProviderLogin({
+          provider: "github",
+          providerSubject: identity.subject,
+          email: identity.email,
+          sessionHash,
+          expiresAt: new Date(Date.now() + auth.sessionMaxAgeSeconds * 1000),
+          userAgent: context.req.header("user-agent"),
+        });
+        if (!session) throw new Error("login unavailable");
+        const response = new Response(null, {
+          status: 302,
+          headers: { location: transient.returnTo },
+        });
+        addCookie(
+          response,
+          cookieHeader(sessionCookieName, sessionToken, auth.sessionMaxAgeSeconds, secure),
+        );
+        addCookie(response, clearCookie(oauthCookieName, secure));
+        return response;
+      } catch {
+        clear();
+        throw new ApiError(401, "invalid_oauth_callback", "Authentication failed");
+      }
+    });
+  }
+
+  if (auth.adapter) {
+    const googleAdapter = auth.adapter;
+    api.get("/api/v1/auth/login", async (context) => {
+      if ((context.req.query("provider") ?? "google") !== "google") {
+        throw new ApiError(400, "unsupported_provider", "Unsupported provider");
+      }
+      try {
+        if (auth.transientKey.byteLength !== 32) throw new Error("invalid transient key");
+        const state = randomToken();
+        const nonce = randomToken();
+        const verifier = randomToken();
+        const challengeBytes = await sha256(verifier);
+        let challenge: string;
+        try {
+          challenge = encode(challengeBytes);
+        } finally {
+          challengeBytes.fill(0);
+        }
+        const expiresAt = Date.now() + auth.transientMaxAgeSeconds * 1000;
+        const transient = await sealTransient(
+          { provider: "google", state, nonce, verifier, returnTo: auth.successRedirect, expiresAt },
+          auth.transientKey,
+        );
+        const location = new URL(googleAdapter.authorizationEndpoint);
+        location.searchParams.set("client_id", googleAdapter.clientId);
+        location.searchParams.set("redirect_uri", googleAdapter.redirectUri);
+        location.searchParams.set("response_type", "code");
+        location.searchParams.set("scope", "openid email profile");
+        location.searchParams.set("state", state);
+        location.searchParams.set("nonce", nonce);
+        location.searchParams.set("code_challenge", challenge);
+        location.searchParams.set("code_challenge_method", "S256");
+        const response = new Response(null, {
+          status: 302,
+          headers: { location: location.toString() },
+        });
+        addCookie(
+          response,
+          cookieHeader(oauthCookieName, transient, auth.transientMaxAgeSeconds, secure),
+        );
+        return response;
+      } catch {
+        throw new ApiError(503, "auth_unavailable", "Authentication unavailable");
+      }
+    });
+
+    api.get("/api/v1/auth/callback", async (context) => {
+      const clear = () => context.header("set-cookie", clearCookie(oauthCookieName, secure));
+      try {
+        const code = context.req.query("code");
+        const state = context.req.query("state");
+        const cookie = readCookie(context.req.raw, oauthCookieName);
+        if (!code || !state || !cookie) throw new Error("invalid callback");
+        if (code.length > 2048 || state.length > 128) throw new Error("invalid callback");
+        const transient = await openTransient(cookie, auth.transientKey);
+        if (transient.provider !== "google" || !constantTimeEqual(state, transient.state)) {
+          throw new Error("invalid callback");
+        }
+        const claims = await googleAdapter.exchangeCode({
+          code,
+          verifier: transient.verifier,
+          nonce: transient.nonce,
+          redirectUri: googleAdapter.redirectUri,
+        });
+        validateClaims(claims, googleAdapter);
+        if (claims.nonce !== transient.nonce) throw new Error("invalid claims");
+        const sessionToken = randomToken();
+        const sessionHash = await hashSession(sessionToken);
+        const expiresAt = new Date(Date.now() + auth.sessionMaxAgeSeconds * 1000);
+        const session = await auth.store.completeGoogleLogin({
+          providerSubject: claims.subject,
+          email: claims.email,
+          sessionHash,
+          expiresAt,
+        });
+        if (!session) throw new Error("login unavailable");
+        const response = new Response(null, {
+          status: 302,
+          headers: { location: transient.returnTo },
+        });
+        addCookie(
+          response,
+          cookieHeader(sessionCookieName, sessionToken, auth.sessionMaxAgeSeconds, secure),
+        );
+        addCookie(response, clearCookie(oauthCookieName, secure));
+        return response;
+      } catch {
+        clear();
+        throw new ApiError(401, "invalid_oauth_callback", "Authentication failed");
+      }
+    });
+  }
 
   api.post("/api/v1/auth/logout", async (context) => {
     try {
@@ -479,7 +649,7 @@ export function registerAuthRoutes(
     }
   });
 
-  api.get("/api/v1/auth/me", async (context) => {
+  const resolveCurrentSession = async (context: Context<ApiRequestEnv>) => {
     try {
       const token = readSessionToken(context.req.raw, sessionCookieName);
       if (!token) throw new ApiError(401, "unauthorized", "Authentication required");
@@ -513,7 +683,9 @@ export function registerAuthRoutes(
       if (error instanceof ApiError) throw error;
       throw new ApiError(503, "auth_unavailable", "Authentication unavailable");
     }
-  });
+  };
+  api.get("/api/v1/auth/me", resolveCurrentSession);
+  api.get("/api/v1/auth/session", resolveCurrentSession);
 }
 
 async function hashInvitationBody(token: string): Promise<string> {
