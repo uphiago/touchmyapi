@@ -1,0 +1,48 @@
+specs/001-touchmyapi-platform/contracts/membership.md
+  s_bc54431df54bf2::t_408759941d9fdf 3
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_08548a7ed0b633 54
+  s_bc54431df54bf2::t_e1563e8ed72306 211-213,234-242
+  s_bc54431df54bf2::t_099dd08b9a75a8 243
+specs/001-touchmyapi-platform/plan.md
+  s_bc54431df54bf2::t_760d7bd8c6dbd2 11,17
+specs/001-touchmyapi-platform/spec.md
+  s_bc54431df54bf2::t_760d7bd8c6dbd2 9,15,19,81,103,114,136,145
+specs/001-touchmyapi-platform/contracts/index.md
+  s_bc54431df54bf2::t_08548a7ed0b633 3,5
+specs/001-touchmyapi-platform/research.md
+  s_bc54431df54bf2::t_760d7bd8c6dbd2 33,35-37,84,115
+docs/product/user-journeys.md
+  s_bc54431df54bf2::t_e1563e8ed72306 1-61
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_b850936217acd8 28-32,34,102-104,181
+  s_bc54431df54bf2::t_408759941d9fdf 21,36,192
+specs/001-touchmyapi-platform/contracts/api.md
+  s_bc54431df54bf2::t_408759941d9fdf 3,9-11
+.env.example
+  s_bc54431df54bf2::t_c63e30cc06ebf5 16-18,22-23
+docs/operations/ovh-deployment.md
+  s_bc54431df54bf2::t_e1563e8ed72306 15,23-24,35-37,40-44,47-50,90,94
+specs/001-touchmyapi-platform/contracts/admin.md
+  s_bc54431df54bf2::t_408759941d9fdf 3
+README.md
+  s_bc54431df54bf2::t_e1563e8ed72306 3,7,13-15,19
+specs/001-touchmyapi-platform/data-model.md
+  s_bc54431df54bf2::t_408759941d9fdf 5,22,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "36e9b9497e4f6e1c05683f8addbd6bfc4ee82e43",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
