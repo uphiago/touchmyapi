@@ -53,6 +53,9 @@ await run("docker", [
   composeFile,
   "up",
   "-d",
+  "--wait",
+  "--wait-timeout",
+  "120",
   "postgres",
   "minio",
 ]);
