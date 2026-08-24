@@ -10,7 +10,7 @@
 
 ## Format: `[ID] [P?] [Story] Description`
 
-Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entitlement, US3 = Reports & Evidence, US4 = Private Agent.
+Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entitlement, US3 = Reports & Evidence, US4 = Private Agent, US5 = Shared Accounts & Collaboration, US6 = Admin Control Plane, INFRA = Queue & Outbox.
 
 ## Path Conventions
 
@@ -39,20 +39,20 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 
 **⚠️ CRITICAL**: No user story work begins until this phase is complete.
 
-- [x] T009 [P] Implement zod contract schemas in `packages/contracts/types.ts` for: assessment state machine, target categories, playbook contract, job spec, artifact manifest, export JSON, billing event, audit event (mirror `specs/001-.../contracts/`)
-- [ ] T010 [P] Implement `packages/policy/scope.ts`: target normalization (external URL/domain/API spec → normalized descriptor), inclusion/exclusion matching, private/local/metadata-IP blocklist rules (per research R8)
-- [ ] T011 [P] Implement `packages/policy/entitlement.ts`: plan rights matrix (free_unverified/free_verified/pro/lifetime) → allowed result visibility, playbook slice, credit caps (spec FR-005)
-- [ ] T012 [P] Implement `packages/policy/limits.ts`: rate/duration/concurrency/credit cap reducer; browser/model/runner inputs can only reduce, never increase playbook limits (spec FR-014)
-- [ ] T013 [P] Implement `packages/policy/engine.ts`: `authorize(action, scope, entitlement, limits) -> { allowed, blocked[], reason }`; policy-block testable via `tests/isolation/policy.test.ts`
-- [ ] T014 [P] Implement `packages/db/schema.ts`: all tables from `data-model.md` (account, user, session, assessment, authorization_attestation, verification, playbook, job, runner_execution, credential, finding, report, credit_entry, billing_event, entitlement, agent, audit_event, notification) with `account_id` + enum types
-- [ ] T015 [P] Implement RLS bootstrap in `packages/db/migrations/*.sql` using Drizzle `pgPolicy`/`pgRole`: runtime roles `api_rls`/`worker_rls`/`reporting_rls`, tenant from `current_setting('app.tenant')`, default deny (spec FR-003, data-model RLS)
-- [ ] T016 [P] Implement `packages/db/session.ts`: transaction wrapper that sets `app.tenant` + `set local role` per query; expose typed query client per role
-- [ ] T017 [P] Implement `packages/contracts/audit.ts`: chained append-only audit event writer hitting `audit_event` with redaction helper (spec FR-018)
-- [ ] T018 [P] Implement `packages/secrets/aead.ts`: envelope AEAD encrypt/decrypt for external credentials at rest (key per `key_id`, rotation hooks) (spec FR-010)
-- [ ] T019 [P] Implement `packages/playbooks/index.ts`: playbook schema validation + `surface-public-posture@1.0.0` passive contract (actions: dns.records, tls.cert, http.headers, robots.txt, sitemap.xml, endpoint.minimal), per playbook contract doc
-- [ ] T020 Implement `apps/api/src/server.ts`: Hono app skeleton with cookie session middleware, zod validation, error envelope `{error:{code,message}}`, centralized audit logging
-- [ ] T021 Implement `apps/api/src/auth/google.ts`: Google OAuth PKCE via `openid-client` (login/callback/logout), HttpOnly Secure SameSite session cookies, rotation + revocation (spec FR-001/FR-002); GitHub/X remain model-disabled
-- **Checkpoint**: Foundation ready - `bun run test:isolation` has RLS isolation test green (spec SC-002). User stories can begin.
+- [x] T009 [P] Implement Zod contract schemas in `packages/contracts/src/*.ts` for assessment state/target, playbook, job, artifact manifest, export JSON, billing event, audit event, health/error, and redaction (mirror `contracts/`)
+- [x] T010 [P] Implement `packages/policy/src/scope.ts`: target normalization (external URL/domain/API spec → normalized descriptor), inclusion/exclusion matching, private/local/metadata-IP blocklist rules (per research R8)
+- [x] T011 [P] Implement `packages/policy/src/entitlement.ts`: plan rights matrix (free_unverified/free_verified/pro/lifetime) → allowed result visibility, playbook slice, credit caps (spec FR-005)
+- [x] T012 [P] Implement `packages/policy/src/limits.ts`: rate/duration/concurrency/credit cap reducer; browser/model/runner inputs can only reduce, never increase playbook limits (spec FR-014)
+- [x] T013 [P] Implement `packages/policy/src/engine.ts`: `authorize(action, scope, entitlement, limits) -> { allowed, blocked[], reason }`; policy-block testable via `tests/isolation/policy.test.ts`
+- [x] T014 [P] Implement the Foundation Phase 2 tables in `packages/db/schema/*.ts` plus generated migrations (account, existing global user, session, assessment, authorization_attestation, verification, playbook, job, runner_execution, credential, finding, report, credit_entry, billing_event, entitlement, agent, audit_event, notification) with `account_id` + enum types; Phase 2A membership, queue/outbox, and admin tables are additive in T072, T081, and T088
+- [x] T015 [P] Implement RLS bootstrap in `packages/db/migrations/*.sql`: runtime roles `api_rls`/`worker_rls`/`reporting_rls`, tenant from `current_setting('app.tenant')`, forced default deny, exact grants, and narrow auth bootstrap (spec FR-003, data-model RLS)
+- [x] T016 [P] Replace the provisional `packages/db/src/tenant-session.ts` arbitrary `unsafe(string)` surface with an opaque `TenantDatabase` and closed typed account capabilities while preserving reserved-backend `app.tenant` + `SET LOCAL ROLE`, rollback/cleanup, exact role validation, context expiry, and adversarial isolation. A post-preflight table/function/worker-UPDATE grant cannot add an exposed operation; see `docs/reviews/2026-08-22-t016-capability-boundary.md`.
+- [x] T017 [P] Implement `packages/db/src/audit.ts`: chained append-only audit event writer hitting `audit_event` with recursive redaction and a narrow transaction-owned chain-lock capability (spec FR-018)
+- [x] T018 [P] Implement `packages/secrets/src/aead.ts`: version-2 AES-256-GCM envelope AEAD encrypt/decrypt for external credentials at rest (key per `key_id`, key-ID AAD, bounded inputs, explicit legacy rejection, rotation hooks) (spec FR-010; see `docs/reviews/2026-08-23-t018-credential-aead.md`)
+- [x] T019 [P] Implement `packages/playbooks/src/index.ts`: strict playbook schema validation + policy-aligned `surface-public-posture@1.0.0` passive contract (closed actions, canonical order, detached `slicePassive`, no execution/network behavior) (see `docs/reviews/2026-08-23-t019-passive-playbook.md`)
+- [x] T020 Implement `apps/api/src/server.ts`: dependency-injected Hono boundary with exact-origin CORS, server-owned request IDs, stable error envelopes, pre-handler redaction-safe audit gating, fail-closed mutation behavior, and no assessment handlers (see `docs/reviews/2026-08-23-t020-api-boundary.md`)
+- [x] T021 Implement Google-only OAuth PKCE boundary in `apps/api/src/auth.ts` and `apps/api/src/oidc-adapter.ts`: `openid-client` Authorization Code + PKCE (login/callback/logout), encrypted transient state, HttpOnly Secure SameSite session cookies, hash-only rotation + revocation, and fake-adapter tests (spec FR-001/FR-002); GitHub/X remain model-disabled (see `docs/reviews/2026-08-23-t021-google-oidc.md`)
+- **Checkpoint reached**: Foundation T010–T021 is accepted with green unit/contract/API/OAuth gates. User stories remain blocked until the documented Phase 2A membership and queue prerequisites complete.
 
 ---
 
@@ -66,15 +66,15 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 
 - [ ] T022 [P] [US1] Contract test: state-machine transition validity (all 8 states, idempotency, awaiting_verification bypass only for passive free) in `tests/contract/assessment-states.test.ts`
 - [ ] T023 [P] [US1] Integration test: create assessment modal payload → row created as `draft` in `tests/integration/assessment-create.test.ts`
-- [ ] T024 [P] [US1] Integration test: queue durability - kill worker mid-run, restart, job recovers `stale_recovered` and finishes (spec SC-004) in `tests/integration/queue-recovery.test.ts`
-- [ ] T025 [P] [US1] Integration test: second concurrent run for same target/account rejected in `tests/integration/assessment-concurrency.test.ts`
+- [ ] T024 [P] [US1] Integration acceptance test consuming Phase 2B queue primitives: two workers claim `queued`/`stale_recovered` with `FOR UPDATE SKIP LOCKED`, `running` lease reaps to `stale_recovered` with backoff, and a restarted worker finishes under the current fencing token in `tests/integration/queue-recovery.test.ts`
+- [ ] T025 [P] [US1] Integration acceptance test consuming Phase 2B queue primitives: second concurrent run for the same `account_id` + normalized target is rejected by the partial active index covering `queued`/`stale_recovered`/`running`; a different account may queue independently in `tests/integration/assessment-concurrency.test.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T026 [P] [US1] Implement assessment entity/service in `packages/db` query layers (`assessment.ts`, `attestation.ts`) + state transition guards in `packages/policy/state.ts`
-- [ ] T027 [US1] Implement `packages/db/queue.ts`: durable Postgres queue with `FOR UPDATE SKIP LOCKED` lease, retry/backoff, dedupe, timeout, abandoned-job recovery (research R3)
-- [ ] T028 [US1] Implement `apps/api/src/routes/assessments.ts`: POST/GET/list/detail/cancel with policy-gated field visibility, validation of schema/ownership/state/entitlement on every mutation (spec FR-008, FR-014)
-- [ ] T029 [US1] Implement `apps/worker-control/src/scheduler.ts`: leases queued jobs, enforces one-run-per-target/account + global limits, dispatches jobs, handles cancel/stop signal
+- [ ] T026 [P] [US1] Implement assessment entity/service in `packages/db` query layers (`assessment.ts`, `attestation.ts`) + state transition guards in `packages/policy/state.ts`; every account-scoped service call must resolve an active `account_membership(account_id,user_id)` and role capability before mutation (FR-022/023, SC-011)
+- [ ] T027 [US1] Integrate the queue module delivered by INFRA T081–T086 into assessment enqueue/state transitions and outbox writes; do not duplicate claim, fencing, reaper, fairness, or outbox semantics in this task (research R3; contracts/queue.md)
+- [ ] T028 [US1] Implement `apps/api/src/routes/assessments.ts`: POST/GET/list/detail/cancel with policy-gated field visibility and validation of schema, required active membership and role capability, state, and entitlement on every mutation; membership is required, not generic ownership (spec FR-008, FR-014, FR-022/023, SC-011)
+- [ ] T029 [US1] Integrate `apps/worker-control/src/scheduler.ts` with INFRA T082–T086 through typed `packages/db/src/queue-control.ts`: lock `queue_global_state` then exact `queue_tenant_state` fairness claim, dispatch only current fencing token, heartbeat before half-lease, handle cancel/cleanup, and poll outbox; do not reimplement queue primitives or issue unsafe SQL here
 - [ ] T030 [US1] Implement `packages/runner/sandbox-provider.ts` interface + `packages/runner/podman-runsc.ts` impl (rootless Podman + gVisor runsc, digest-pinned image, non-root, read-only rootfs, tmpfs, cap-drop, seccomp, watchdog cleanup) (research R6). `SANDBOX_IMPL=noop` for CI
 - [ ] T031 [US1] Implement `apps/worker-control/src/dispatch.ts`: signed job spec (Ed25519), `packages/secrets` short-lived credential channel (tmpfs 0600 pull, deleted on exit) (job contract; spec FR-010)
 - [ ] T032 [US1] Implement passive playbook executor in `packages/playbooks/surface-public-posture.ts`: HTTP probes restricted to scope target, evidence as files + artifact manifest with hashes (job contract)
@@ -176,13 +176,74 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 
 ---
 
+## Phase 2A: Multi-user accounts, PostgreSQL queue, outbox, and admin control plane
+
+**Purpose**: Extend the foundation after T021 with the existing `user` identity as the sole global authority, explicit account membership, a fenced PostgreSQL queue/outbox, and a separate MFA-protected admin plane. T071–T086 MUST execute after T021 and before existing T022. T087 is the US1 queue integration gate. T088–T094 are US6 admin tasks after queue primitives and billing read dependencies. All tasks remain unchecked until their tests and review evidence are green.
+
+**Non-goals preserved**: Foundation Phase 2 remains historically limited to T010–T021; this phase does not add SSO, SCIM, Redis, Kafka, impersonation, arbitrary SQL, owner/BYPASSRLS runtime access, secrets/raw evidence to admin, or billing writes.
+
+### Phase 2A membership (after T021, before T022)
+
+- [x] T071 [P] [US5] Define strict membership/invitation contracts and stable errors (`packages/contracts/src/membership.ts`, `contracts/membership.md`): existing `user`, roles, explicit body acceptance, hash-only bearer token, expiry, single use, same-user idempotent replay, no email auto-link.
+- [x] T072 [P] [US5] Add additive `account_membership(account_id,user_id)`/invitation schema and expand backfill (`packages/db/schema/membership.ts`, migrations `0011`–`0013`): preserve `user.account_id` during expand, allow multiple owners, no one-owner index.
+- [x] T073 [P] [US5] Implement/test role capabilities (`packages/policy/src/membership.ts`): owner/admin manage membership, operator runs assessments, viewer reads, billing reads/initiates purchase intent; last active owner removal/demotion is a transactional guard.
+- [x] T074 [US5] Update narrow auth/session functions (`0014_auth_account_switch.sql`): `auth_list_accounts(session_hash)`, `auth_switch_account(current_hash,target_account_id,new_hash,expiry)`, fixed search path, `auth_bootstrap` only, `session.account_id`, no email/arbitrary enumeration.
+- [x] T075 [US5] Implement invitation creation/`POST /api/v1/invitations/accept` body (`packages/db/src/invitations.ts`, `0015_invitations.sql`, API auth boundary) with 256-bit bearer token, SHA-256 storage, body redaction before access/app logs, same-user idempotency, generic other-user/invalid/expired/revoked errors.
+- [ ] T076 [US5] Add account/membership/lifecycle API (`apps/api/src/memberships.ts`) and its transactional store boundary (`packages/db/migrations/0016_membership_lifecycle.sql`); integrate active membership + role capability into `packages/policy/engine.ts`, existing T026 assessment services, and existing T028 assessment routes; enforce schema, session account, role policy, multi-owner/last-owner transaction guard, deletion revocation, and audit (FR-022/023, SC-011). The current checkpoint covers canonical list/invite/patch/remove routing, active-session checks, session revocation, and audit-chain SQL; production store wiring, deletion workflow, and UI remain before T080.
+- [x] T077 [US5] Extend RLS/composite references (`tests/isolation/multiuser-rls.test.ts`, migration `0017_multiuser_rls_references.sql`) for membership, invitation, `session.account_id`, and attestation membership FKs; prove two-account denial with 24/24 isolation and 64/64 integration gates.
+- [x] T078 [P] [US5] Add customer account switcher/membership UI (`apps/web/src/account-switcher.tsx`, `memberships.tsx`) using body acceptance and server permissions; no token URL/echo or browser authority. Verified with 274 unit tests and a production web build.
+- [x] T078a [P] Add a reproducible local stack path (`scripts/dev-local.ts`, `scripts/local-smoke.ts`, `dev:local`, `local:smoke`, `local:logs`) that starts loopback PostgreSQL, applies migrations, enables development-only mock auth/memberships, keeps API/Vite logs attached, verifies `/health` plus the web shell while running, and exercises account switch/membership plus assessment draft→queue calls.
+- [x] T079 [US5] Execute expand-contract cutover review (`tests/integration/multiuser-migration.test.ts`, `docs/reviews/2026-08-23-multiuser-membership.md`, `quickstart.md`): journal inspection, dual-read, cutover/rollback sequence, session rotation, explicit orphan quarantine guard, and later removal of `user.account_id`/unique only after enforcement. Focused migration review passes 4/4 on a freshly migrated `_test` database; legacy columns remain intentionally present.
+- [x] T080 [US5] Run membership acceptance gate (`docs/reviews/2026-08-23-multiuser-membership-acceptance.md`) with TDD evidence for FR-022/023, SC-011/012/013, active membership + role capability, identity naming, auth list/switch, owner guard, body redaction, RLS, migration, local smoke, and build gates. Unit 275, contract 36, integration 68, and isolation 24 passed on separately migrated fresh `_test` databases; T022 remains unchecked.
+
+### Phase 2B queue/outbox (T081–T087, before T022)
+
+- [x] T081 [INFRA] Define queue/outbox contracts/schema and least-privilege bootstrap (`packages/contracts/src/queue.ts`, `packages/db/schema/queue.ts`, `packages/db/src/queue-bootstrap.ts`, migration `0018_queue_schema.sql`): singleton `queue_global_state`, `queue_tenant_state`, eligible statuses, partial active index over `queued/stale_recovered/running`, exact outbox operational fields and standalone function signatures, `queue_control`/worker-only `queue_connector`/`admin_queue_connector` role boundary, `FORCE RLS` policies, bootstrap/backfill and account-trigger tenant upsert. Evidence is recorded in `docs/reviews/2026-08-23-queue-schema.md`.
+- [x] T082 [INFRA] Implement tenant enqueue and exact fair worker claim through typed `packages/db/src/queue.ts` and `packages/db/src/queue-control.ts`: enqueue requires matching `app.tenant` context and inserts job plus redacted outbox atomically; worker connector has fixed function `EXECUTE`, zero queue table grants, and no enqueue/admin grants; global→tenant→job locks use deterministic fairness and postgres.js typed boundaries. Fresh integration proves concurrent distinct claims and no duplicate claim.
+- [x] T083 [INFRA] Implement heartbeat/ack/fail through `packages/db/src/queue-control.ts`: job/counter transactions lock global→tenant→job, enforce account/lease-owner/fencing predicates, stale fences are no-ops, terminal paths decrement counters, and fencing is never reset; standalone outbox operations use outbox-only locks. Admin requeue remains a separate future T092 boundary.
+- [x] T084 [INFRA] Implement reaper/retry (`apps/worker-control/src/reaper.ts`, queue-control tests): global→tenant→job recovery transitions expired running leases to `stale_recovered` with bounded backoff and counter decrement, next claims increment fencing, exhaustion becomes failed, and standalone outbox reaping uses outbox-only locks.
+- [x] T085 [INFRA] Implement fairness reconciliation (`apps/worker-control/src/{fair-scheduler,reconciler}.ts` via `packages/db/src/queue-control.ts`): singleton/global and exact tenant state, quiet/noisy ordering, operational-row backfill, deterministic global→tenant→job locking, counter repair, and fail-closed caps. Unit and fresh integration evidence is recorded in the queue review.
+- [x] T086 [INFRA] Implement transactional outbox through standalone typed functions and `apps/worker-control/src/outbox-dispatcher.ts`: fixed claim/heartbeat/ack/fail/reap signatures, short leases/fencing, bounded retries, redacted errors, terminal failure, at-least-once event keys, and outbox-only locks. `NOTIFY` remains optional and non-authoritative.
+- [ ] T087 [US1] Integrate typed queue/enqueue/control primitives into T024/T025/T027/T029 and gate (`tests/integration/{queue-recovery,assessment-concurrency}.test.ts`, review): T024 selects `stale_recovered`, T025 consumes active index, T027/T029 integrate without duplicate semantics, tenant enqueue remains policy-gated, completion/fail/reaper/reconcile preserve global→tenant→job order with stale-fence no-op, standalone outbox uses outbox-only locks, and admin queue actions use separate JIT connector; FR-024/025 and SC-004/014/015 evidence.
+
+Checkpoint: the local mock journey is wired through account-scoped assessment
+list/create/queue routes and the web console. Production PostgreSQL assessment
+store, verification gate, and worker dispatch remain intentionally open for
+T027/T029/T087; see `docs/reviews/2026-08-23-queue-integration.md`.
+
+### Phase 2C admin control plane (T088–T094, after queue and billing read dependencies)
+
+- [ ] T088 [P] [US6] Define admin contracts/schema/bootstrap (`packages/contracts/src/admin.ts`, `packages/db/schema/admin.ts`): exact staff/support names, separate cookies/origin, out-of-band immutable Workspace subject bootstrap, no domain-only/no customer auth.
+- [ ] T089 [US6] Implement staff OIDC/WebAuthn/recovery (`apps/admin/src/auth/*`): separate Google OIDC, local WebAuthn MFA, hashed one-time recovery, dual-approved MFA reset, dedicated staff session.
+- [ ] T090 [US6] Implement JIT grants/approvals/break-glass (`packages/db/src/admin-grants.ts`, `apps/api/src/routes/admin-grants.ts`): reason/ticket/TTL, normal approval, two distinct break-glass approvers, append-only audit.
+- [ ] T091 [US6] Implement safe support and read-only billing API after T045 (`apps/api/src/routes/admin-{support,billing}.ts`): metadata/status only; deny secrets/raw evidence/signed jobs/arbitrary SQL/impersonation/credit or entitlement writes.
+- [ ] T092 [US6] Implement policy-aware queue ops (`apps/api/src/routes/admin-queue.ts`, `packages/db/src/admin-queue.ts`, policy test): account-scoped inspect/cancel/requeue and `/admin/accounts/:accountId/reaper/run` only; require the account-bound support grant capability and bounded batch for reaper; call separate JIT-gated `admin_queue_connector` functions, never `queue_connector`; requeue clears lease and never resets fencing; no scope/action/target changes, global reaper, arbitrary dispatch, or direct table/unsafe SQL path.
+- [ ] T093 [P] [US6] Implement separate admin UI (`apps/admin/src`): login/callback/WebAuthn/grants/queue/billing read-only; browser cannot grant capability, alter policy, access secrets/raw evidence, or mutate billing.
+- [ ] T094 [US6] Run admin RLS/e2e/runbook/review (`tests/isolation/admin-rls.test.ts`, `tests/e2e/multiuser-admin.test.ts`, `docs/reviews/2026-08-22-multiuser-queue-admin.md`, `quickstart.md`) proving FR-022–027, SC-011–016, and all no-bypass constraints.
+
+### Phase 2D console/deployment checkpoint (T095–T100)
+
+- [x] T095 [P] [US1] Replace the customer landing-style shell with the approved operational console (`apps/web/src/{app-shell,overview,assessment-wizard}.tsx`, responsive `app.css`): Overview/Assessments/Team/Workspace navigation, guided authorized assessment draft → queue flow, truthful local-mock banner, role/account context, loading/error/empty states, and desktop/mobile component tests. This checkpoint enriches T036/T078 but does not complete real execution/findings/reports.
+- [x] T096 [P] [US6] Add a development-only separate admin composition and UI (`apps/api/src/{admin-local,admin-server}.ts`, `apps/admin/src`), using ports `3001/5174`, a dedicated admin cookie/CORS origin/store, safe operations/account/queue metadata, JIT request + distinct mock approval + bounded mock action, read-only billing, and redacted audit. Production remains unavailable; this does not complete T088–T093 persistence/OIDC/WebAuthn/JIT acceptance.
+- [x] T097 [US6] Gate local customer/admin separation (`tests/contract/foundation-config.test.ts`, admin API tests, `scripts/{dev-local,local-smoke}.ts`): customer/admin cookies reject cross-use, browser origins match CORS, mocks require explicit development flags, all four child processes shut down together, and smoke proves grant-before-action without secrets/raw evidence/global reaper/billing writes.
+- [x] T098 [P] [INFRA] Add production packaging (`apps/{api,web,admin}/Dockerfile`, `.dockerignore`, `infra/docker/compose.production.yml`): non-root/read-only application runtimes where supported, immutable image tag input, PostgreSQL without public port, separate customer/admin origins, local mocks disabled, health checks, and one-shot migration before application cutover.
+- [x] T099 [INFRA] Add the Barbarossa-pattern GitHub/OVH release (`.github/workflows/build-deploy.yml`, `scripts/{deploy-ovh,smoke-remote}.sh`, `docs/operations/ovh-deployment.md`): PR validation, manual/`v*` release only, SHA-pinned actions and images, minimal permissions, GitHub `production` environment, verified host key/strict SSH, host-provisioned `.env` preservation, serialized deploy, bounded image pruning, migration-before-cutover, remote smoke, and prior-SHA rollback metadata. External OVH/GitHub secrets and reverse-proxy/DNS provisioning remain unchecked until proven.
+- [x] T100 Run the console/admin/deploy checkpoint review (`docs/reviews/2026-08-23-console-admin-ovh-checkpoint.md`): customer/admin production builds, local browser captures at desktop/mobile, customer and admin smoke, workflow/Compose regression tests, full fast gates, and separately migrated PostgreSQL integration/isolation suites. Mark only T095–T100 complete; T087 and T088–T094 remain governed by their full acceptance criteria.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
 
 - **Setup (P1)**: no dependencies
 - **Foundational (P2)**: depends on Setup; **BLOCKS all user stories**
-- **US1 (P3)**: depends on P2 only
+- **Phase 2A membership (T071–T080)**: depends on T021; **BLOCKS T022 and all account-scoped assessment mutations**
+- **Phase 2B queue/outbox (T081–T087)**: depends on T080; T087 integrates and enriches T024/T025/T027/T029; PostgreSQL remains source of truth
+- **US1 queue gate (T087)**: must pass before T022; no duplicate queue semantics in existing T027/T029
+- **Phase 2C admin (T088–T094)**: depends on queue/outbox T081–T087 and billing read model T045; separate staff/MFA origin; no billing writes
+- **Phase 2D console/deployment checkpoint (T095–T100)**: customer console T095 depends on T078/T078a; local admin demonstration T096/T097 may precede persistent T088–T092 only because it is explicit development-only state; production packaging/release T098/T099 depends on the customer/admin build outputs and does not make unfinished production backends available
+- **US1 (P3)**: depends on P2 + T080 membership gate + T087 queue gate
 - **US2 (P4)**: depends on P2 + US1 foundational surfaces (assessment creation hooks into entitlement)
 - **US3 (P5)**: depends on US1 (completed assessments) + US2 (plan gating)
 - **US4 (P6)**: depends on P2 (policy, contracts) + worker-control (dispatch)
@@ -190,7 +251,7 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 
 ### User Story Dependencies
 
-- US1: after P2; independent
+- US1: after P2 and T080/T087 gates; assessment state tests T022 follow T087
 - US2: after P2; integrates with US1 mutation path but independently testable
 - US3: after US1+US2; independently testable
 - US4: after P2 + worker-control; independently testable
@@ -203,7 +264,7 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 
 ### Parallel Opportunities
 
-- All [P] tasks within any phase can run in parallel
+- All [P] tasks within any phase can run in parallel only when their file sets do not overlap
 - Phase 2 foundational [P] tasks are the main concurrency win (contracts/policy/db/secrets/playbooks/auth)
 - Different user stories can run in parallel after P2 (e.g. US4 agent channel while US3 reporting)
 
@@ -243,7 +304,9 @@ Task: "T021 Google OAuth PKCE in apps/api/src/auth/google.ts"
 ### Parallel Team Strategy
 
 - Team completes Setup + Foundational together
-- After P2: US1 (pipeline) + US4 (agent channel) can proceed in parallel
+- After T021: membership tasks T071–T080 execute first; T022 is explicitly blocked until T087
+- After T080: queue/outbox tasks T081–T086 execute; T087 integrates T024/T025/T027/T029 and gates T022
+- After T087 and T045: admin tasks T088–T094 execute; US1/US4 proceed only where membership/policy seams are complete
 - After US1: US2 (billing) + US3 (reporting prep) in parallel
 - Story integration verified at end of each checkpoint
 
@@ -252,8 +315,10 @@ Task: "T021 Google OAuth PKCE in apps/api/src/auth/google.ts"
 ## Notes
 
 - [P] = parallelizable (different files, no dependencies)
+- `[US5]`, `[US6]`, and `[INFRA]` identify the Phase 2A traceability groups; all are unchecked until tests/review are green.
 - [Story] maps each task to spec user story for traceability
 - Verify tests FAIL before implementing (red), then implement to green
 - Constitution gates: policy engine authority (II), RLS default deny (III), runner least privilege (IV), AI non-executor (V), webhook-only entitlement (VI) are re-checked at each checkpoint
+- Phase 2A gates: existing `user` is the only customer identity authority; account membership is explicit and RLS-protected; queue claims are exact/fenced/recoverable; outbox is transactional and at-least-once; admin is separate OIDC/WebAuthn/MFA/JIT and has no impersonation, owner/BYPASSRLS, arbitrary SQL, secret/raw-evidence, or billing-write path.
 - Commit after each logical task group; stop at any checkpoint to validate independently
 - Avoid: vague tasks, same-file conflicts, cross-story dependencies that break independence; every task has an exact file path

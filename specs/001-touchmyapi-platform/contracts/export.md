@@ -70,3 +70,9 @@ Rule: dedupe insert on `stripeEventId` BEFORE any side effect; `ON CONFLICT DO N
 ```
 
 Rule: inserted by application (append-only); account delete leaves audit rows per retention (365d). Redaction applies before write (constitution VI, spec §9).
+
+## Membership and queue audit additions
+
+Membership invitation creation/acceptance, role/status changes, account switching, session rotation, queue claim/heartbeat/recovery/cancel, fencing rejection, outbox delivery, and admin capability decisions use the same redacted append-only audit boundary. Payloads contain account, actor class, operation, result, request ID, grant/event/job ID, and safe reason; they never contain raw invitation tokens, credential material, signed job payloads, secrets, or raw evidence.
+
+Admin audit additionally records staff identity, capability grant, ticket reference, reason, approval count, TTL, outcome, nullable `prev_event_hash` (NULL for the first event), and `event_hash` in an append-only per-account chain; composite account/grant and account/approval integrity is enforced, and `account_id IS NULL` is reserved for the separate system/bootstrap chain with no tenant references. Billing records remain read-only to admin; entitlement and credit changes still require verified Stripe webhooks.

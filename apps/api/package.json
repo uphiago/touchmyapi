@@ -5,12 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/server.ts",
+    "dev:admin": "bun --watch src/admin-server.ts",
     "build": "bun build src/server.ts --outdir dist --target bun",
+    "build:admin": "bun build src/admin-server.ts --outdir dist --target bun",
     "start": "bun src/server.ts",
     "test": "bun test"
   },
   "dependencies": {
     "@touchmyapi/contracts": "workspace:*",
-    "hono": "^4.6.0"
+    "hono": "^4.6.0",
+    "openid-client": "^6.8.1"
   }
 }

@@ -17,12 +17,28 @@
         "vitest": "^3.2.4",
       },
     },
+    "apps/admin": {
+      "name": "@touchmyapi/admin",
+      "version": "0.1.0",
+      "dependencies": {
+        "@touchmyapi/contracts": "workspace:*",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+      },
+      "devDependencies": {
+        "@types/react": "^18.3.3",
+        "@types/react-dom": "^18.3.0",
+        "@vitejs/plugin-react": "^4.3.1",
+        "vite": "^5.4.0",
+      },
+    },
     "apps/api": {
       "name": "@touchmyapi/api",
       "version": "0.1.0",
       "dependencies": {
         "@touchmyapi/contracts": "workspace:*",
         "hono": "^4.6.0",
+        "openid-client": "^6.8.1",
       },
     },
     "apps/web": {
@@ -51,11 +67,38 @@
       "name": "@touchmyapi/db",
       "version": "0.1.0",
       "dependencies": {
+        "@touchmyapi/contracts": "workspace:*",
         "drizzle-orm": "^0.45.2",
         "postgres": "^3.4.4",
       },
       "devDependencies": {
         "drizzle-kit": "^0.31.10",
+      },
+    },
+    "packages/policy": {
+      "name": "@touchmyapi/policy",
+      "version": "0.1.0",
+      "dependencies": {
+        "@touchmyapi/contracts": "workspace:*",
+        "zod": "^3.24.1",
+      },
+    },
+    "packages/playbooks": {
+      "name": "@touchmyapi/playbooks",
+      "version": "0.1.0",
+      "dependencies": {
+        "@touchmyapi/contracts": "workspace:*",
+      },
+    },
+    "packages/secrets": {
+      "name": "@touchmyapi/secrets",
+      "version": "0.1.0",
+    },
+    "packages/ui": {
+      "name": "@touchmyapi/ui",
+      "version": "0.1.0",
+      "dependencies": {
+        "@touchmyapi/contracts": "workspace:*",
       },
     },
   },
@@ -240,11 +283,21 @@
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.62.5", "", { "os": "win32", "cpu": "x64" }, "sha512-/gDJaRs4gl0NPIwqCz+6PkpmhhjRAD2j6P4rSNHBzUkO3naEx2mIU0pRle1vUNRQ7mE/+8OOeXLTv/J56FKiQg=="],
 
+    "@touchmyapi/admin": ["@touchmyapi/admin@workspace:apps/admin"],
+
     "@touchmyapi/api": ["@touchmyapi/api@workspace:apps/api"],
 
     "@touchmyapi/contracts": ["@touchmyapi/contracts@workspace:packages/contracts"],
 
     "@touchmyapi/db": ["@touchmyapi/db@workspace:packages/db"],
+
+    "@touchmyapi/policy": ["@touchmyapi/policy@workspace:packages/policy"],
+
+    "@touchmyapi/playbooks": ["@touchmyapi/playbooks@workspace:packages/playbooks"],
+
+    "@touchmyapi/secrets": ["@touchmyapi/secrets@workspace:packages/secrets"],
+
+    "@touchmyapi/ui": ["@touchmyapi/ui@workspace:packages/ui"],
 
     "@touchmyapi/web": ["@touchmyapi/web@workspace:apps/web"],
 
@@ -905,6 +958,12 @@
     "vite/esbuild/@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.21.5", "", { "os": "win32", "cpu": "ia32" }, "sha512-SWXFF1CL2RVNMaVs+BBClwtfZSvDgtL//G/smwAc5oVK/UPu2Gu9tIaRgFmYFFKrmg3SyAjSrElf0TiJ1v8fYA=="],
 
     "vite/esbuild/@esbuild/win32-x64": ["@esbuild/win32-x64@0.21.5", "", { "os": "win32", "cpu": "x64" }, "sha512-tQd/1efJuzPC6rCFwEvLtci/xNFcTZknmXs98FYDfGE4wP9ClFV98nyKrzJKVPMhdDnjzLhdUyMX4PsQAPjwIw=="],
+
+    "jose": ["jose@6.2.10", "", {}, "sha512-iiW7J9qRFlGxvCOIBDBDxFePQSn7ZMAnrYGhrrOo6siO/MIqwfyilLR27pkfDgUk+raLuzADS8A3S/KLBisc0g=="],
+
+    "oauth4webapi": ["oauth4webapi@3.8.7", "", {}, "sha512-4RxcKxXjuItDFZ20RRPf4YTw3kpeXJyCgJFxVzJ068A7PNJ18st2Dg90tlC1LkSDS0GecroagCLHYEIVUhCAkw=="],
+
+    "openid-client": ["openid-client@6.8.7", "", { "dependencies": { "jose": "^6.2.8", "oauth4webapi": "^3.8.7" } }, "sha512-gtKthNu7evSBvTdrrlHb4F3Fi9dcwlb5QaITlCs+9mfpvuOi0Q3qtBf5+iY4sEP8hy1qCoAdxBNPDcmZeVSDzQ=="],
 
     "wrap-ansi/strip-ansi/ansi-regex": ["ansi-regex@6.3.0", "", {}, "sha512-WpDfL7NO6j7tH88IDBNVdUJxDh9nmCteAVW9dsep846XdwF4naCBK+/tGLX3KJgcpgMRXCFlTM2hKGoK9FsdrQ=="],
   }

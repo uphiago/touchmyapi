@@ -76,6 +76,20 @@ A paying customer installs the private agent inside their environment. The agent
 
 ---
 
+### User Story 5 - Shared Accounts and Membership (Priority: P1 for multi-user extension)
+
+An account owner invites collaborators to a workspace with an explicit role (`owner`, `admin`, `operator`, `viewer`, or `billing`). The existing global Google `user` can belong to multiple accounts through explicit memberships, but an invitation is accepted only by an authenticated user through an explicit action; email is delivery data and never auto-links an account. The active account is stored in `session.account_id`, and switching accounts rotates the session. Every assessment, credential, job, finding, report, credit, membership, and invitation remains isolated by `account_id`.
+
+**Independent Test**: Two authenticated users share one account and have separate accounts; invitation acceptance, role restrictions, account switching, session rotation, and cross-account RLS tests prove that neither user can read or mutate the other account.
+
+### User Story 6 - Durable Queue and Admin Control Plane (Priority: P1 for multi-user extension)
+
+Tenant enqueue uses closed typed `packages/db/src/queue.ts` calls under `api_rls`/`app.tenant` after membership, policy, and entitlement checks; the worker reaches PostgreSQL through typed `packages/db/src/queue-control.ts` calls to fixed-signature functions owned by a least-privilege `queue_control` role. Its dedicated connector has only `EXECUTE` on worker queue/outbox functions and zero table grants, with no arbitrary enqueue or admin operation. Claims use `FOR UPDATE SKIP LOCKED`, a lease, and a fencing token. Heartbeats, completion, failure, retry/backoff, timeout, reaper recovery, reconciliation, fair scheduling, tenant/global limits, and a transactional outbox make worker restarts and missed notifications safe. Standalone outbox delivery uses deterministic `available_at,account_id,id`/`account_id,id` locks and never touches global/job rows; job-aggregate event insertion remains in the global→tenant→job transaction. Staff use a separate admin app/API/origin, identity, cookies, and mandatory MFA. Tenant access is granted just in time with a reason, ticket, TTL, and approval; break-glass requires two approvers. Admin cancellation, requeue, and account-reaper use separate JIT-gated admin functions. Admin operations are policy-aware and expose neither secrets nor raw evidence.
+
+**Independent Test**: Tenant enqueue is denied without membership/policy/entitlement and atomically creates job plus versioned redacted outbox intent; concurrent workers claim distinct jobs, connector isolation proves no direct table/business-data access or arbitrary enqueue, stale workers cannot complete after lease loss, completion/failure/reaper/reconcile use global→tenant→job locks with deterministic batch order and stale-fence no-op, standalone outbox claim/heartbeat/ack/fail/reap use deterministic outbox-only locks, reaper/backoff recovers abandoned jobs, outbox delivery survives a missed `NOTIFY`, and admin tests prove separate MFA sessions, TTL-bound capability grants, dual break-glass, no impersonation, no arbitrary SQL, no RLS bypass, read-only billing, and no secret/raw-evidence access.
+
+---
+
 ### Edge Cases
 
 - What happens when a verification file is not yet present on the target domain when verification is attempted? (stays in `awaiting_verification`, retries per policy, user sees a clear retry state)
@@ -85,6 +99,13 @@ A paying customer installs the private agent inside their environment. The agent
 - What happens when the AI provider is unavailable or disabled per account? (analyzing state must not hard-block; deterministic fallback triage completes the run)
 - What happens when a target is external but exposes no HTTP server (e.g., API host at bare TCP)? (active execution is unavailable at launch; accepting TXT or another proof later requires a constitution amendment and migration plan)
 - What happens on account deletion with active agents/schedules/webhooks? (cancel schedules, revoke agents/tokens, request session revocation, start data elimination per retention)
+- What happens when an invitation is expired, reused, revoked, or presented by another authenticated user? (POST body is redacted before access/app logs; return one generic invalid-invitation response; same `accepted_by_user_id` replay is idempotent)
+- What happens when a Google user belongs to multiple accounts? (require an active server-side account selection; switching validates membership and rotates/revokes the prior session)
+- What happens when a worker loses a lease or a `LISTEN/NOTIFY` wake-up is missed? (fencing rejects stale writes; lease reaper and polling recover from PostgreSQL)
+- What happens when a tenant reaches its queue limit or a noisy tenant fills global capacity? (leave jobs queued with fair scheduling and no busy-spin; never exceed tenant/global policy limits)
+- What happens when global/tenant queue state is missing or drifts? (fail closed, reconcile row/counters, leave jobs queued, and never strand or drop them)
+- What happens when outbox delivery exhausts `max_attempts`? (redacted terminal `failed` with `failed_at`, alert, audit event, and no further claims)
+- What happens when an admin grant expires or lacks MFA/approval? (deny the operation; break-glass requires two distinct approvals and a bounded TTL)
 
 ## Requirements *(mandatory)*
 
@@ -111,11 +132,19 @@ A paying customer installs the private agent inside their environment. The agent
 - **FR-019**: System MUST apply retention policies: raw evidence 30d post-completion (scheduled deletion), findings/reports 365d paid plans, execution logs 30d (redacted/limited), audit 365d, external credentials until job end unless explicitly retained, internal credentials never stored.
 - **FR-020**: System MUST expose a plan-permitted dashboard (status, scope, summary, findings, timeline, credits) and in-product notifications; integrations (Slack/Teams/webhooks/email/push) remain non-functional placeholders at launch.
 - **FR-021**: System MUST run playbooks from versioned contracts (version, preconditions, target category, allowed actions, request limits, max duration, stop signals, expected evidence, possible severity) following scope → discovery → hypothesis → focused validation → negative control → evidence → report.
+- **FR-022**: System MUST treat `account` as the tenant/workspace and authorize business data through an `account_membership` with exactly `owner`, `admin`, `operator`, `viewer`, or `billing` roles; multiple active owners are allowed, but the last active owner MUST NOT be removed or demoted transactionally; invitations MUST be explicit, single-use, expiry-bound, token-hash based, and email MUST never auto-link a global user.
+- **FR-023**: System MUST use the existing `user` table as the single global Google identity authority, keep `account_membership(account_id,user_id)` as tenant authorization, support one user in multiple accounts, bind the active account to `session.account_id`, and rotate/revoke the session on account switch, membership removal, or security-sensitive role change.
+- **FR-024**: System MUST use PostgreSQL as queue source of truth. Tenant enqueue MUST use the closed typed `packages/db/src/queue.ts` API under `api_rls`/`app.tenant` after membership, policy, and entitlement checks, inserting job plus versioned redacted outbox payload atomically; the worker MUST use typed `packages/db/src/queue-control.ts` calls to fixed-signature `SECURITY DEFINER` functions owned by `queue_control` (`NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT`). The dedicated `queue_connector` MUST have only `EXECUTE` on worker queue/outbox functions, zero table grants, no enqueue grant, and no admin cancel/requeue/account-reaper grant. Admin queue functions MUST be separate fixed functions through `admin_queue_connector` and a valid account-bound JIT capability. Direct privileges/RLS MUST be limited to exact operational columns of `queue_global_state`, `queue_tenant_state`, `job`, and `outbox_event`; business payloads, evidence, credentials, owner access, `BYPASSRLS`, and arbitrary SQL are forbidden. Claims MUST lock singleton `queue_global_state` `FOR UPDATE`, then tenant `FOR UPDATE SKIP LOCKED`, then job `FOR UPDATE SKIP LOCKED` (global→tenant→job); every job/counter completion, heartbeat, failure, cancellation, requeue, reaper, and reconciliation mutation MUST use the same order in one transaction, with batch tenants ordered by `account_id` and jobs by `id`, and stale fencing a no-op. Claims accept `queued` or `stale_recovered`, set `running`, increment a monotonic fencing token, and enforce heartbeat, bounded retry/backoff, timeout, exact tenant fairness through `queue_tenant_state`, partial unique active target/account protection across `queued`/`stale_recovered`/`running`, and tenant/global limits. Queue bootstrap upserts the singleton, account creation/auth bootstrap upserts its tenant row in the same transaction, migration backfills every active account, and reconciliation creates missing tenant rows only from existing operational job/outbox account IDs and repairs drift without selecting account/membership; missing state fails closed without dropping or stranding jobs. Advisory hash locks and `SERIALIZABLE` retry ambiguity are forbidden; Redis and Kafka are not required.
+- **FR-025**: System MUST commit a job-aggregate outbox event with the state change in the same global→tenant→job transaction, while standalone delivery MUST use `app_private.outbox_claim(text,int,timestamptz)`, `outbox_heartbeat(uuid,uuid,text,bigint,timestamptz)`, `outbox_ack(uuid,uuid,text,bigint,timestamptz)`, `outbox_fail(uuid,uuid,text,bigint,text,timestamptz)`, and `outbox_reap(int,timestamptz)`. Standalone claims MUST lock `available_at,account_id,id`; heartbeat/ack/fail/reap MUST lock `account_id,id`; they MUST never touch `queue_global_state` or `job`. Leases, monotonic fencing, heartbeat, expired-processing recovery, `pending`→`processing`→`processed`, redacted errors, bounded retry/backoff through `max_attempts`, terminal `failed`/`failed_at`, alert, and audit are required; processing is at-least-once idempotently and failed rows are never reclaimed. `LISTEN/NOTIFY` MAY wake a poller but MUST NOT be the delivery guarantee.
+- **FR-026**: System MUST isolate admin in a separate app/API/origin with separate `staff_identity`, `staff_mfa_factor`, `staff_session`, `staff_role_assignment`, `support_access_grant`, `support_access_approval`, and cookies, mandatory separate Google OIDC plus WebAuthn MFA, out-of-band staff bootstrap, policy-aware queue operations, and just-in-time support grants recording reason, ticket, TTL, and approval; break-glass requires dual approval.
+- **FR-027**: Admin MUST NOT impersonate customers, use owner or `BYPASSRLS` runtime access, run arbitrary SQL, read secrets/raw evidence, or mutate billing/entitlements; billing views are read-only and every admin action is append-only audited.
 
 ### Key Entities
 
-- **Account**: individual user identity; governs ownership, isolation, billing, and future organization compatibility via internal `account_id`.
-- **User**: OAuth identity (`provider + provider_subject`) bound to one account; explicit linking only.
+- **Account**: tenant/workspace that governs ownership, isolation, billing, and all account-scoped business data via `account_id`.
+- **User**: the existing immutable global Google identity (`provider + provider_subject`) that may have memberships in multiple accounts; email is display/delivery data only.
+- **AccountMembership**: explicit `account_id` + `user_id` link with role `owner`/`admin`/`operator`/`viewer`/`billing`, status, and audit timestamps.
+- **AccountInvitation**: single-use expiry-bound bearer token hash, account, delivery email, proposed role, inviter user, accepted user, and acceptance audit; raw token never persists or appears in URL/logs.
 - **Assessment**: a unit of work with target category, normalized target, scope, exclusions, window, contacts, playbook version, limits, authorization attestation, and state machine.
 - **AuthorizationAttestation**: versioned declaration storing user, account, target, date, terms version, and submitted scope.
 - **Target**: normalized external target (web, API/HTTP/GraphQL/gRPC, external surface, GenAI) or internal environment via private agent.
@@ -131,6 +160,12 @@ A paying customer installs the private agent inside their environment. The agent
 - **Agent** (private): client-installed identity with unique token, fingerprint, status, last activity, revocation; outbound connection.
 - **AuditEvent**: append-only chained record across the execution lifecycle.
 - **Notification**: in-product notification for assessment completion.
+- **OutboxEvent**: transactional account-scoped event committed with a state change; unique key, retry metadata, and idempotent delivery status.
+- **QueueTenantState**: one fairness/capacity row per active account with `last_dispatched_at`, `running_count`, and `concurrency_limit`; account creation upsert and reconciler maintain it.
+- **QueueGlobalState**: singleton `id='global'` capacity row with `running_count` and `concurrency_limit`; queue bootstrap, migration backfill, and reconciler maintain it.
+- **QueueControlBoundary**: `queue_control` definer role, `queue_connector` worker/outbox execute-only role, separate JIT-gated `admin_queue_connector`, fixed-signature functions, explicit queue-only RLS/operational columns, typed tenant enqueue `packages/db/src/queue.ts`, typed worker control `packages/db/src/queue-control.ts`, and typed admin control `packages/db/src/admin-queue.ts` APIs.
+- **StaffIdentity**: staff-only immutable Google Workspace subject with separate staff OIDC, WebAuthn MFA, recovery, and session; never a customer membership.
+- **SupportAccessGrant**: short-lived, reasoned and ticketed per-account admin capability with `support_access_approval` records and expiry; break-glass needs two approvers.
 
 ## Success Criteria *(mandatory)*
 
@@ -146,11 +181,17 @@ A paying customer installs the private agent inside their environment. The agent
 - **SC-008**: AI has no direct access to tools, credentials, arbitrary network, or raw private data; external AI use is logged per assessment and disable-able per account.
 - **SC-009**: Reports and JSON respect plan permissions; free accounts never obtain blocked details, evidence, or reproduction steps.
 - **SC-010**: Account deletion cancels schedules, revokes agents/tokens/sessions, and initiates data elimination per retention and legal obligations.
+- **SC-011**: The existing global `user` can access an account only through an active `account_membership(account_id,user_id)`; two-account RLS tests prove no cross-account read, write, reference, or inference for membership, invitation, assessment, job, billing, evidence, or report data.
+- **SC-012**: Invitation acceptance is explicit, token-hash based, single-use, expiry-bound, and never links by email; role capability tests pass for all five roles.
+- **SC-013**: Account switching always rotates/revokes sessions and every account-scoped request uses one server-selected active account.
+- **SC-014**: Concurrent workers, execute-only connector isolation, global→tenant→job locks, `queued`/`stale_recovered` claims, stale leases, worker crashes, retry exhaustion, completion/failure/cancellation/requeue, deterministic `account_id`/`id` batch reaper/reconciliation, exact `queue_tenant_state` fairness, tenant/global limits, missing/drifted state reconciliation, fail-closed queue behavior, and missed notifications leave no lost, stranded, or doubly completed job; stale fencing is a no-op and fencing/reaper tests pass.
+- **SC-015**: State changes and outbox rows are atomic; outbox re-delivery is idempotent, expired processing retries or terminally fails with alert/audit, and `NOTIFY` loss does not lose work.
+- **SC-016**: Admin requires separate staff MFA and a valid TTL-bound capability grant; dual break-glass, no impersonation/RLS bypass/arbitrary SQL, no secret/raw-evidence access, policy-aware queue operations, and read-only billing tests pass.
 
 ## Assumptions
 
 - Market launch is Brazil, BRL currency; Stripe Checkout hosts Pix/card one-off and card subscription for Pro.
-- MVP has no organizations, invites, roles, SSO, or SCIM; GitHub/X logins, integrations, issue trackers, SIEM, and remote/generic shells are out of scope for the first version.
+- Foundation Phase 2 historically models one individual account and does not implement organizations, invites, roles, SSO, or SCIM. The approved Phase 2A extension adds account/workspace membership and admin controls after T021; SSO and SCIM remain out of scope.
 - Redis, Kafka, and Kubernetes are not launch prerequisites; PostgreSQL is the durable queue and source of truth initially.
 - The runner abstraction sits behind a `SandboxProvider` so persistent/managed sandboxes can replace ephemeral containers without changing product domain.
 - One active execution per target/account plus conservative global limits; minimum metrics: queue depth, job age, failure rate per playbook, duration, cancellations, credit usage, policy blocks, webhook failures, cross-account-access attempts; internal alerts are not customer integrations.

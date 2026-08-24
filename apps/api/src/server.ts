@@ -1,10 +1,14 @@
 import { app } from "./app";
+import { loadConfig } from "./config";
+import { createLocalDevelopmentApp } from "./local-development";
 
-const port = Number(process.env.PORT ?? 3000);
+const config = loadConfig();
+const runtimeApp =
+  config.environment === "development" && process.env.LOCAL_MOCKS === "1"
+    ? createLocalDevelopmentApp(config)
+    : app;
 
 Bun.serve({
-  port,
-  fetch: app.fetch,
+  port: config.port,
+  fetch: runtimeApp.fetch,
 });
-
-console.log(`TouchMyAPI API listening on http://localhost:${port}`);

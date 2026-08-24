@@ -1,6 +1,6 @@
 # API Contract v1
 
-Base path: `/api/v1`. Auth: HttpOnly session cookie (Google OAuth PKCE). JSON everywhere. Errors: `{ "error": { "code", "message", "field?" } }`. All mutations validate schema, ownership, state, entitlement, and policy engine before applying (spec FR-014). IDs never grant access.
+Base path: `/api/v1`. Auth: HttpOnly customer session cookie (Google OAuth PKCE) bound to one active `session.account_id`. JSON everywhere. Errors: `{ "error": { "code", "message", "field?" } }`. All mutations validate schema, active `account_membership(account_id,user_id)`, state, entitlement, and policy engine before applying (spec FR-014/FR-022). IDs never grant access.
 
 ## Session
 
@@ -9,7 +9,21 @@ Base path: `/api/v1`. Auth: HttpOnly session cookie (Google OAuth PKCE). JSON ev
 | GET | `/auth/login` | start Google OAuth PKCE (redirect) |
 | GET | `/auth/callback` | exchange code; set session cookie |
 | POST | `/auth/logout` | revoke session |
-| GET | `/auth/me` | current user + account (id, email, plan, iaEnabled) |
+| GET | `/auth/me` | current global `user` + active account/membership (id, email, role, plan, iaEnabled) |
+
+## Accounts and membership
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/accounts` | list safe account/member fields for the authenticated user via narrow bootstrap function |
+| GET | `/accounts/:accountId/memberships` | list policy-permitted members |
+| POST | `/accounts/:accountId/memberships/invitations` | owner/admin creates a token-hash invitation |
+| POST | `/invitations/accept` | explicit authenticated acceptance with redacted bearer token body; rotates `session.account_id` |
+| PATCH | `/accounts/:accountId/memberships/:userId` | owner/admin role/status change with last-owner guard |
+| DELETE | `/accounts/:accountId/memberships/:userId` | owner/admin removal with session revocation |
+| POST | `/account/switch` | validate membership and rotate session to the selected account |
+
+`POST /account/switch` accepts `{ "accountId": "uuid" }`; the server validates the current session hash and membership through the narrow `auth_switch_account` function, rotates the session token, and never accepts a browser-only tenant selector.
 
 ## Assessment
 
@@ -55,6 +69,35 @@ Base path: `/api/v1`. Auth: HttpOnly session cookie (Google OAuth PKCE). JSON ev
 | --- | --- | --- |
 | GET | `/notifications` | in-product notifications |
 | POST | `/notifications/:id/read` | mark read |
+
+## Admin control plane
+
+Admin uses a separate origin/API and cookies; login/callback/recovery/MFA routes establish or refresh staff authentication, while operational routes require staff MFA plus an unexpired capability grant. These routes are never customer routes. Billing is read-only.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/admin/auth/login` | start separate staff Google OIDC login |
+| GET | `/admin/auth/callback` | complete staff OIDC callback; customer cookies are rejected |
+| POST | `/admin/auth/mfa/verify` | establish/refresh staff MFA session |
+| POST | `/admin/auth/webauthn/register/options` | issue WebAuthn registration challenge |
+| POST | `/admin/auth/webauthn/register` | register a staff WebAuthn MFA factor |
+| POST | `/admin/auth/webauthn/assert/options` | issue WebAuthn assertion challenge |
+| POST | `/admin/auth/webauthn/assert` | verify WebAuthn assertion and refresh MFA |
+| POST | `/admin/auth/recovery/verify` | consume one-time hashed recovery material; MFA reset still needs dual approval |
+| POST | `/admin/auth/mfa/reset/request` | request a dual-approved MFA reset |
+| POST | `/admin/auth/mfa/reset/approve` | approve the second staff action for MFA reset |
+| POST | `/admin/auth/logout` | revoke staff session and clear the admin cookie |
+| POST | `/admin/capability-grants` | request reason/ticket/TTL-bound tenant capability |
+| POST | `/admin/capability-grants/:id/approve` | approve; break-glass needs two distinct approvers |
+| GET | `/admin/accounts/:accountId/queue` | policy-aware queue metadata/status |
+| POST | `/admin/accounts/:accountId/jobs/:jobId/cancel` | policy-aware cancellation only |
+| POST | `/admin/accounts/:accountId/jobs/:jobId/requeue` | policy-aware stale/failed requeue |
+| POST | `/admin/accounts/:accountId/reaper/run` | trigger bounded lease recovery for the granted account |
+| GET | `/admin/billing/:accountId` | read-only billing/entitlement state |
+
+The account-scoped reaper accepts only `{ "maxJobs": 100 }` with `1 <= maxJobs <= 100` and requires an unexpired `queue_reaper` support grant for the same `accountId`; there is no system-wide reaper route.
+
+Admin has no impersonation, owner/BYPASSRLS, arbitrary SQL, secret/raw-evidence, credit-grant, or entitlement-write endpoint.
 
 ## Signed URL flow
 

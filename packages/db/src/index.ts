@@ -1,22 +1,33 @@
-import postgres from "postgres";
+export * from "../schema";
+export { createTenantDatabase } from "./connection-internal";
+export { createSystemAuditDatabase } from "./connection-internal";
+export type { SystemAuditDatabase, TenantDatabase } from "./connection-internal";
+export { createInvitationToken, hashInvitationToken, invitationTokenPattern } from "./invitations";
+export { ensureQueueState } from "./queue-bootstrap";
+export type { QueueBootstrapOptions } from "./queue-bootstrap";
+export { enqueueJob, QueueUnavailableError } from "./queue";
+export {
+  ackOutboxEvent,
+  claimOutboxEvents,
+  claimQueueJob,
+  completeQueueJob,
+  failOutboxEvent,
+  failQueueJob,
+  heartbeatOutboxEvent,
+  heartbeatQueueJob,
+  reapOutboxEvents,
+  reapQueueJobs,
+  reconcileQueueState,
+} from "./queue-control";
+export type { OutboxClaim, QueueClaim, QueueHeartbeat } from "./queue-control";
 
-export type DbConnection = ReturnType<typeof postgres>;
-
-/**
- * Connection factory for the TouchMyAPI data layer.
- *
- * Receives `DATABASE_URL` explicitly so no connection is ever opened during
- * module import and no credentials are read from ambient state. Throws a clear
- * configuration error when the URL is absent rather than failing lazily.
- *
- * The first migration is intentionally deferred until the RLS schema task.
- */
-export function createDbConnection(databaseUrl: string | undefined): DbConnection {
-  if (!databaseUrl) {
-    throw new Error(
-      "DATABASE_URL is required to create a database connection. Set it before calling createDbConnection.",
-    );
-  }
-
-  return postgres(databaseUrl);
-}
+export { withTenant } from "./tenant-session";
+export type { RuntimeRole, TenantContext } from "./tenant-session";
+export { withSystemAudit } from "./system-audit-session";
+export type { SystemAuditContext } from "./system-audit-session";
+export {
+  appendAuditEvent,
+  appendSystemAuditEvent,
+  type AuditAppendInput,
+  type AppendedAuditEvent,
+} from "./audit";

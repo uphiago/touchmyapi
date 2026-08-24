@@ -1,8 +1,11 @@
-/**
- * Drizzle schema entry point.
- *
- * The tenant-scoped schema and RLS policies are intentionally introduced in
- * Phase 2. Keeping this module present lets Drizzle resolve the schema path
- * without declaring any tables before those safeguards exist.
- */
-export {};
+export * from "./common";
+export * from "./identity";
+export * from "./membership";
+export * from "./assessment";
+export * from "./verification";
+export * from "./catalog";
+export * from "./execution";
+export * from "./queue";
+export * from "./billing";
+export * from "./reporting";
+export * from "./audit";

@@ -1,0 +1,1 @@
+ALTER TABLE "verification" DROP CONSTRAINT "verification_challenge_token_unique";

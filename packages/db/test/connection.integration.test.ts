@@ -1,21 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDbConnection, type DbConnection } from "../src/index";
+import { createRawDbConnection, type RawDbConnection } from "../src/connection-internal";
 
 const RUN_DB_TESTS = process.env.RUN_DB_TESTS === "1";
 
-describe("createDbConnection", () => {
+describe("createRawDbConnection", () => {
   it("throws a clear configuration error when DATABASE_URL is absent", () => {
-    expect(() => createDbConnection(undefined)).toThrow(/DATABASE_URL/);
+    expect(() => createRawDbConnection(undefined)).toThrow(/DATABASE_URL/);
   });
 });
 
 // Local integration check. Skipped unless RUN_DB_TESTS=1 so unit runs stay
 // deterministic and never require a live PostgreSQL instance.
 describe.skipIf(!RUN_DB_TESTS)("database connection (integration)", () => {
-  let db!: DbConnection;
+  let db!: RawDbConnection;
 
   beforeAll(() => {
-    db = createDbConnection(process.env.DATABASE_URL);
+    db = createRawDbConnection(process.env.DATABASE_URL);
   });
 
   afterAll(async () => {
