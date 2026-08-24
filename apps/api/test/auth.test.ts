@@ -307,9 +307,19 @@ describe("Google OAuth boundary", () => {
     expect(replacementCookie).not.toBe(sessionCookie);
     expect(fixture.rotated).toHaveLength(1);
 
+    const session = await fixture.app.request("http://localhost/api/v1/auth/session", {
+      headers: { Cookie: `${sessionCookieName}=${replacementCookie}` },
+    });
+    expect(session.status).toBe(200);
+    expect(await session.json()).toEqual({
+      user: { id: "user-1", email: "user@example.test" },
+      account: { id: "account-1", role: "owner", plan: "free_unverified", iaEnabled: true },
+    });
+    const finalCookie = cookieValue(session, sessionCookieName);
+
     const logout = await fixture.app.request("http://localhost/api/v1/auth/logout", {
       method: "POST",
-      headers: { Cookie: `${sessionCookieName}=${replacementCookie}` },
+      headers: { Cookie: `${sessionCookieName}=${finalCookie}` },
     });
     expect(logout.status).toBe(204);
     expect(fixture.revoked[0]).toMatch(/^[0-9a-f]{64}$/);
@@ -395,6 +405,83 @@ describe("Google OAuth boundary", () => {
       account: { id: "account-2", role: "viewer" },
       user: { id: "user-1" },
     });
+  });
+});
+
+describe("GitHub OAuth boundary", () => {
+  it("discovers GitHub and completes Authorization Code with PKCE", async () => {
+    const base = createAuthFixture();
+    const completed: unknown[] = [];
+    const store = {
+      ...base.store,
+      completeProviderLogin: async (input: unknown) => {
+        completed.push(input);
+        return {
+          userId: "user-1",
+          accountId: "account-1",
+          email: "owner@example.test",
+          role: "owner",
+          membershipStatus: "active",
+          plan: "free_unverified",
+          iaEnabled: true,
+        };
+      },
+    };
+    const dependencies = {
+      config,
+      logger: { error: () => undefined },
+      auditSink: { record: async () => undefined },
+      auth: {
+        githubAdapter: {
+          provider: "github",
+          clientId: "github-client-id",
+          redirectUri: "https://api.example.test/api/v1/auth/github/callback",
+          authorizationEndpoint: "https://github.com/login/oauth/authorize",
+          exchangeCode: async () => ({
+            provider: "github",
+            subject: "12345",
+            email: "owner@example.test",
+          }),
+        },
+        store,
+        transientKey: key,
+        sessionMaxAgeSeconds: 3600,
+        transientMaxAgeSeconds: 600,
+        successRedirect: "https://console.example.test/",
+      },
+    } as unknown as ApiDependencies;
+    const app = createApp(dependencies);
+
+    const providers = await app.request("http://localhost/api/v1/auth/providers");
+    expect(providers.status).toBe(200);
+    expect(await providers.json()).toEqual({ providers: [{ id: "github", label: "GitHub" }] });
+
+    const start = await app.request("http://localhost/api/v1/auth/github/start");
+    expect(start.status).toBe(302);
+    const location = new URL(start.headers.get("location") ?? "");
+    expect(location.origin).toBe("https://github.com");
+    expect(location.searchParams.get("client_id")).toBe("github-client-id");
+    expect(location.searchParams.get("scope")).toBe("user:email");
+    expect(location.searchParams.get("state")).toHaveLength(43);
+    expect(location.searchParams.get("code_challenge")).toHaveLength(43);
+    expect(location.searchParams.get("code_challenge_method")).toBe("S256");
+
+    const callback = await app.request(
+      `http://localhost/api/v1/auth/github/callback?code=provider-code&state=${location.searchParams.get("state")}`,
+      { headers: { Cookie: cookieHeader(start) } },
+    );
+    expect(callback.status).toBe(302);
+    expect(callback.headers.get("location")).toBe("https://console.example.test/");
+    expect(completed).toEqual([
+      expect.objectContaining({
+        provider: "github",
+        providerSubject: "12345",
+        email: "owner@example.test",
+        sessionHash: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      }),
+    ]);
+    expect(callback.headers.get("set-cookie")).toContain(`${sessionCookieName}=`);
+    expect(callback.headers.get("set-cookie")).not.toContain("provider-code");
   });
 });
 
