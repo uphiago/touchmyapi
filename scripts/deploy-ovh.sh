@@ -25,6 +25,7 @@ compose() {
 compose config --quiet
 compose pull api admin-api web admin
 compose run --rm migrate
+compose run --rm migrate bun packages/db/scripts/configure-connectors.ts
 compose up -d --remove-orphans --wait --wait-timeout 180 postgres api admin-api web admin
 TOUCHMYAPI_SHARED_ENV="$shared_env" TOUCHMYAPI_IMAGE_TAG="$tag" sh "$root/scripts/smoke-remote.sh"
 

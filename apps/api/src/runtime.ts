@@ -7,6 +7,7 @@ import {
   createSystemAuditDatabase,
   createTenantDatabase,
   resolveAuthSession,
+  withTenant,
   withSystemAudit,
 } from "@touchmyapi/db";
 import { createApp, defaultLogger, type AuditSink } from "./app";
@@ -42,6 +43,19 @@ export async function createApiRuntime(
   try {
     // Establish and validate the least-privilege auth connector before serving.
     await resolveAuthSession(authDatabase, "0".repeat(64));
+    await withTenant(tenantDatabase, "00000000-0000-4000-8000-000000000000", "api_rls", (context) =>
+      context.account.readCurrent(),
+    );
+    await withSystemAudit(auditDatabase, (context) =>
+      appendSystemAuditEvent(context, {
+        actor: "customer_api",
+        action: "request",
+        payload: {
+          event: "customer_api_runtime_preflight",
+          requestId: crypto.randomUUID(),
+        },
+      }),
+    );
     const authStore = createPostgresAuthStore(authDatabase);
     const auditSink: AuditSink = Object.freeze({
       record: async (record) => {

@@ -6,7 +6,7 @@ export type ApiConfig = Readonly<{
   port: number;
 }>;
 
-export type AuthProviderMode = "github" | "mock";
+export type AuthProviderMode = "github" | "mock" | "disabled";
 
 export type ApiRuntimeConfig = ApiConfig &
   Readonly<{
@@ -123,7 +123,7 @@ export function loadRuntimeConfig(
   const base = loadConfig(env);
   const authProvider = (env.AUTH_PROVIDER ??
     (base.environment === "development" ? "mock" : "github")) as AuthProviderMode;
-  if (authProvider !== "github" && authProvider !== "mock") {
+  if (authProvider !== "github" && authProvider !== "mock" && authProvider !== "disabled") {
     throw new Error("unsupported authentication provider");
   }
   if (authProvider === "mock" && base.environment !== "development") {

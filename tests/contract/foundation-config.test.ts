@@ -28,6 +28,19 @@ describe("foundation configuration contracts", () => {
         AUDIT_DATABASE_URL: "postgres://audit@db/touchmyapi",
       }),
     ).toThrow("mock authentication");
+
+    expect(
+      loader?.({
+        NODE_ENV: "production",
+        AUTH_PROVIDER: "disabled",
+        CORS_ORIGIN: "https://app.touchmyapi.com",
+        WEB_APP_ORIGIN: "https://app.touchmyapi.com",
+        AUTH_TRANSIENT_KEY: "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
+        AUTH_DATABASE_URL: "postgres://auth_connector:secret@db/touchmyapi",
+        API_DATABASE_URL: "postgres://api_connector:secret@db/touchmyapi",
+        AUDIT_DATABASE_URL: "postgres://audit_system_connector:secret@db/touchmyapi",
+      }),
+    ).toMatchObject({ authProvider: "disabled", environment: "production" });
   });
 
   it("does not present DNS TXT as an authorization or verification method", () => {
