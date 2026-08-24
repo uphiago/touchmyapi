@@ -1,0 +1,21 @@
+docs/superpowers/plans/2026-08-24-passive-delivery-v1.md
+  s_bc54431df54bf2::t_fe8fbd654856a8 1-53
+docs/superpowers/specs/2026-08-24-passive-delivery-v1-design.md
+  s_bc54431df54bf2::t_fe8fbd654856a8 1-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "6d6347fed2ea7a010adac46542e84b85407015ea",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
