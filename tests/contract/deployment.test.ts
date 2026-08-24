@@ -37,6 +37,14 @@ describe("OVH release boundary", () => {
     expect(workflow).not.toContain("StrictHostKeyChecking=no");
   });
 
+  it("uses the Node 24 Docker Buildx action release", () => {
+    const workflow = read(".github/workflows/build-deploy.yml");
+    expect(workflow).toContain(
+      "docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0",
+    );
+    expect(workflow).not.toContain("# v3.11.1");
+  });
+
   it("keeps production mocks off and runs migration before cutover and smoke", () => {
     const compose = read("infra/docker/compose.production.yml");
     const deploy = read("scripts/deploy-ovh.sh");
