@@ -39,8 +39,14 @@ const AUTH_FUNCTIONS = [
   ["auth_list_accounts", "text"],
   ["auth_switch_account", "text,uuid,text,timestamp with time zone"],
   ["auth_create_invitation", "text,uuid,citext,membership_role,text,timestamp with time zone"],
+  [
+    "auth_create_invitation_snapshot",
+    "text,uuid,citext,membership_role,text,timestamp with time zone",
+  ],
+  ["auth_list_memberships", "text,uuid"],
   ["auth_accept_invitation", "text,text,text,timestamp with time zone"],
   ["auth_update_membership", "text,uuid,uuid,membership_role,membership_status"],
+  ["auth_update_membership_secure", "text,uuid,uuid,membership_role,membership_status"],
 ] as const;
 const RUNTIME_ROLES = ["api_rls", "worker_rls", "reporting_rls"] as const;
 const PRIVILEGES = ["select", "insert", "update", "delete"] as const;
@@ -243,6 +249,43 @@ describeDb("PostgreSQL least-privilege roles", () => {
                   and acl.privilege_type = 'EXECUTE') as function_access
     `;
     expect(directPrivileges).toEqual([{ table_access: false, function_access: false }]);
+  });
+
+  it("keeps the API connector login-only with one settable tenant membership", async () => {
+    const [role] = await db`
+      select rolname, rolsuper, rolbypassrls, rolinherit, rolcanlogin,
+             rolcreatedb, rolcreaterole, rolreplication
+      from pg_roles where rolname = 'api_connector'
+    `;
+    expect(role).toEqual({
+      rolname: "api_connector",
+      rolsuper: false,
+      rolbypassrls: false,
+      rolinherit: false,
+      rolcanlogin: true,
+      rolcreatedb: false,
+      rolcreaterole: false,
+      rolreplication: false,
+    });
+    const memberships = await db`
+      select parent.rolname as parent_name
+      from pg_auth_members membership
+      join pg_roles parent on parent.oid = membership.roleid
+      join pg_roles member on member.oid = membership.member
+      where member.rolname = 'api_connector'
+    `;
+    expect(memberships).toEqual([{ parent_name: "api_rls" }]);
+    const [privileges] = await db`
+      select
+        exists (select 1 from information_schema.table_privileges
+                where grantee = 'api_connector' and table_schema = 'public') as table_access,
+        exists (select 1 from pg_proc function
+                cross join lateral aclexplode(coalesce(function.proacl, acldefault('f', function.proowner))) acl
+                where function.pronamespace = 'public'::regnamespace
+                  and acl.grantee = 'api_connector'::regrole
+                  and acl.privilege_type = 'EXECUTE') as function_access
+    `;
+    expect(privileges).toEqual({ table_access: false, function_access: false });
   });
 
   it("owns every project table and helper only under the migration owner", async () => {

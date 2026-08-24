@@ -29,6 +29,12 @@ export function getRawTenantDatabase(database: TenantDatabase): RawDbConnection 
   return raw;
 }
 
+export async function closeTenantDatabase(database: TenantDatabase): Promise<void> {
+  const raw = getRawTenantDatabase(database);
+  rawConnections.delete(database);
+  await raw.end();
+}
+
 export function createSystemAuditDatabase(databaseUrl: string | undefined): SystemAuditDatabase {
   const raw = createRawDbConnection(databaseUrl);
   const handle = Object.freeze({}) as SystemAuditDatabase;
@@ -40,6 +46,12 @@ export function getRawSystemAuditDatabase(database: SystemAuditDatabase): RawDbC
   const raw = systemAuditConnections.get(database);
   if (!raw) throw new TypeError("invalid system audit database handle");
   return raw;
+}
+
+export async function closeSystemAuditDatabase(database: SystemAuditDatabase): Promise<void> {
+  const raw = getRawSystemAuditDatabase(database);
+  systemAuditConnections.delete(database);
+  await raw.end();
 }
 
 /** Internal-only factory for migrations and admin test fixtures. */

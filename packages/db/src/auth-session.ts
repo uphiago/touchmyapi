@@ -191,6 +191,7 @@ function mapMembership(row: Record<string, unknown> | undefined): Membership | u
     id: String(row.id),
     accountId: String(row.account_id),
     userId: String(row.user_id),
+    ...(row.email ? { email: String(row.email) } : {}),
     role: String(row.role) as MembershipRole,
     status: String(row.status) as MembershipStatus,
     invitedByUserId: row.invited_by_user_id ? String(row.invited_by_user_id) : null,

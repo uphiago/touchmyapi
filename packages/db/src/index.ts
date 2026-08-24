@@ -1,6 +1,10 @@
 export * from "../schema";
-export { createTenantDatabase } from "./connection-internal";
-export { createSystemAuditDatabase } from "./connection-internal";
+export {
+  closeSystemAuditDatabase,
+  closeTenantDatabase,
+  createSystemAuditDatabase,
+  createTenantDatabase,
+} from "./connection-internal";
 export type { SystemAuditDatabase, TenantDatabase } from "./connection-internal";
 export {
   closeAuthDatabase,

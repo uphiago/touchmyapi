@@ -20,7 +20,7 @@ function failure(): MembershipOperationResult<never> {
 
 export function createPostgresMembershipStore(
   database: AuthDatabase,
-  deliverInvitation: InvitationDelivery,
+  deliverInvitation?: InvitationDelivery,
 ): MembershipStore {
   return {
     listMemberships: async (input) => {
@@ -36,6 +36,7 @@ export function createPostgresMembershipStore(
       expiresAt,
       deliveryToken,
     }) => {
+      if (!deliverInvitation) throw new Error("invitation delivery unavailable");
       const invitation = await createAuthInvitation(database, {
         sessionHash,
         accountId,

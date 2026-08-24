@@ -129,11 +129,11 @@ export function createApp(dependencies: ApiDependencies): App {
   });
 
   api.onError((_error, context) => {
-    dependencies.logger.error?.("unhandled request error", { requestId: getRequestId(context) });
     context.header("x-request-id", getRequestId(context));
     if (_error instanceof ApiError) {
       return context.json(errorEnvelope(_error.code, _error.message, _error.field), _error.status);
     }
+    dependencies.logger.error?.("unhandled request error", { requestId: getRequestId(context) });
     return context.json(errorEnvelope("internal_error", "Internal Server Error"), 500);
   });
 

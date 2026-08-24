@@ -40,6 +40,7 @@ describe("membership contracts", () => {
       id: membershipId,
       accountId,
       userId,
+      email: "owner@example.test",
       role: "owner",
       status: "active",
       createdAt,
@@ -48,6 +49,7 @@ describe("membership contracts", () => {
       invitedByUserId: null,
     });
     expect(membership.accountId).toBe(accountId);
+    expect(membership.email).toBe("owner@example.test");
     expect(() => membershipSchema.parse({ ...membership, isOwner: true })).toThrow();
     expect(() => membershipSchema.parse({ ...membership, accountId: "not-a-uuid" })).toThrow();
   });
@@ -123,11 +125,18 @@ describe("membership contracts", () => {
   it("binds account listing and switching to server-owned IDs", () => {
     const accounts = accountListResponseSchema.parse({
       accounts: [
-        { accountId, role: "owner", status: "active", active: true },
+        {
+          accountId,
+          displayName: "Authorized Labs",
+          role: "owner",
+          status: "active",
+          active: true,
+        },
         { accountId: userId, role: "viewer", status: "suspended", active: false },
       ],
     });
     expect(accounts.accounts).toHaveLength(2);
+    expect(accounts.accounts[0]?.displayName).toBe("Authorized Labs");
     expect(accountSwitchSchema.parse({ accountId })).toEqual({ accountId });
     expect(() => accountListResponseSchema.parse({ ...accounts, extra: true })).toThrow();
     expect(() => accountSwitchSchema.parse({ accountId, userId })).toThrow();

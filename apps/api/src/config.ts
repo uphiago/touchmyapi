@@ -153,11 +153,20 @@ export function loadRuntimeConfig(
     const value =
       env[name]?.trim() || (base.environment === "development" ? fallbackDatabaseUrl : undefined);
     if (!value) throw new Error(`${name} is required`);
-    validateAbsoluteUrl(value, name, false);
-    if (!value.startsWith("postgres://") && !value.startsWith("postgresql://")) {
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
       throw new Error(`${name} is invalid`);
     }
-    return value;
+    if (
+      (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") ||
+      !parsed.hostname ||
+      !parsed.pathname.slice(1)
+    ) {
+      throw new Error(`${name} is invalid`);
+    }
+    return parsed.toString();
   };
 
   const keyValue = env.AUTH_TRANSIENT_KEY?.trim();
