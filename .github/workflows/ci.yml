@@ -28,10 +28,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.0
 
@@ -70,6 +70,9 @@ jobs:
 
       - name: Build web application
         run: bun run --cwd apps/web build
+
+      - name: Build admin application
+        run: bun run --cwd apps/admin build
 
       - name: Validate compose configuration
         run: docker compose -f infra/docker/compose.yml config

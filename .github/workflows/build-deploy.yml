@@ -1,0 +1,139 @@
+name: Build and deploy TouchMyAPI
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: touchmyapi-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/uphiago/touchmyapi
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.0
+      - name: Verify source and application builds
+        run: |
+          bun ci
+          bun run verify:workspace
+          bun run test:unit
+          bun run test:contract
+          bun run typecheck
+          bun run lint
+          bun run format
+          bun run --cwd apps/api build
+          bun run --cwd apps/api build:admin
+          bun run --cwd apps/web build
+          bun run --cwd apps/admin build
+      - name: Validate production Compose
+        run: bun scripts/validate-production-compose.ts
+      - name: Build container contracts
+        run: |
+          docker build -f apps/api/Dockerfile -t touchmyapi-api:validate .
+          docker build --build-arg VITE_API_BASE_URL=https://api.example.invalid -f apps/web/Dockerfile -t touchmyapi-web:validate .
+          docker build --build-arg VITE_ADMIN_API_BASE_URL=https://admin-api.example.invalid -f apps/admin/Dockerfile -t touchmyapi-admin:validate .
+      - name: Check repository diff
+        run: git diff --check
+
+  build-images:
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, web, admin]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Require reviewed public origins
+        env:
+          CUSTOMER_API_ORIGIN: ${{ vars.CUSTOMER_API_ORIGIN }}
+          ADMIN_API_ORIGIN: ${{ vars.ADMIN_API_ORIGIN }}
+        run: |
+          set -eu
+          test -n "$CUSTOMER_API_ORIGIN"
+          test -n "$ADMIN_API_ORIGIN"
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: apps/${{ matrix.image }}/Dockerfile
+          push: true
+          build-args: |
+            VITE_API_BASE_URL=${{ vars.CUSTOMER_API_ORIGIN }}
+            VITE_ADMIN_API_BASE_URL=${{ vars.ADMIN_API_ORIGIN }}
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}:${{ github.sha }}
+            ${{ startsWith(github.ref, 'refs/tags/v') && format('{0}-{1}:{2}', env.IMAGE_PREFIX, matrix.image, github.ref_name) || '' }}
+
+  deploy:
+    needs: [validate, build-images]
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Configure verified OVH SSH
+        env:
+          OVH_HOST_KEY: ${{ secrets.OVH_HOST_KEY }}
+          OVH_SSH_KEY: ${{ secrets.OVH_SSH_KEY }}
+        run: |
+          set -eu
+          install -d -m 0700 "$HOME/.ssh"
+          printf '%s\n' "$OVH_HOST_KEY" > "$HOME/.ssh/known_hosts"
+          printf '%s\n' "$OVH_SSH_KEY" > "$HOME/.ssh/ovh"
+          chmod 0600 "$HOME/.ssh/known_hosts" "$HOME/.ssh/ovh"
+          ssh-keygen -l -f "$HOME/.ssh/known_hosts"
+      - name: Upload reviewed release
+        env:
+          OVH_HOST: ${{ secrets.OVH_HOST }}
+          OVH_USER: ${{ secrets.OVH_USER }}
+        run: |
+          set -eu
+          remote="${OVH_USER}@${OVH_HOST}"
+          ssh -i "$HOME/.ssh/ovh" -o StrictHostKeyChecking=yes "$remote" \
+            "install -d -m 0750 \"\$HOME/touchmyapi/releases/${GITHUB_SHA}\" \"\$HOME/touchmyapi/shared\""
+          git archive "$GITHUB_SHA" |
+            ssh -i "$HOME/.ssh/ovh" -o StrictHostKeyChecking=yes "$remote" \
+              "tar -x -C \"\$HOME/touchmyapi/releases/${GITHUB_SHA}\""
+      - name: Authenticate OVH registry client
+        env:
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+          OVH_HOST: ${{ secrets.OVH_HOST }}
+          OVH_USER: ${{ secrets.OVH_USER }}
+        run: |
+          set -eu
+          printf '%s' "$GHCR_PAT" |
+            ssh -i "$HOME/.ssh/ovh" -o StrictHostKeyChecking=yes \
+              "${OVH_USER}@${OVH_HOST}" \
+              'docker login ghcr.io -u uphiago --password-stdin >/dev/null'
+      - name: Migrate, cut over, and smoke
+        env:
+          OVH_HOST: ${{ secrets.OVH_HOST }}
+          OVH_USER: ${{ secrets.OVH_USER }}
+        run: |
+          set -eu
+          ssh -i "$HOME/.ssh/ovh" -o StrictHostKeyChecking=yes \
+            "${OVH_USER}@${OVH_HOST}" \
+            "cd \"\$HOME/touchmyapi/releases/${GITHUB_SHA}\" && TOUCHMYAPI_IMAGE_TAG='${GITHUB_SHA}' sh scripts/deploy-ovh.sh"
