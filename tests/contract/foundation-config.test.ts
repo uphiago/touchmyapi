@@ -167,6 +167,8 @@ describe("foundation configuration contracts", () => {
     expect(smoke).toContain("tma-admin-session");
     expect(smoke).toContain("customer cookie accepted by admin");
     expect(smoke).toContain("admin cookie accepted by customer");
+    expect(smoke).toContain('item.role === "owner"');
+    expect(smoke).toContain("`${apiBaseUrl}/api/v1/account/switch`");
   });
 
   it("keeps CI database gates on the test-only loopback contract", () => {

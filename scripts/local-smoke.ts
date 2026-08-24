@@ -10,7 +10,7 @@ async function checkLocalAssessmentJourney(): Promise<void> {
   const session = await fetch(`${apiBaseUrl}/api/v1/auth/local-session`, {
     headers: { Origin: webBaseUrl },
   });
-  const cookie = session.headers.get("set-cookie")?.split(";", 1)[0];
+  let cookie = session.headers.get("set-cookie")?.split(";", 1)[0];
   if (
     !session.ok ||
     !cookie ||
@@ -23,10 +23,20 @@ async function checkLocalAssessmentJourney(): Promise<void> {
     headers: { Cookie: cookie, Origin: webBaseUrl },
   });
   const accounts = (await accountsResponse.json()) as {
-    accounts?: readonly { accountId: string; active: boolean }[];
+    accounts?: readonly { accountId: string; active: boolean; role: string }[];
   };
-  const account = accounts.accounts?.find((item) => item.active) ?? accounts.accounts?.[0];
+  const account = accounts.accounts?.find((item) => item.role === "owner");
   if (!accountsResponse.ok || !account) throw new Error("local account bootstrap failed");
+  if (!account.active) {
+    const switched = await fetch(`${apiBaseUrl}/api/v1/account/switch`, {
+      method: "POST",
+      headers: { Cookie: cookie, Origin: webBaseUrl, "Content-Type": "application/json" },
+      body: JSON.stringify({ accountId: account.accountId }),
+    });
+    const rotatedCookie = switched.headers.get("set-cookie")?.split(";", 1)[0];
+    if (!switched.ok || !rotatedCookie) throw new Error("local owner switch failed");
+    cookie = rotatedCookie;
+  }
   const created = await fetch(`${apiBaseUrl}/api/v1/accounts/${account.accountId}/assessments`, {
     method: "POST",
     headers: { Cookie: cookie, Origin: webBaseUrl, "Content-Type": "application/json" },
