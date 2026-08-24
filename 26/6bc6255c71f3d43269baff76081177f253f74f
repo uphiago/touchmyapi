@@ -1,0 +1,28 @@
+specs/001-touchmyapi-platform/quickstart.md
+  s_bc54431df54bf2::t_e10fc0b4ec86e7 25-27,60,62,89,95-96,99,111,113,115,119,128
+README.md
+  s_bc54431df54bf2::t_fa4effb1ff613f 7,13,15,17,36,38,43,86,100
+  s_bc54431df54bf2::t_a661fa5fe5fdd0 101
+docs/operations/ovh-deployment.md
+  s_bc54431df54bf2::t_c15d768d68db39 40
+specs/001-touchmyapi-platform/tasks.md
+  s_bc54431df54bf2::t_167d901735dd0a 226-231
+docs/reviews/2026-08-23-console-admin-ovh-checkpoint.md
+  s_bc54431df54bf2::t_c15d768d68db39 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "266bc6255c71f3d43269baff76081177f253f74f",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
