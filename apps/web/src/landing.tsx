@@ -10,6 +10,8 @@ export type LandingPageProps = Readonly<{
   onRetry: () => void | Promise<void>;
 }>;
 
+export type AppSignInProps = LandingPageProps;
+
 const workflow = [
   ["01", "Authorization recorded", "Target, scope and versioned terms become durable facts."],
   ["02", "Policy decides", "Membership, plan, scope and limits are reduced server-side."],
@@ -148,6 +150,81 @@ export function LandingPage({
         <span>TouchMyAPI / authorized assessments only</span>
         <span>No autonomous execution · no public evidence buckets</span>
       </footer>
+    </div>
+  );
+}
+
+/**
+ * The app origin is intentionally a separate entry point from the public site.
+ * Keep the sign-in state explicit so an unauthenticated app visit never looks
+ * like a redirect from the public landing page.
+ */
+export function AppSignIn({ status, providers, busy, error, onGitHub, onRetry }: AppSignInProps) {
+  const githubReady = providers.some((provider) => provider.id === "github");
+  const statusLabel =
+    status === "checking" ? "Checking API" : status === "online" ? "API online" : "API unavailable";
+
+  return (
+    <div className="app-entry">
+      <header className="landing-nav">
+        <a className="brand-lockup brand-lockup--public" href="https://touchmyapi.com/">
+          <span className="brand-mark" aria-hidden="true">
+            T/
+          </span>
+          <div>
+            <strong>TouchMyAPI</strong>
+            <span>Customer workspace</span>
+          </div>
+        </a>
+        <div className={`api-indicator api-indicator--${status}`} aria-label={statusLabel}>
+          <span aria-hidden="true" />
+          {statusLabel}
+        </div>
+      </header>
+      <main className="app-entry__main">
+        <section className="app-entry__card" aria-labelledby="app-entry-title">
+          <span className="eyebrow">Private workspace</span>
+          <h1 id="app-entry-title">Sign in to continue.</h1>
+          <p>
+            Your account, membership and assessment access are selected by the server after
+            authentication. The public product overview lives at touchmyapi.com.
+          </p>
+          {githubReady ? (
+            <button
+              className="button button--primary landing-login"
+              type="button"
+              disabled={busy || status !== "online"}
+              onClick={onGitHub}
+            >
+              <span className="github-glyph" aria-hidden="true">
+                GH
+              </span>
+              Continue with GitHub
+            </button>
+          ) : (
+            <div className="provider-pending" role="status">
+              <strong>
+                {status === "online"
+                  ? "GitHub sign-in is not configured yet."
+                  : "The authentication API is currently unavailable."}
+              </strong>
+              <span>
+                {status === "online"
+                  ? "Connect the OAuth App in the server environment to enable workspace access."
+                  : "Retry when the service boundary is healthy."}
+              </span>
+            </div>
+          )}
+          {error ? (
+            <button className="button button--ghost" type="button" onClick={() => void onRetry()}>
+              Retry connection
+            </button>
+          ) : null}
+          <a className="app-entry__back" href="https://touchmyapi.com/">
+            ← Read how TouchMyAPI works
+          </a>
+        </section>
+      </main>
     </div>
   );
 }

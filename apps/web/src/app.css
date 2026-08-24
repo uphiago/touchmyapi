@@ -1182,6 +1182,51 @@ p {
   letter-spacing: 0.06em;
 }
 
+.app-entry {
+  min-height: 100vh;
+  background: #090c0a;
+}
+.app-entry__main {
+  display: grid;
+  min-height: calc(100vh - 7rem);
+  place-items: center;
+  padding: 4rem 1.5rem 6rem;
+}
+.app-entry__card {
+  width: min(100%, 34rem);
+  padding: clamp(2rem, 5vw, 4rem);
+  border: 1px solid var(--line-strong);
+  background: rgba(16, 21, 17, 0.88);
+  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.25);
+}
+.app-entry__card h1 {
+  max-width: 10ch;
+  margin: 0.8rem 0 1rem;
+}
+.app-entry__card > p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+.app-entry__card .provider-pending {
+  margin-top: 1.5rem;
+}
+.app-entry__card .button--ghost {
+  margin-top: 0.75rem;
+}
+.app-entry__back {
+  display: inline-block;
+  margin-top: 2rem;
+  color: var(--faint);
+  font-family: "DM Mono", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.app-entry__back:hover {
+  color: var(--accent);
+}
+
 .landing {
   position: relative;
   z-index: 1;

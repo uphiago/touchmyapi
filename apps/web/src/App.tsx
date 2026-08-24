@@ -17,7 +17,7 @@ import { ApiClientError, createApiClient } from "../../../packages/ui/api-client
 import { AccountSwitcher } from "./account-switcher";
 import { AppShell, type ApiStatus, type CustomerView } from "./app-shell";
 import { Assessments } from "./assessments";
-import { LandingPage } from "./landing";
+import { AppSignIn, LandingPage } from "./landing";
 import { InvitationAcceptance, Memberships } from "./memberships";
 import { Overview } from "./overview";
 import { isPublicLandingHost } from "./public-host";
@@ -590,9 +590,22 @@ export default function App() {
     );
   }
 
-  if (publicLanding || authState !== "signed_in" || !session) {
+  if (publicLanding) {
     return (
       <LandingPage
+        status={status}
+        providers={providers}
+        busy={busy}
+        error={error}
+        onGitHub={startGitHubLogin}
+        onRetry={() => window.location.reload()}
+      />
+    );
+  }
+
+  if (authState !== "signed_in" || !session) {
+    return (
+      <AppSignIn
         status={status}
         providers={providers}
         busy={busy}

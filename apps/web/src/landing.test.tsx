@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { LandingPage } from "./landing";
+import { AppSignIn, LandingPage } from "./landing";
 
 describe("public landing and authentication entry", () => {
   it("explains the authorized workflow and offers configured GitHub login", () => {
@@ -38,5 +38,23 @@ describe("public landing and authentication entry", () => {
     expect(markup).toContain("GitHub sign-in is not configured yet");
     expect(markup).toContain("API online");
     expect(markup).not.toContain("Continue with GitHub");
+  });
+
+  it("keeps the app origin visibly separate from the public landing", () => {
+    const markup = renderToStaticMarkup(
+      <AppSignIn
+        status="online"
+        providers={[]}
+        busy={false}
+        error={null}
+        onGitHub={() => undefined}
+        onRetry={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Private workspace");
+    expect(markup).toContain("Sign in to continue.");
+    expect(markup).toContain("https://touchmyapi.com/");
+    expect(markup).not.toContain("Security work should start with proof");
   });
 });
