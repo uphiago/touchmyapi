@@ -78,7 +78,7 @@ describe("normalizeSurfaceHost", () => {
       expect(normalizeSurfaceHost(input)).toEqual({ ok: false, code: "forbidden_surface_host" }),
   );
 
-  it.each([null, 42, {}, []])("fails closed for malformed runtime host %j", (input) => {
+  it.each([[null], [42], [{}], [[]]])("fails closed for malformed runtime host %j", (input) => {
     expect(() => normalizeSurfaceHost(input as never)).not.toThrow();
     expect(normalizeSurfaceHost(input as never)).toEqual({
       ok: false,
@@ -123,7 +123,7 @@ describe("forbidden addresses", () => {
     (input) => expect(isForbiddenAddress(input)).toBe(false),
   );
 
-  it.each([null, 42, {}, []])("fails closed for runtime non-string input %j", (input) => {
+  it.each([[null], [42], [{}], [[]]])("fails closed for runtime non-string input %j", (input) => {
     expect(() => isForbiddenAddress(input as never)).not.toThrow();
     expect(isForbiddenAddress(input as never)).toBe(true);
   });

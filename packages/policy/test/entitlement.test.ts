@@ -44,7 +44,7 @@ describe("plan entitlements", () => {
     },
   );
 
-  it.each([null, undefined, "admin", 42, {}, [], true])(
+  it.each([[null], [undefined], ["admin"], [42], [{}], [[]], [true]])(
     "rejects unknown runtime plan %j without granting rights",
     (value) => {
       expect(isPlan(value)).toBe(false);
