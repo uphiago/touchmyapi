@@ -12,7 +12,9 @@
   ],
   "scripts": {
     "dev:api": "bun --cwd apps/api dev",
+    "dev:admin-api": "bun --cwd apps/api dev:admin",
     "dev:web": "bun --cwd apps/web dev",
+    "dev:admin": "bun --cwd apps/admin dev",
     "dev:local": "bun scripts/dev-local.ts",
     "local:smoke": "bun scripts/local-smoke.ts",
     "local:up": "docker compose --profile local -f infra/docker/compose.yml up -d postgres",

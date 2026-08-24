@@ -49,16 +49,110 @@ async function checkLocalAssessmentJourney(): Promise<void> {
     throw new Error(`local assessment queue failed: HTTP ${queued.status}`);
   }
   console.log(`[smoke] PASS assessment draft → queued ${account.accountId}`);
+
+  const adminCrossBoundary = await fetch(`${adminApiBaseUrl}/api/v1/admin/snapshot`, {
+    headers: { Cookie: cookie, Origin: adminWebBaseUrl },
+  });
+  if (adminCrossBoundary.status !== 401) {
+    throw new Error("customer cookie accepted by admin");
+  }
+}
+
+async function checkLocalAdminJourney(): Promise<void> {
+  const session = await fetch(`${adminApiBaseUrl}/api/v1/admin/auth/local-session`, {
+    method: "POST",
+    headers: { Origin: adminWebBaseUrl },
+  });
+  const cookie = session.headers.get("set-cookie")?.split(";", 1)[0];
+  if (
+    !session.ok ||
+    !cookie?.startsWith("tma-admin-session=") ||
+    session.headers.get("access-control-allow-origin") !== adminWebBaseUrl ||
+    session.headers.get("access-control-allow-credentials") !== "true"
+  ) {
+    throw new Error("local admin session or CORS bootstrap failed");
+  }
+
+  const customerCrossBoundary = await fetch(`${apiBaseUrl}/api/v1/accounts`, {
+    headers: { Cookie: cookie, Origin: webBaseUrl },
+  });
+  if (customerCrossBoundary.status !== 401) {
+    throw new Error("admin cookie accepted by customer");
+  }
+
+  const snapshotResponse = await fetch(`${adminApiBaseUrl}/api/v1/admin/snapshot`, {
+    headers: { Cookie: cookie, Origin: adminWebBaseUrl },
+  });
+  const snapshot = (await snapshotResponse.json()) as {
+    accounts?: readonly { accountId: string }[];
+    queue?: readonly { jobId: string }[];
+  };
+  const account = snapshot.accounts?.[0];
+  const job = snapshot.queue?.[0];
+  if (!snapshotResponse.ok || !account || !job) throw new Error("local admin snapshot failed");
+
+  const grantResponse = await fetch(`${adminApiBaseUrl}/api/v1/admin/grants`, {
+    method: "POST",
+    headers: { Cookie: cookie, Origin: adminWebBaseUrl, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      accountId: account.accountId,
+      capability: "queue.requeue",
+      ticket: "OPS-1234",
+      reason: "Recover one reviewed local queue item",
+      ttlSeconds: 900,
+    }),
+  });
+  const grant = (await grantResponse.json()) as { grant?: { id: string } };
+  if (!grantResponse.ok || !grant.grant) throw new Error("local admin grant request failed");
+
+  const approval = await fetch(
+    `${adminApiBaseUrl}/api/v1/admin/grants/${grant.grant.id}/approval`,
+    {
+      method: "POST",
+      headers: { Cookie: cookie, Origin: adminWebBaseUrl, "Content-Type": "application/json" },
+      body: JSON.stringify({ approverId: "local-approver", decision: "approved" }),
+    },
+  );
+  if (!approval.ok) throw new Error("local admin distinct approval failed");
+
+  const action = await fetch(`${adminApiBaseUrl}/api/v1/admin/queue/actions`, {
+    method: "POST",
+    headers: { Cookie: cookie, Origin: adminWebBaseUrl, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      grantId: grant.grant.id,
+      accountId: account.accountId,
+      action: "queue.requeue",
+      jobId: job.jobId,
+    }),
+  });
+  const result = (await action.json()) as { result?: { status: string; simulated: boolean } };
+  if (!action.ok || result.result?.status !== "accepted" || result.result.simulated !== true) {
+    throw new Error("local admin bounded queue action failed");
+  }
+  console.log("[smoke] PASS admin grant → distinct approval → bounded simulation");
 }
 
 const apiBaseUrl = process.env.VITE_API_BASE_URL ?? "http://127.0.0.1:3000";
 const webBaseUrl = process.env.WEB_BASE_URL ?? "http://127.0.0.1:5173";
+const adminApiBaseUrl = process.env.ADMIN_API_BASE_URL ?? "http://127.0.0.1:3001";
+const adminWebBaseUrl = process.env.ADMIN_WEB_BASE_URL ?? "http://127.0.0.1:5174";
 const timeoutMs = Number(process.env.LOCAL_SMOKE_TIMEOUT_MS ?? 30_000);
 const checks: readonly Check[] = [
   {
     name: "API health",
     url: `${apiBaseUrl}/health`,
     validate: (response, body) => response.ok && body === JSON.stringify({ status: "ok" }),
+  },
+  {
+    name: "admin API health",
+    url: `${adminApiBaseUrl}/health`,
+    validate: (response, body) =>
+      response.ok && body === JSON.stringify({ status: "ok", boundary: "admin" }),
+  },
+  {
+    name: "admin web shell",
+    url: adminWebBaseUrl,
+    validate: (response, body) => response.ok && body.includes("TouchMyAPI"),
   },
   {
     name: "web shell",
@@ -90,6 +184,7 @@ while (Date.now() < deadline) {
   if (passed) {
     try {
       await checkLocalAssessmentJourney();
+      await checkLocalAdminJourney();
       console.log("[smoke] local stack is responding");
       process.exit(0);
     } catch (error) {

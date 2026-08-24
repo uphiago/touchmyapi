@@ -103,6 +103,11 @@ describe("foundation configuration contracts", () => {
     expect(local).toContain("VITE_API_BASE_URL: localApiOrigin");
     expect(local).toContain('["--host", "127.0.0.1", "--strictPort"]');
     expect(local).not.toContain('CORS_ORIGIN: "http://localhost:5173"');
+    expect(local).toContain('const localAdminWebOrigin = "http://127.0.0.1:5174";');
+    expect(local).toContain('const localAdminApiOrigin = "http://127.0.0.1:3001";');
+    expect(local).toContain("ADMIN_CORS_ORIGIN: localAdminWebOrigin");
+    expect(local).toContain("VITE_ADMIN_API_BASE_URL: localAdminApiOrigin");
+    expect(local).toContain('LOCAL_ADMIN_MOCKS: "1"');
   });
 
   it("makes the local smoke prove the browser CORS and credential boundary", () => {
@@ -112,6 +117,11 @@ describe("foundation configuration contracts", () => {
     expect(smoke).toContain('"http://127.0.0.1:5173"');
     expect(smoke).toContain("headers: { Origin: webBaseUrl }");
     expect(smoke).toContain('session.headers.get("access-control-allow-origin") !== webBaseUrl');
+    expect(smoke).toContain('"http://127.0.0.1:3001"');
+    expect(smoke).toContain('"http://127.0.0.1:5174"');
+    expect(smoke).toContain("tma-admin-session");
+    expect(smoke).toContain("customer cookie accepted by admin");
+    expect(smoke).toContain("admin cookie accepted by customer");
   });
 });
 

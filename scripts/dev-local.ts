@@ -6,6 +6,8 @@ const databaseUrl =
   process.env.DATABASE_URL ?? "postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi";
 const localWebOrigin = "http://127.0.0.1:5173";
 const localApiOrigin = "http://127.0.0.1:3000";
+const localAdminWebOrigin = "http://127.0.0.1:5174";
+const localAdminApiOrigin = "http://127.0.0.1:3001";
 const webArgs = ["--host", "127.0.0.1", "--strictPort"];
 const baseEnv = Object.fromEntries(
   Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
@@ -40,6 +42,29 @@ const children = [
     stderr: "inherit",
   }),
   Bun.spawn({
+    cmd: ["bun", "--cwd", "apps/api", "dev:admin"],
+    cwd: root,
+    env: {
+      ...baseEnv,
+      ADMIN_CORS_ORIGIN: localAdminWebOrigin,
+      LOCAL_ADMIN_MOCKS: "1",
+      ADMIN_PORT: "3001",
+    },
+    stdout: "inherit",
+    stderr: "inherit",
+  }),
+  Bun.spawn({
+    cmd: ["bun", "--cwd", "apps/admin", "dev", "--", ...webArgs, "--port", "5174"],
+    cwd: root,
+    env: {
+      ...baseEnv,
+      VITE_ADMIN_API_BASE_URL: localAdminApiOrigin,
+      VITE_LOCAL_ADMIN_MOCKS: "1",
+    },
+    stdout: "inherit",
+    stderr: "inherit",
+  }),
+  Bun.spawn({
     cmd: ["bun", "--cwd", "apps/web", "dev", "--", ...webArgs],
     cwd: root,
     env: { ...baseEnv, VITE_API_BASE_URL: localApiOrigin, VITE_LOCAL_MOCKS: "1" },
@@ -52,7 +77,7 @@ let shuttingDown = false;
 function shutdown(signal: string): void {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`[local] received ${signal}; stopping API and web processes`);
+  console.log(`[local] received ${signal}; stopping customer and admin processes`);
   for (const child of children) child.kill("SIGTERM");
 }
 

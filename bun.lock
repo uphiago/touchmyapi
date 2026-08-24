@@ -17,6 +17,21 @@
         "vitest": "^3.2.4",
       },
     },
+    "apps/admin": {
+      "name": "@touchmyapi/admin",
+      "version": "0.1.0",
+      "dependencies": {
+        "@touchmyapi/contracts": "workspace:*",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+      },
+      "devDependencies": {
+        "@types/react": "^18.3.3",
+        "@types/react-dom": "^18.3.0",
+        "@vitejs/plugin-react": "^4.3.1",
+        "vite": "^5.4.0",
+      },
+    },
     "apps/api": {
       "name": "@touchmyapi/api",
       "version": "0.1.0",
@@ -74,6 +89,10 @@
       "dependencies": {
         "@touchmyapi/contracts": "workspace:*",
       },
+    },
+    "packages/secrets": {
+      "name": "@touchmyapi/secrets",
+      "version": "0.1.0",
     },
     "packages/ui": {
       "name": "@touchmyapi/ui",
@@ -263,6 +282,8 @@
     "@rollup/rollup-win32-x64-gnu": ["@rollup/rollup-win32-x64-gnu@4.62.5", "", { "os": "win32", "cpu": "x64" }, "sha512-1aC3UEWTtRl3RK3VpDJ/Tqk1XI4SLTmXIthAq6wRWo8XiSXJNd+VprJM4/1P4+i6HIaFEFlVi9sTTziniD2tOQ=="],
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.62.5", "", { "os": "win32", "cpu": "x64" }, "sha512-/gDJaRs4gl0NPIwqCz+6PkpmhhjRAD2j6P4rSNHBzUkO3naEx2mIU0pRle1vUNRQ7mE/+8OOeXLTv/J56FKiQg=="],
+
+    "@touchmyapi/admin": ["@touchmyapi/admin@workspace:apps/admin"],
 
     "@touchmyapi/api": ["@touchmyapi/api@workspace:apps/api"],
 
