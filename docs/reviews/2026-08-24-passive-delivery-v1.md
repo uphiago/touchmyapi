@@ -23,10 +23,12 @@ Date: 2026-08-24
 
 ## Security evidence
 
-- Fresh integration database: 21 files / 94 tests passed.
-- Fresh isolation database: 5 files / 26 tests passed.
-- Fast Vitest gate: 50 files passed, 398 tests passed; database suites were
-  separately exercised above rather than counted while skipped.
+- The prior passive-delivery checkpoint recorded clean integration and isolation
+  database runs. Database suites remain opt-in and must be rerun against separate
+  clean `_test` databases for a new release; skipped suites are never counted as
+  passed.
+- The current fast gate is recorded in the [total review](2026-08-24-total-review.md),
+  alongside the local smoke and runnable E2E evidence.
 - TypeScript, ESLint, Prettier, workspace verification, customer/admin/API/worker
   builds, production Compose validation and worker image build passed.
 - Delivery integration proves current-fence publication, stale-fence no-op,

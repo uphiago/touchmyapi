@@ -177,3 +177,7 @@ jobs:
           do
             curl --fail --silent --show-error --max-time 20 "$url" >/dev/null
           done
+          curl --fail --silent --show-error --max-time 20 https://touchmyapi.com/ |
+            grep -F 'TouchMyAPI' >/dev/null
+          curl --fail --silent --show-error --max-time 20 -D - -o /dev/null https://www.touchmyapi.com/ |
+            tr -d '\r' | grep -Fx 'location: https://touchmyapi.com/'

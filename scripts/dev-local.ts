@@ -45,6 +45,9 @@ async function run(
   if (exitCode !== 0) throw new Error(`${command} ${args.join(" ")} exited with ${exitCode}`);
 }
 
+if (process.env.TOUCHMYAPI_EXTERNAL_MINIO !== "1") {
+  await run("docker", ["compose", "--profile", "local", "-f", composeFile, "up", "-d", "minio"]);
+}
 await run("docker", [
   "compose",
   "--profile",
@@ -53,8 +56,10 @@ await run("docker", [
   composeFile,
   "up",
   "-d",
+  "--wait",
+  "--wait-timeout",
+  "120",
   "postgres",
-  "minio",
 ]);
 await run("bun", ["run", "db:migrate"], { DATABASE_URL: databaseUrl });
 await run("bun", ["packages/db/scripts/configure-connectors.ts"], connectorEnv);

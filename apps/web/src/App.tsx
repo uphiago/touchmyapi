@@ -20,6 +20,7 @@ import { Assessments } from "./assessments";
 import { LandingPage } from "./landing";
 import { InvitationAcceptance, Memberships } from "./memberships";
 import { Overview } from "./overview";
+import { isPublicLandingHost } from "./public-host";
 import { ResultsWorkspace } from "./results";
 
 const API_BASE_URL =
@@ -247,6 +248,7 @@ export function CustomerConsole({
 }
 
 export default function App() {
+  const publicLanding = isPublicLandingHost(window.location.hostname);
   const [authState, setAuthState] = useState<
     "checking" | "signed_out" | "signed_in" | "unavailable"
   >("checking");
@@ -268,6 +270,14 @@ export default function App() {
   const resultsGeneration = useRef(0);
   const client = useMemo(() => createApiClient(API_BASE_URL), []);
   const activeAccount = accounts.find((account) => account.active) ?? accounts[0];
+
+  useEffect(() => {
+    document.title = publicLanding
+      ? "TouchMyAPI / Authorized assessments"
+      : authState === "signed_in"
+        ? "TouchMyAPI / Console"
+        : "TouchMyAPI / Sign in";
+  }, [authState, publicLanding]);
 
   async function refreshResults(
     accountId: string,
@@ -421,6 +431,10 @@ export default function App() {
         const providerSnapshot = await client.getAuthProviders();
         if (cancelled) return;
         setProviders(providerSnapshot.providers);
+        if (publicLanding) {
+          setAuthState("signed_out");
+          return;
+        }
         if (LOCAL_MOCKS) {
           await fetch(`${API_BASE_URL}/api/v1/auth/local-session`, { credentials: "include" });
         }
@@ -534,7 +548,7 @@ export default function App() {
       setNotice(
         LOCAL_MOCKS
           ? "Queued. The credential-free local fixture will complete it without contacting the target."
-          : "Accepted by the queue boundary. Follow the live status while the isolated worker processes it.",
+          : "Accepted by the queue boundary. Production processing is paused until the isolated runner is enabled; no target contact is claimed.",
       );
       await refreshWorkspace();
     } catch (cause) {
@@ -576,7 +590,7 @@ export default function App() {
     );
   }
 
-  if (authState !== "signed_in" || !session) {
+  if (publicLanding || authState !== "signed_in" || !session) {
     return (
       <LandingPage
         status={status}

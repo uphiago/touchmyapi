@@ -1,6 +1,6 @@
 # Quickstart: TouchMyAPI Foundation
 
-**Foundation validation** | **Updated**: 2026-08-23
+**Foundation validation** | **Updated**: 2026-08-24
 
 This guide validates the code that exists today. It does not claim that the full platform scenarios in the [product spec](./spec.md) are implemented.
 
@@ -19,9 +19,9 @@ This guide validates the code that exists today. It does not claim that the full
 - Strict passive `@touchmyapi/playbooks` catalog `surface-public-posture@1.0.0` (T019), aligned with the policy engine and containing no execution/network behavior
 - Dependency-injected Hono API boundary (T020) with exact CORS, request IDs, stable errors, audit gating, and no assessment routes in the default production composition
 - OAuth Authorization Code + PKCE boundary (T021) with encrypted transient state, hash-only rotating sessions, revocation, secure cookies, and a fakeable provider adapter; the current customer composition is GitHub
-- T071–T080 multi-user foundation: additive memberships/invitations, role capability policy, active-account session list/switch, hash-only invitation acceptance, lifecycle/RLS acceptance, and server-driven workspace UI
+- T071–T075 and T077–T080 multi-user foundation: additive memberships/invitations, role capability policy, active-account session list/switch, hash-only invitation acceptance, RLS acceptance, and server-driven workspace UI; T076 account deletion/data elimination remains open
 - T081–T086 PostgreSQL queue/outbox infrastructure: transactional enqueue, fair fenced claims, lease recovery, reconciliation, and standalone outbox controls
-- Development-only account-scoped assessment draft → queue routes and web panel, backed by an explicit in-memory local mock
+- Development-only account-scoped assessment draft → queue routes and web panel, backed by PostgreSQL in the supported local composition; only persona/auth fixtures are local mocks
 - T095 customer operations cockpit with Overview/Assessments/Team/Workspace navigation and guided authorization-first draft flow
 - T096–T097 separate development-only admin API/UI on `3001/5174`, dedicated cookie/origin/store, grant-before-action simulation, and cross-session denial smoke
 - T098–T099 non-root production images, private PostgreSQL Compose topology, migration-before-cutover, and SHA-pinned GitHub Actions → OVH release automation
@@ -35,7 +35,13 @@ This guide validates the code that exists today. It does not claim that the full
 
 The local mode executes one deterministic passive fixture assessment end to end, including worker claim, analysis, terminal delivery, notification, and three private report objects. It never contacts an external target. Production persists passive draft/list/queue state, but the worker is under the `execution` profile, `RUNNER_MODE=fixture` is rejected in production, and the isolated runner adapter is unavailable; production worker execution and target contact therefore remain disabled under T106. Billing mutation, Stripe webhook entitlement, active HTTP verification, AI execution, and the private agent remain open. Production accepts `AUTH_PROVIDER=disabled` until a GitHub OAuth App exists, or `github` with explicit credentials; mocks remain forbidden.
 
-The historical Foundation Phase 2 remains intentionally limited to T010–T021. The approved Phase 2A extension follows T021: T071–T080 provide the additive membership foundation, lifecycle boundary, RLS cut, server-driven workspace UI, and acceptance gate before the fenced PostgreSQL queue/outbox and separate admin control plane. SSO and SCIM remain out of scope; Google/X customer login is modeled-disabled and provider adapters remain injectable until production credentials are supplied.
+The public web entrypoint is `https://touchmyapi.com`. It renders the landing
+without requiring a session; `https://app.touchmyapi.com` is the customer console
+host used after sign-in. `www.touchmyapi.com` canonicalizes to the apex. The same
+web image serves both hosts, but the SPA keeps the apex permanently public so an
+authenticated console session never changes the public marketing entrypoint.
+
+The historical Foundation Phase 2 remains intentionally limited to T010–T021. The approved Phase 2A extension follows T021: T071–T075 and T077–T080 provide the additive membership foundation, RLS cut, server-driven workspace UI, and partial acceptance gate before the fenced PostgreSQL queue/outbox and separate admin control plane; T076 account deletion/data elimination is still open. SSO and SCIM remain out of scope; Google/X customer login is modeled-disabled and provider adapters remain injectable until production credentials are supplied.
 
 ## Prerequisites
 
@@ -199,8 +205,8 @@ The local passive delivery scenario is runnable; the production delivery gate is
 
 The multi-user extension is validated after T021 with these additional milestones:
 
-7. The global immutable provider `user` identity, explicit `account_membership(account_id,user_id)`, token-hash invitations, role matrix, active-account session rotation, and membership RLS isolation (T071–T080).
-8. Tenant enqueue uses closed typed `packages/db/src/queue.ts` under `api_rls`/`app.tenant` after membership/policy/entitlement checks; PostgreSQL worker queue control uses `packages/db/src/queue-control.ts` with `queue_connector` `EXECUTE` only, zero table grants, and no enqueue/admin functions. Claims use `SKIP LOCKED`, global→tenant→job ordering for every job/counter mutation, lease/fencing token, heartbeat, retry/backoff, exact fair scheduling, tenant/global limits, and transactional outbox. Standalone outbox uses `outbox_claim/heartbeat/ack/fail/reap` with deterministic outbox-only locks and never touches global/job rows; admin cancel/requeue/account-reaper use separate JIT-gated functions. `LISTEN/NOTIFY` is only a hint (T081–T087).
-9. Separate admin app/API/origin, `staff_identity` and related staff tables, mandatory MFA, JIT reason/ticket/TTL/approval, dual break-glass, policy-aware queue operations, and read-only billing with no secrets/raw evidence/arbitrary SQL/impersonation (T088–T094).
+4. The global immutable provider `user` identity, explicit `account_membership(account_id,user_id)`, token-hash invitations, role matrix, active-account session rotation, and membership RLS isolation (T071–T075, T077–T080; T076 deletion remains open).
+5. Tenant enqueue uses closed typed `packages/db/src/queue.ts` under `api_rls`/`app.tenant` after membership/policy/entitlement checks; PostgreSQL worker queue control uses `packages/db/src/queue-control.ts` with `queue_connector` `EXECUTE` only, zero table grants, and no enqueue/admin functions. Claims use `SKIP LOCKED`, global→tenant→job ordering for every job/counter mutation, lease/fencing token, heartbeat, retry/backoff, exact fair scheduling, tenant/global limits, and transactional outbox. Standalone outbox uses `outbox_claim/heartbeat/ack/fail/reap` with deterministic outbox-only locks and never touches global/job rows; admin cancel/requeue/account-reaper use separate JIT-gated functions. `LISTEN/NOTIFY` is only a hint (T081–T087).
+6. Separate admin app/API/origin, `staff_identity` and related staff tables, mandatory MFA, JIT reason/ticket/TTL/approval, dual break-glass, policy-aware queue operations, and read-only billing with no secrets/raw evidence/arbitrary SQL/impersonation (T088–T094).
 
 The authoritative design references are the [constitution](../../.specify/memory/constitution.md), [data model](./data-model.md), [research](./research.md), and [contracts](./contracts/index.md). Drift from those documents is a bug; when they conflict, the constitution wins.

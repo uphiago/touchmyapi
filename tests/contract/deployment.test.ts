@@ -27,6 +27,8 @@ describe("OVH release boundary", () => {
     }
     expect(workflow).toContain("Verify public edge after cutover");
     expect(workflow).toContain("curl --fail --silent --show-error --max-time 20");
+    expect(workflow).toContain("https://touchmyapi.com/");
+    expect(workflow).toContain("https://www.touchmyapi.com/");
   });
 
   it("verifies SSH and never discovers or bypasses host keys", () => {
@@ -71,10 +73,14 @@ describe("OVH release boundary", () => {
       deploy.indexOf("configure-connectors.ts"),
     );
     expect(deploy.indexOf("configure-connectors.ts")).toBeLessThan(deploy.indexOf("up -d"));
+    expect(deploy.indexOf("deploy-edge-ovh.sh")).toBeLessThan(deploy.indexOf("up -d"));
     expect(deploy.indexOf("up -d")).toBeLessThan(deploy.indexOf("smoke-remote.sh"));
     expect(deploy).toContain("shared/.env");
     expect(deploy).toContain("^[0-9a-f]{40}$");
     expect(deploy).toContain("insufficient disk headroom");
+    expect(deploy).toContain("TOUCHMYAPI_AUTO_ROLLBACK");
+    expect(deploy).toContain("TOUCHMYAPI_ALLOW_MISSING_EDGE=1");
+    expect(deploy).toContain("migrations remain forward-only");
     expect(deploy).toContain("--profile execution pull worker");
     expect(deploy).toContain("touchmyapi-worker");
     expect(read("scripts/smoke-remote.sh")).toContain("/api/v1/auth/providers");
@@ -82,6 +88,23 @@ describe("OVH release boundary", () => {
     expect(compose).toContain("profiles: [execution]");
     expect(compose).toContain("no-new-privileges:true");
     expect(compose).not.toContain("/var/run/docker.sock");
+  });
+
+  it("keeps the apex public landing separate from the authenticated app host", () => {
+    const caddy = read("infra/edge/Caddyfile");
+    const edgeDeploy = read("scripts/deploy-edge-ovh.sh");
+
+    expect(caddy).toContain("touchmyapi.com {");
+    expect(caddy).toContain("reverse_proxy 127.0.0.1:8080");
+    expect(caddy).toContain("www.touchmyapi.com {");
+    expect(caddy).toContain("redir https://touchmyapi.com{uri} permanent");
+    expect(caddy).toContain("app.touchmyapi.com {");
+    expect(edgeDeploy).toContain("caddy validate");
+    expect(edgeDeploy).toContain("--force-recreate --no-deps caddy");
+    expect(edgeDeploy).toContain("Caddyfile.previous");
+    expect(edgeDeploy).toContain("TOUCHMYAPI_ALLOW_MISSING_EDGE");
+    expect(edgeDeploy).toContain("missing tracked edge configuration");
+    expect(edgeDeploy).toContain('cp "$temporary" "$edge_dir/Caddyfile"');
   });
 
   it("configures only fixed least-privilege login roles without logging secrets", () => {

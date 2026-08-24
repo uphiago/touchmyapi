@@ -2,11 +2,16 @@
 
 TouchMyAPI is a multi-user platform for authorized security assessments. Its current executable slice includes GitHub OAuth with PKCE, server-selected workspaces and five roles, forced-RLS PostgreSQL persistence, policy-gated passive assessment draft → durable queue, a customer console, a separate local staff console, and immutable GitHub Actions → OVH releases.
 
+Public entrypoints are intentionally split: `https://touchmyapi.com` is the public
+landing for a first-time visitor, `https://app.touchmyapi.com` is the customer
+console, `https://api.touchmyapi.com` is the customer API, and the `admin` pair is
+the separate staff boundary. The apex no longer redirects to the application host.
+
 ## Project status
 
-The current branch adds provider-neutral GitHub identity provisioning, persistent sessions/memberships/assessments, a dedicated `api_connector`, role-aware customer journeys, plan-delivery guidance, a local passive worker fixture, deterministic findings, completion notifications, and private JSON/PDF report publication for eligible plans. Queue/outbox primitives are durable. Production worker execution, Stripe webhook entitlement, active HTTP verification, the private agent, and persistent staff OIDC/WebAuthn/JIT remain open in [platform tasks](specs/001-touchmyapi-platform/tasks.md).
+The current branch adds provider-neutral GitHub identity provisioning, persistent sessions/memberships/assessments, a dedicated `api_connector`, role-aware customer journeys, plan-delivery guidance, a local passive worker fixture, deterministic findings, completion notifications, and private JSON/PDF report publication for eligible plans. Queue/outbox primitives are durable. The membership foundation is accepted for the implemented list/invite/role/RLS path; account deletion/data elimination remains open. Production worker execution, Stripe webhook entitlement, active HTTP verification, the private agent, and persistent staff OIDC/WebAuthn/JIT remain open in [platform tasks](specs/001-touchmyapi-platform/tasks.md).
 
-The authoritative handoff is the [foundation checkpoint](docs/reviews/2026-08-22-foundation-checkpoint.md). Status checkboxes live in [platform tasks](specs/001-touchmyapi-platform/tasks.md); architecture and operational decisions remain in the linked plan, spec, research, data model, contracts, and quickstart under `specs/001-touchmyapi-platform/`.
+The latest handoff is the [total product and delivery review](docs/reviews/2026-08-24-total-review.md), alongside the [public entrypoint review](docs/reviews/2026-08-24-public-entrypoint.md) and [passive delivery review](docs/reviews/2026-08-24-passive-delivery-v1.md). Status checkboxes live in [platform tasks](specs/001-touchmyapi-platform/tasks.md); architecture and operational decisions remain in the linked plan, spec, research, data model, contracts, and quickstart under `specs/001-touchmyapi-platform/`.
 
 ## Current security boundary
 

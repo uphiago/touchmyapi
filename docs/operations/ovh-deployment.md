@@ -61,14 +61,14 @@ OBJECT_STORAGE_SECRET_ACCESS_KEY=
 
 Use different high-entropy passwords for the migration owner and every connector. The deploy runs migrations first, then configures `auth_connector`, `api_connector`, `audit_system_connector`, `queue_connector`, `worker_connector`, and `reporting_connector` from these URLs and verifies each login before cutover. The connector script never prints credentials.
 
-`AUTH_PROVIDER=disabled` is the safe initial production state: the API, audit, landing and database runtime are available, while `/api/v1/auth/providers` returns no login provider. To enable sign-in, create a GitHub OAuth App with homepage `https://app.touchmyapi.com` and exact callback `https://api.touchmyapi.com/api/v1/auth/github/callback`, place its Client ID/Secret in the host file, and change `AUTH_PROVIDER=github`. Never enable `mock` in production.
+`AUTH_PROVIDER=disabled` is the safe initial production state: the API, audit, public landing and database runtime are available, while `/api/v1/auth/providers` returns no login provider. To enable sign-in, create a GitHub OAuth App with homepage `https://touchmyapi.com` and exact callback `https://api.touchmyapi.com/api/v1/auth/github/callback`, place its Client ID/Secret in the host file, and change `AUTH_PROVIDER=github`. Successful login returns to `https://app.touchmyapi.com`. Never enable `mock` in production.
 
-The current OVH environment uses `https://app.touchmyapi.com` and
-`https://admin.touchmyapi.com` for the two browser origins. Object-storage
-credentials are stored only in the ignored local `.env` and the host file;
-they are not uploaded by CI. The reserved private bucket name is
-`touchmyapi-private`. R2 must be enabled in the Cloudflare account before the
-bucket can be created or used.
+The current OVH environment uses `https://touchmyapi.com` as the public landing,
+`https://app.touchmyapi.com` as the customer console, and
+`https://admin.touchmyapi.com` for staff. Optional object-storage credentials
+are host-only and are not uploaded by CI. The reserved private bucket name is
+`touchmyapi-private`; the current Cloudflare account is not enabled for R2, so
+the production worker/report profile remains disabled.
 
 Optional loopback ports default to customer API `3000`, admin API `3001`, customer web `8080`, and admin web `8081`. Configure the existing OVH reverse proxy and TLS/DNS separately. PostgreSQL has no host port.
 
@@ -98,9 +98,9 @@ PDF, and `report.json@1` downloads. Storage failure is fail-closed and does not
 turn a queued or incomplete assessment into a completed one.
 
 The observed OVH host has 2 vCPU, about 3.7 GiB RAM, cgroups available, and
-approximately 2 GiB free on a 38 GiB root volume (95% used). The deploy script
-fails closed when disk usage reaches 90% or more; reclaim space before any
-production release.
+approximately 6 GiB free on a 38 GiB root volume (84% used after the 2026-08-24
+image cleanup). The deploy script fails closed when disk usage reaches 90% or
+more; reclaim space before any production release.
 
 ## Production edge and DNS
 
@@ -110,7 +110,7 @@ to the reviewed OVH address; do not commit the Cloudflare API token or R2 keys:
 | Host | Type | Destination |
 | --- | --- | --- |
 | `touchmyapi.com` | `A` | OVH |
-| `www.touchmyapi.com` | `CNAME` | `app.touchmyapi.com` |
+| `www.touchmyapi.com` | `CNAME` | `touchmyapi.com` |
 | `app.touchmyapi.com` | `A` | OVH customer web |
 | `api.touchmyapi.com` | `A` | OVH customer API |
 | `admin.touchmyapi.com` | `A` | OVH admin web |
@@ -119,7 +119,8 @@ to the reviewed OVH address; do not commit the Cloudflare API token or R2 keys:
 The independently provisioned Caddy edge lives under
 `$HOME/touchmyapi-edge`. It is pinned by image digest, owns only host ports
 `80` and `443`, obtains and renews public certificates, redirects the apex and
-`www` to `app`, and proxies to the four loopback ports. UFW exposes only SSH,
+serves the apex landing through the customer web loopback, canonicalizes `www`
+to the apex, and proxies the app/API/admin hosts to the four loopback ports. UFW exposes only SSH,
 HTTP, and HTTPS. Application Compose must continue binding its ports to
 `127.0.0.1`; PostgreSQL remains unexposed.
 
@@ -130,13 +131,14 @@ curl --fail --silent --show-error https://api.touchmyapi.com/health
 curl --fail --silent --show-error https://admin-api.touchmyapi.com/health
 curl --fail --silent --show-error https://app.touchmyapi.com/health
 curl --fail --silent --show-error https://admin.touchmyapi.com/health
+curl --fail --silent --show-error https://touchmyapi.com/
 ```
 
 The admin origin is deployable but its production staff capabilities deliberately return unavailable until real staff OIDC/WebAuthn/JIT persistence is implemented. `LOCAL_MOCKS` and `LOCAL_ADMIN_MOCKS` are hard-disabled in production Compose. Customer login availability is independently visible through `/api/v1/auth/providers`.
 
 ## Release and rollback
 
-Run “Build and deploy TouchMyAPI” manually or push a reviewed `v*` tag. The job verifies the SSH host key, uploads the reviewed Git archive, logs Docker into GHCR through stdin, runs forward migrations, configures/verifies least-privilege connector logins, waits for internal health, validates the four public edge endpoints, and then records `current-sha` and `previous-sha` under `shared/releases`.
+Run “Build and deploy TouchMyAPI” manually or push a reviewed `v*` tag. The job verifies the SSH host key, uploads the reviewed Git archive, logs Docker into GHCR through stdin, runs forward migrations, configures/verifies least-privilege connector logins, validates and force-recreates only the Caddy edge container from the tracked configuration with a previous-file fallback, waits for internal health, validates the four public edge endpoints plus the public landing, and then records `current-sha` and `previous-sha` under `shared/releases`.
 
 Application rollback uses a previously published 40-character SHA and the same script from that release directory. Database rollback is never automatic; use a reviewed forward migration. Do not replace `shared/.env`, discover host keys with `ssh-keyscan`, or bypass strict host verification.
 

@@ -63,6 +63,16 @@ function DeliveryDetail({ delivery }: { delivery?: AssessmentDeliveryResponse })
           {delivery.visibility}
         </span>
       </div>
+      {["queued", "running", "analyzing"].includes(delivery.status) ? (
+        <div className="upgrade-callout" role="status">
+          <span className="eyebrow">Processing boundary</span>
+          <strong>Processing is not active in this environment yet.</strong>
+          <p>
+            The queue accepted the authorized request, but the isolated production runner is not
+            enabled. This assessment remains queued and no target contact is claimed.
+          </p>
+        </div>
+      ) : null}
       <div className="finding-summary" aria-label="Finding summary">
         <div>
           <span>Total</span>

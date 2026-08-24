@@ -21,6 +21,33 @@ const assessment = {
 };
 
 describe("assessment result delivery", () => {
+  it("does not imply that production queueing means execution is already active", () => {
+    const markup = renderToStaticMarkup(
+      <ResultsWorkspace
+        assessments={[{ ...assessment, status: "queued" }]}
+        selectedAssessmentId={assessmentId}
+        delivery={{
+          assessmentId,
+          status: "queued",
+          visibility: "aggregate",
+          summary: { total: 0, bySeverity: {}, byCategory: {} },
+          findings: [],
+        }}
+        notifications={[]}
+        reports={[]}
+        plan="pro"
+        busy={false}
+        onSelect={() => undefined}
+        onRefresh={() => undefined}
+        onMarkRead={() => undefined}
+        onDownload={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Processing is not active in this environment yet");
+    expect(markup).toContain("remains queued");
+  });
+
   it("makes server-selected delivery visibility explicit and keeps aggregate findings hidden", () => {
     const markup = renderToStaticMarkup(
       <ResultsWorkspace

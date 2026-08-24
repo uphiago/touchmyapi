@@ -16,6 +16,7 @@ export type WorkerConfig = Readonly<{
     region: string;
     accessKeyId: string;
     secretAccessKey: string;
+    createBucket: boolean;
   }>;
 }>;
 
@@ -120,6 +121,7 @@ export function loadWorkerConfig(
         (environment === "development" || environment === "test"
           ? "touchmyapi_dev_change_me"
           : required(env, "OBJECT_STORAGE_SECRET_ACCESS_KEY")),
+      createBucket: environment !== "production",
     }),
   });
 }

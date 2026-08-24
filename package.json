@@ -26,7 +26,7 @@
     "test:contract": "vitest run --project contract",
     "test:integration": "vitest run --project integration",
     "test:isolation": "vitest run --project isolation",
-    "test:e2e": "vitest run --project e2e",
+    "test:e2e": "RUN_LOCAL_E2E=1 vitest run --project e2e",
     "db:migrate": "bun packages/db/scripts/migrate.ts",
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "lint": "eslint . --ext .ts,.tsx",

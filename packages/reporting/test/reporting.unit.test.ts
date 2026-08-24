@@ -56,10 +56,26 @@ const source = {
 
 describe("private reporting foundation", () => {
   it("sanitizes credentials and gates finding detail before JSON composition", () => {
-    const aggregate = sanitizeReport({ ...source, plan: "free_unverified" }, "free_unverified");
+    const sourceWithSecretScope = {
+      ...source,
+      scope: {
+        ...source.scope,
+        inclusions: ["example.test/*?token=must-not-leak"],
+        exclusions: ["Bearer must-not-leak"],
+      },
+    };
+    const aggregate = sanitizeReport(
+      { ...sourceWithSecretScope, plan: "free_unverified" },
+      "free_unverified",
+    );
     expect(aggregate.findings).toEqual([]);
-    const free = sanitizeReport({ ...source, plan: "free_verified" }, "free_verified");
+    const free = sanitizeReport(
+      { ...sourceWithSecretScope, plan: "free_verified" },
+      "free_verified",
+    );
     expect(free.target).toEqual({ hostname: "example.test" });
+    expect(free.scope.inclusions).toEqual(["example.test/*?token=[REDACTED]"]);
+    expect(free.scope.exclusions).toEqual(["[REDACTED]"]);
     expect(free.findings[0]).toEqual({
       id: findingId,
       title: "Missing security header",
@@ -67,8 +83,10 @@ describe("private reporting foundation", () => {
       severity: "low",
     });
 
-    const paid = sanitizeReport(source, "pro");
+    const paid = sanitizeReport(sourceWithSecretScope, "pro");
     expect(paid.target).toEqual({ hostname: "example.test" });
+    expect(paid.scope.inclusions).toEqual(["example.test/*?token=[REDACTED]"]);
+    expect(paid.scope.exclusions).toEqual(["[REDACTED]"]);
     expect(paid.findings[0]?.evidence).toEqual({
       observed: "https://example.test/check?token=[REDACTED]",
     });
@@ -111,9 +129,10 @@ describe("private reporting foundation", () => {
       bucket: "private-reports",
       accessKeyId: "access-key",
       secretAccessKey: "secret-key-must-not-leak",
+      createBucket: true,
       fetch: (async (input, init) => {
         requests.push(new Request(input, init));
-        return new Response(null, { status: 200 });
+        return new Response(null, { status: requests.length === 1 ? 404 : 200 });
       }) as typeof fetch,
     });
     await storage.ensurePrivateBucket();
@@ -121,9 +140,29 @@ describe("private reporting foundation", () => {
     const url = await storage.createDownloadUrl("reports/example/report", 60);
     expect(url).toContain("X-Amz-Signature=");
     expect(url).not.toContain("secret-key-must-not-leak");
+    expect(requests[0]?.method).toBe("HEAD");
     expect(requests[0]?.url).toContain("/private-reports/");
-    expect(requests[1]?.url).toContain("/private-reports/reports/example/report");
-    expect(requests[1]?.headers.get("authorization")).toContain("Credential=access-key/");
+    expect(requests[1]?.method).toBe("PUT");
+    expect(requests[2]?.url).toContain("/private-reports/reports/example/report");
+    expect(requests[2]?.headers.get("authorization")).toContain("Credential=access-key/");
+  });
+
+  it("checks a production bucket without trying to create it", async () => {
+    const methods: string[] = [];
+    const storage = new S3CompatiblePrivateReportStorage({
+      endpoint: "https://r2.example.test",
+      bucket: "private-reports",
+      accessKeyId: "access-key",
+      secretAccessKey: "secret-key",
+      fetch: (async (_input, init) => {
+        methods.push(init?.method ?? "GET");
+        return new Response(null, { status: 404 });
+      }) as typeof fetch,
+    });
+    await expect(storage.ensurePrivateBucket()).rejects.toThrow(
+      "private storage bucket unavailable",
+    );
+    expect(methods).toEqual(["HEAD"]);
   });
 
   it("builds three deterministic paid objects and no free report artifacts", async () => {

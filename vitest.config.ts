@@ -59,7 +59,7 @@ export default defineConfig({
         ["tests/isolation/**/*.test.ts", "packages/db/test/**/*.isolation.test.ts"],
         { fileParallelism: false, maxWorkers: 1 },
       ),
-      testProject("e2e", ["tests/e2e/**/*.test.ts"], { passWithNoTests: true }),
+      testProject("e2e", ["tests/e2e/**/*.test.ts"]),
     ],
   },
 });
