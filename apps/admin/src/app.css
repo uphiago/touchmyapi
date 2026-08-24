@@ -145,6 +145,10 @@ h2 {
 .content {
   padding: 34px 4vw;
 }
+.operations-stack {
+  display: grid;
+  gap: 22px;
+}
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -180,13 +184,56 @@ h2 {
 .register h2 {
   margin-bottom: 24px;
 }
+.register-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+.register-heading h2 {
+  margin: 5px 0 0;
+}
+.admin-search {
+  display: grid;
+  gap: 6px;
+  min-width: min(320px, 40vw);
+  color: #748183;
+  font-size: 11px;
+}
+.admin-search input,
+.grant-fields input,
+.grant-fields select,
+.grant-fields textarea {
+  min-height: 40px;
+  border: 1px solid #354044;
+  border-radius: 0;
+  background: #0a0f10;
+  color: #edf0eb;
+  padding: 9px 11px;
+  font: 400 12px "DM Mono";
+}
+.queue-total {
+  padding: 8px 10px;
+  border: 1px solid #354044;
+  color: #859191;
+  font: 400 11px "DM Mono";
+}
 .data-row {
   display: grid;
-  grid-template-columns: 2fr repeat(3, 1fr);
+  grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(90px, 0.75fr)) minmax(150px, 0.9fr);
   align-items: center;
   gap: 20px;
   border-top: 1px solid #293235;
   padding: 18px 0;
+}
+.row-action {
+  min-height: 36px;
+  border: 1px solid #405055;
+  background: transparent;
+  color: #75d1df;
+  cursor: pointer;
+  font-size: 12px;
 }
 .data-row small {
   display: block;
@@ -214,23 +261,26 @@ h2 {
   color: #9ba6a4;
   line-height: 1.6;
 }
-.grant-form dl {
+.grant-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  border: 1px solid #293235;
+  gap: 12px;
+  margin: 22px 0;
 }
-.grant-form dl div {
-  padding: 14px;
-  border-right: 1px solid #293235;
-  border-bottom: 1px solid #293235;
+.grant-fields label {
+  display: grid;
+  gap: 6px;
 }
-.grant-form dt {
+.grant-fields label.wide {
+  grid-column: 1 / -1;
+}
+.grant-fields label > span {
   color: #748183;
   font-size: 11px;
 }
-.grant-form dd {
-  margin: 6px 0 0;
-  font: 400 12px "DM Mono";
+.grant-fields textarea {
+  min-height: 78px;
+  resize: vertical;
 }
 .grant-form button,
 .boot button {
@@ -243,6 +293,51 @@ h2 {
 }
 .grant-form button:disabled {
   opacity: 0.45;
+}
+.ops-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: 22px;
+}
+.triage-card,
+.boundary-card {
+  border: 1px solid #303a3d;
+  background: #0e1314;
+  padding: 28px;
+}
+.triage-card h2,
+.boundary-card h2 {
+  margin-top: 8px;
+}
+.triage-card p {
+  margin: 18px 0 24px;
+  color: #9ba6a4;
+}
+.triage-actions {
+  display: flex;
+  gap: 10px;
+}
+.triage-actions button {
+  min-height: 42px;
+  border: 0;
+  background: #64c6d5;
+  color: #071012;
+  padding: 0 18px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.triage-actions button.secondary {
+  border: 1px solid #405055;
+  background: transparent;
+  color: #9ba6a4;
+}
+.boundary-card ol {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0 0;
+  padding-left: 20px;
+  color: #9ba6a4;
+  line-height: 1.4;
 }
 .grant-item {
   display: grid;
@@ -319,6 +414,23 @@ h2 {
   .grant-layout {
     grid-template-columns: 1fr;
   }
+  .ops-layout {
+    grid-template-columns: 1fr;
+  }
+  .register-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .admin-search {
+    min-width: 0;
+  }
+  .data-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .data-row > div,
+  .data-row .row-action {
+    grid-column: 1 / -1;
+  }
   .mock-banner {
     height: auto;
     min-height: 50px;
@@ -381,7 +493,10 @@ h2 {
   .empty-panel {
     padding: 20px;
   }
-  .grant-form dl {
+  .grant-fields {
     grid-template-columns: 1fr;
+  }
+  .grant-fields label.wide {
+    grid-column: auto;
   }
 }

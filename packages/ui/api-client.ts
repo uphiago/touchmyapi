@@ -2,13 +2,19 @@ import {
   accountListResponseSchema,
   accountMutationResponseSchema,
   accountSwitchRequestSchema,
+  authProvidersResponseSchema,
+  authSessionResponseSchema,
+  errorResponseSchema,
   invitationCreateResponseSchema,
   invitationCreateSchema,
   invitationAcceptRequestSchema,
-  membershipErrorSchema,
   membershipListResponseSchema,
+  membershipMutationResponseSchema,
+  membershipUpdateSchema,
   type AccountListResponse,
   type AccountMutationResponse,
+  type AuthProvidersResponse,
+  type AuthSessionResponse,
   assessmentCreateSchema,
   assessmentListResponseSchema,
   assessmentMutationResponseSchema,
@@ -17,6 +23,8 @@ import {
   type InvitationCreate,
   type InvitationCreateResponse,
   type MembershipListResponse,
+  type MembershipMutationResponse,
+  type MembershipUpdate,
 } from "../contracts/src";
 
 export class ApiClientError extends Error {
@@ -32,6 +40,9 @@ export class ApiClientError extends Error {
 }
 
 export type ApiClient = Readonly<{
+  getAuthProviders: () => Promise<AuthProvidersResponse>;
+  getSession: () => Promise<AuthSessionResponse>;
+  logout: () => Promise<void>;
   listAccounts: () => Promise<AccountListResponse>;
   switchAccount: (accountId: string) => Promise<AccountMutationResponse>;
   listMemberships: (accountId: string) => Promise<MembershipListResponse>;
@@ -39,6 +50,12 @@ export type ApiClient = Readonly<{
     accountId: string,
     input: InvitationCreate,
   ) => Promise<InvitationCreateResponse>;
+  updateMembership: (
+    accountId: string,
+    userId: string,
+    input: MembershipUpdate,
+  ) => Promise<MembershipMutationResponse>;
+  removeMembership: (accountId: string, userId: string) => Promise<MembershipMutationResponse>;
   acceptInvitation: (token: string) => Promise<AccountMutationResponse>;
   listAssessments: (accountId: string) => Promise<{ assessments: readonly Assessment[] }>;
   createAssessment: (
@@ -56,7 +73,7 @@ function joinUrl(baseUrl: string, path: string): string {
 
 async function parseError(response: Response): Promise<ApiClientError> {
   try {
-    const parsed = membershipErrorSchema.safeParse(await response.json());
+    const parsed = errorResponseSchema.safeParse(await response.json());
     if (parsed.success) {
       return new ApiClientError(response.status, parsed.data.error.code, parsed.data.error.message);
     }
@@ -87,6 +104,18 @@ async function requestJson<T>(
 
 export function createApiClient(baseUrl: string, fetcher: Fetcher = fetch): ApiClient {
   return {
+    getAuthProviders: () =>
+      requestJson(fetcher, joinUrl(baseUrl, "/api/v1/auth/providers"), authProvidersResponseSchema),
+    getSession: () =>
+      requestJson(fetcher, joinUrl(baseUrl, "/api/v1/auth/session"), authSessionResponseSchema),
+    logout: async () => {
+      const response = await fetcher(joinUrl(baseUrl, "/api/v1/auth/logout"), {
+        method: "POST",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw await parseError(response);
+    },
     listAccounts: () =>
       requestJson(fetcher, joinUrl(baseUrl, "/api/v1/accounts"), accountListResponseSchema),
     switchAccount: (accountId) => {
@@ -116,6 +145,28 @@ export function createApiClient(baseUrl: string, fetcher: Fetcher = fetch): ApiC
         { method: "POST", body: JSON.stringify(body) },
       );
     },
+    updateMembership: (accountId, userId, input) => {
+      const body = membershipUpdateSchema.parse(input);
+      return requestJson(
+        fetcher,
+        joinUrl(
+          baseUrl,
+          `/api/v1/accounts/${encodeURIComponent(accountId)}/memberships/${encodeURIComponent(userId)}`,
+        ),
+        membershipMutationResponseSchema,
+        { method: "PATCH", body: JSON.stringify(body) },
+      );
+    },
+    removeMembership: (accountId, userId) =>
+      requestJson(
+        fetcher,
+        joinUrl(
+          baseUrl,
+          `/api/v1/accounts/${encodeURIComponent(accountId)}/memberships/${encodeURIComponent(userId)}`,
+        ),
+        membershipMutationResponseSchema,
+        { method: "DELETE" },
+      ),
     acceptInvitation: (token) => {
       const body = invitationAcceptRequestSchema.parse({ token });
       return requestJson(

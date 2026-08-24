@@ -34,6 +34,7 @@ async function checkLocalAssessmentJourney(): Promise<void> {
       targetCategory: "surface",
       target: `smoke-${Date.now()}.example.test`,
       scope: [],
+      authorization: { accepted: true, termsVersion: "terms@1" },
     }),
   });
   const draft = (await created.json()) as { assessment?: { id: string; status: string } };

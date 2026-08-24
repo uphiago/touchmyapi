@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { AdminSnapshot } from "@touchmyapi/contracts";
+import type { AdminCapability, AdminSnapshot } from "@touchmyapi/contracts";
 import {
   approveGrant,
   bootstrapAdmin,
@@ -20,7 +20,19 @@ const views: readonly { id: AdminView; label: string }[] = [
 
 const shortId = (value: string) => `${value.slice(0, 8)}…${value.slice(-4)}`;
 
-function Operations({ snapshot }: { snapshot: AdminSnapshot }) {
+function formatAge(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+}
+
+function Operations({
+  snapshot,
+  onNavigate,
+}: {
+  snapshot: AdminSnapshot;
+  onNavigate?: (view: AdminView) => void;
+}) {
   const items = [
     ["API boundary", snapshot.operations.api],
     ["Database", snapshot.operations.database],
@@ -28,23 +40,79 @@ function Operations({ snapshot }: { snapshot: AdminSnapshot }) {
     ["Queue depth", String(snapshot.operations.queueDepth)],
   ];
   return (
-    <div className="metric-grid">
-      {items.map(([label, value]) => (
-        <article className="metric" key={label}>
-          <span>{label}</span>
-          <strong>{value}</strong>
-          <small>server-returned safe metadata</small>
+    <div className="operations-stack">
+      <div className="metric-grid">
+        {items.map(([label, value]) => (
+          <article className="metric" key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+            <small>server-returned safe metadata</small>
+          </article>
+        ))}
+      </div>
+      <section className="ops-layout">
+        <article className="triage-card">
+          <span className="eyebrow">Operational triage</span>
+          <h2>{snapshot.operations.activeAlerts ? "Attention required" : "No active alert"}</h2>
+          <p>
+            {snapshot.operations.queueDepth} queued item
+            {snapshot.operations.queueDepth === 1 ? "" : "s"} ·{" "}
+            {formatAge(snapshot.operations.oldestJobAgeSeconds)} oldest queued item
+          </p>
+          <div className="triage-actions">
+            <button type="button" onClick={() => onNavigate?.("queue")}>
+              Review queue
+            </button>
+            <button type="button" className="secondary" onClick={() => onNavigate?.("audit")}>
+              Open audit
+            </button>
+          </div>
         </article>
-      ))}
+        <article className="boundary-card">
+          <span className="eyebrow">Production gate</span>
+          <h2>Identity before capability.</h2>
+          <ol>
+            <li>Separate staff OIDC + WebAuthn MFA</li>
+            <li>Account-scoped reason, ticket and TTL</li>
+            <li>Distinct approval before bounded queue action</li>
+            <li>Append-only redacted staff audit</li>
+          </ol>
+        </article>
+      </section>
     </div>
   );
 }
 
-function Accounts({ snapshot }: { snapshot: AdminSnapshot }) {
+function Accounts({
+  snapshot,
+  onNavigate,
+}: {
+  snapshot: AdminSnapshot;
+  onNavigate?: (view: AdminView) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const visible = snapshot.accounts.filter((account) =>
+    `${account.displayName} ${account.accountId} ${account.plan} ${account.status}`
+      .toLowerCase()
+      .includes(query.toLowerCase()),
+  );
   return (
     <section className="register">
-      <h2>Safe account index</h2>
-      {snapshot.accounts.map((account) => (
+      <div className="register-heading">
+        <div>
+          <span className="eyebrow">Tenant-safe directory</span>
+          <h2>Safe account index</h2>
+        </div>
+        <label className="admin-search">
+          <span>Search safe metadata</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            placeholder="Name, plan, ID or status"
+          />
+        </label>
+      </div>
+      {visible.map((account) => (
         <article className="data-row" key={account.accountId}>
           <div>
             <strong>{account.displayName}</strong>
@@ -53,8 +121,14 @@ function Accounts({ snapshot }: { snapshot: AdminSnapshot }) {
           <span>{account.plan}</span>
           <span>{account.memberCount} member</span>
           <span className="status">● {account.status}</span>
+          <button className="row-action" type="button" onClick={() => onNavigate?.("queue")}>
+            Open queue view
+          </button>
         </article>
       ))}
+      {visible.length === 0 ? (
+        <p className="boundary-note">No safe account metadata matches this search.</p>
+      ) : null}
       <p className="boundary-note">
         No customer impersonation. No credentials, evidence, targets, or secrets are available here.
       </p>
@@ -62,10 +136,22 @@ function Accounts({ snapshot }: { snapshot: AdminSnapshot }) {
   );
 }
 
-function Queue({ snapshot }: { snapshot: AdminSnapshot }) {
+function Queue({
+  snapshot,
+  onNavigate,
+}: {
+  snapshot: AdminSnapshot;
+  onNavigate?: (view: AdminView) => void;
+}) {
   return (
     <section className="register">
-      <h2>Queue metadata</h2>
+      <div className="register-heading">
+        <div>
+          <span className="eyebrow">Queue triage</span>
+          <h2>Bounded operational metadata</h2>
+        </div>
+        <span className="queue-total">{snapshot.queue.length} visible</span>
+      </div>
       {snapshot.queue.map((job) => (
         <article className="data-row" key={job.jobId}>
           <div>
@@ -74,11 +160,20 @@ function Queue({ snapshot }: { snapshot: AdminSnapshot }) {
           </div>
           <span>{job.status}</span>
           <span>{shortId(job.accountId)}</span>
-          <span>grant required</span>
+          <span>
+            {formatAge(
+              Math.max(0, Math.floor((Date.now() - new Date(job.enqueuedAt).getTime()) / 1000)),
+            )}{" "}
+            queued
+          </span>
+          <button className="row-action" type="button" onClick={() => onNavigate?.("access")}>
+            Request bounded action
+          </button>
         </article>
       ))}
       <p className="boundary-note">
-        Actions are unavailable until an account-scoped capability grant is active.
+        Never retries customer work directly from the browser. Actions require an active,
+        account-scoped capability grant and execute through fixed server functions.
       </p>
     </section>
   );
@@ -92,31 +187,35 @@ function Access({
   onRefresh?: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
+  const [accountId, setAccountId] = useState(snapshot.accounts[0]?.accountId ?? "");
+  const [capability, setCapability] = useState<AdminCapability>("queue.requeue");
+  const [jobId, setJobId] = useState(snapshot.queue[0]?.jobId ?? "");
+  const [ticket, setTicket] = useState("OPS-1234");
+  const [reason, setReason] = useState("Recover one reviewed local queue item");
+  const [ttlSeconds, setTtlSeconds] = useState(900);
   const [message, setMessage] = useState(
     "A distinct mock approver is required before any bounded action.",
   );
   const runDemo = async () => {
-    const account = snapshot.accounts[0];
-    const job = snapshot.queue[0];
-    if (!account || !job || !onRefresh) return;
+    if (!accountId || !onRefresh || (capability !== "queue.reap" && !jobId)) return;
     setBusy(true);
     try {
       const grant = await requestGrant({
-        accountId: account.accountId,
-        capability: "queue.requeue",
-        ticket: "OPS-1234",
-        reason: "Recover one reviewed local queue item",
-        ttlSeconds: 900,
+        accountId,
+        capability,
+        ticket,
+        reason,
+        ttlSeconds,
       });
       await approveGrant(grant.id);
       await performQueueAction({
         grantId: grant.id,
-        accountId: account.accountId,
-        capability: "queue.requeue",
-        jobId: job.jobId,
+        accountId,
+        capability,
+        jobId: capability === "queue.reap" ? undefined : jobId,
       });
       await onRefresh();
-      setMessage("Approved grant used for one simulated requeue. Audit appended.");
+      setMessage(`Approved grant used for one simulated ${capability}. Audit appended.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Grant workflow failed");
     } finally {
@@ -129,25 +228,74 @@ function Access({
         <span className="eyebrow">JIT demonstration</span>
         <h2>Request capability grant</h2>
         <p>{message}</p>
-        <dl>
-          <div>
-            <dt>Account</dt>
-            <dd>{snapshot.accounts[0]?.displayName ?? "none"}</dd>
-          </div>
-          <div>
-            <dt>Capability</dt>
-            <dd>queue.requeue</dd>
-          </div>
-          <div>
-            <dt>TTL</dt>
-            <dd>15 minutes</dd>
-          </div>
-          <div>
-            <dt>Ticket</dt>
-            <dd>OPS-1234</dd>
-          </div>
-        </dl>
-        <button disabled={busy || !onRefresh} onClick={() => void runDemo()}>
+        <div className="grant-fields">
+          <label>
+            <span>Account</span>
+            <select value={accountId} onChange={(event) => setAccountId(event.currentTarget.value)}>
+              {snapshot.accounts.map((account) => (
+                <option key={account.accountId} value={account.accountId}>
+                  {account.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Capability</span>
+            <select
+              value={capability}
+              onChange={(event) => setCapability(event.currentTarget.value as AdminCapability)}
+            >
+              <option value="queue.requeue">queue.requeue</option>
+              <option value="queue.cancel">queue.cancel</option>
+              <option value="queue.reap">queue.reap</option>
+            </select>
+          </label>
+          {capability !== "queue.reap" ? (
+            <label>
+              <span>Queue item</span>
+              <select value={jobId} onChange={(event) => setJobId(event.currentTarget.value)}>
+                {snapshot.queue
+                  .filter((job) => job.accountId === accountId)
+                  .map((job) => (
+                    <option key={job.jobId} value={job.jobId}>
+                      {job.targetLabel} · {shortId(job.jobId)}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          ) : null}
+          <label>
+            <span>TTL</span>
+            <select
+              value={ttlSeconds}
+              onChange={(event) => setTtlSeconds(Number(event.currentTarget.value))}
+            >
+              <option value={900}>15 minutes</option>
+              <option value={1800}>30 minutes</option>
+              <option value={3600}>60 minutes</option>
+            </select>
+          </label>
+          <label>
+            <span>Operational ticket</span>
+            <input
+              value={ticket}
+              onChange={(event) => setTicket(event.currentTarget.value.toUpperCase())}
+            />
+          </label>
+          <label className="wide">
+            <span>Reason for access</span>
+            <textarea value={reason} onChange={(event) => setReason(event.currentTarget.value)} />
+          </label>
+        </div>
+        <button
+          disabled={
+            busy ||
+            !onRefresh ||
+            reason.trim().length < 12 ||
+            !/^[A-Z][A-Z0-9]+-[0-9]+$/.test(ticket)
+          }
+          onClick={() => void runDemo()}
+        >
           {busy ? "Running approval flow…" : "Request → approve → simulate"}
         </button>
       </article>
@@ -261,9 +409,11 @@ export function AdminConsole({
           </div>
         </header>
         <div className="content">
-          {activeView === "operations" && <Operations snapshot={snapshot} />}{" "}
-          {activeView === "accounts" && <Accounts snapshot={snapshot} />}{" "}
-          {activeView === "queue" && <Queue snapshot={snapshot} />}{" "}
+          {activeView === "operations" && (
+            <Operations snapshot={snapshot} onNavigate={onNavigate} />
+          )}{" "}
+          {activeView === "accounts" && <Accounts snapshot={snapshot} onNavigate={onNavigate} />}{" "}
+          {activeView === "queue" && <Queue snapshot={snapshot} onNavigate={onNavigate} />}{" "}
           {activeView === "access" && <Access snapshot={snapshot} onRefresh={onRefresh} />}{" "}
           {activeView === "billing" && <Billing snapshot={snapshot} />}{" "}
           {activeView === "audit" && <Audit snapshot={snapshot} />}
