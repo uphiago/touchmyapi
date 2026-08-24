@@ -78,6 +78,30 @@ export type SucceededReportContext = Readonly<{
   creditsConsumed: number;
 }>;
 
+export function validateReportPublicationKeys(
+  accountId: string,
+  assessmentId: string,
+  reports: readonly ReportPublicationInput[],
+): readonly ReportPublicationInput[] {
+  if (!UUID.test(accountId) || !UUID.test(assessmentId)) {
+    throw new TypeError("report publication identity is invalid");
+  }
+  return reports.map((report) => {
+    if (
+      !["json", "pdf_technical", "pdf_executive"].includes(report.kind) ||
+      !report.contractVersion.trim() ||
+      report.contractVersion.length > 64
+    ) {
+      throw new TypeError("report publication is invalid");
+    }
+    const expectedKey = `reports/${accountId.toLowerCase()}/${assessmentId.toLowerCase()}/${report.kind}`;
+    if (report.objectKey !== expectedKey) {
+      throw new TypeError("report object key does not belong to assessment");
+    }
+    return report;
+  });
+}
+
 function validateJobRef(input: ClaimedJobRef): void {
   if (!UUID.test(input.jobId)) throw new TypeError("jobId must be a canonical UUID");
   if (!WORKER_ID.test(input.leaseOwner)) throw new TypeError("leaseOwner is invalid");
@@ -342,17 +366,7 @@ export async function publishSucceededJob(
   }
   if (input.findings.length > 100) throw new RangeError("finding limit exceeded");
   const findings = input.findings.map(validatedFinding);
-  const reports = (input.reports ?? []).map((report) => {
-    if (
-      !["json", "pdf_technical", "pdf_executive"].includes(report.kind) ||
-      !/^reports\/[0-9a-f/-]+\/(?:json|pdf_technical|pdf_executive)$/iu.test(report.objectKey) ||
-      !report.contractVersion.trim() ||
-      report.contractVersion.length > 64
-    ) {
-      throw new TypeError("report publication is invalid");
-    }
-    return report;
-  });
+  const reports = input.reports ?? [];
   const { backend, accountId } = getActiveTenantExecutor(context);
   const jobs = await backend.unsafe(
     `select job.assessment_id
@@ -367,6 +381,7 @@ export async function publishSucceededJob(
   );
   const assessmentId = (jobs[0] as { assessment_id?: unknown } | undefined)?.assessment_id;
   if (typeof assessmentId !== "string") return false;
+  const validatedReports = validateReportPublicationKeys(accountId, assessmentId, reports);
 
   for (const item of findings) {
     await backend.unsafe(
@@ -397,7 +412,7 @@ export async function publishSucceededJob(
       ],
     );
   }
-  for (const report of reports) {
+  for (const report of validatedReports) {
     await backend.unsafe(
       `insert into public.report (
          account_id, assessment_id, kind, object_key, contract_version, sanitized

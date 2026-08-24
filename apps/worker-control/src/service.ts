@@ -57,6 +57,10 @@ export type WorkerServiceDependencies = Readonly<{
     manifest: ArtifactManifest;
     analysis: ReturnType<typeof analyzePassiveObservations>;
   }) => Promise<readonly ReportPublicationInput[]>;
+  deleteReports?: (input: {
+    accountId: string;
+    reports: readonly ReportPublicationInput[];
+  }) => Promise<void>;
   publishTerminal: (input: {
     accountId: string;
     jobId: string;
@@ -159,6 +163,8 @@ export async function runDeliveryCycle(dependencies: WorkerServiceDependencies):
   let delivered = 0;
   for (const event of events) {
     const reference = outboxRef(event);
+    let preparedReports: readonly ReportPublicationInput[] = [];
+    let published = false;
     try {
       if (
         event.schemaVersion === "job.delivery@1" &&
@@ -175,29 +181,30 @@ export async function runDeliveryCycle(dependencies: WorkerServiceDependencies):
           });
           if (!manifest) throw new Error("runner result unavailable");
           const analysis = analyzePassiveObservations(manifest.observations ?? []);
-          const reports = await dependencies.prepareReports({
+          preparedReports = await dependencies.prepareReports({
             accountId: event.accountId,
             jobId: event.aggregateId,
             jobFencingToken: fencingToken,
             manifest,
             analysis,
           });
-          const published = await dependencies.publish({
+          const publicationAccepted = await dependencies.publish({
             accountId: event.accountId,
             jobId: event.aggregateId,
             jobFencingToken: fencingToken,
             findings: analysis.findings,
-            reports,
+            reports: preparedReports,
           });
-          if (!published) throw new Error("delivery publication rejected");
+          if (!publicationAccepted) throw new Error("delivery publication rejected");
+          published = true;
           delivered += 1;
         } else if (event.eventKey.includes(":terminal:")) {
-          const published = await dependencies.publishTerminal({
+          const terminalPublished = await dependencies.publishTerminal({
             accountId: event.accountId,
             jobId: event.aggregateId,
             jobFencingToken: fencingToken,
           });
-          if (!published) throw new Error("terminal publication rejected");
+          if (!terminalPublished) throw new Error("terminal publication rejected");
           delivered += 1;
         }
       }
@@ -205,6 +212,11 @@ export async function runDeliveryCycle(dependencies: WorkerServiceDependencies):
         throw new Error("outbox acknowledgement rejected");
       }
     } catch {
+      if (!published && preparedReports.length > 0 && dependencies.deleteReports) {
+        await dependencies
+          .deleteReports({ accountId: event.accountId, reports: preparedReports })
+          .catch(() => undefined);
+      }
       await dependencies.failOutbox({ ...reference, reason: "delivery_publication_failed" });
     }
   }

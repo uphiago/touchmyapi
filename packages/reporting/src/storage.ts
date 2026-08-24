@@ -4,6 +4,7 @@ export type ReportObjectKind = "json" | "pdf_technical" | "pdf_executive";
 
 export type PrivateReportStorage = Readonly<{
   put(key: string, body: Uint8Array, contentType: string): Promise<void>;
+  delete(key: string): Promise<void>;
   get(key: string): Promise<Uint8Array>;
   createDownloadUrl(key: string, expiresInSeconds: number): Promise<string>;
 }>;
@@ -54,6 +55,10 @@ export class MemoryPrivateReportStorage implements PrivateReportStorage {
     return new Uint8Array(value.body);
   }
 
+  async delete(key: string): Promise<void> {
+    this.#objects.delete(validateKey(key));
+  }
+
   async createDownloadUrl(key: string, expiresInSeconds: number): Promise<string> {
     validateKey(key);
     if (!Number.isInteger(expiresInSeconds) || expiresInSeconds < 1 || expiresInSeconds > 604800) {
@@ -70,6 +75,7 @@ export type S3CompatibleStorageConfig = Readonly<{
   region?: string;
   accessKeyId: string;
   secretAccessKey: string;
+  createBucket?: boolean;
   fetch?: typeof fetch;
 }>;
 
@@ -93,6 +99,7 @@ export class S3CompatiblePrivateReportStorage implements PrivateReportStorage {
   readonly #region: string;
   readonly #accessKeyId: string;
   readonly #secretAccessKey: string;
+  readonly #createBucket: boolean;
   readonly #fetch: typeof fetch;
 
   constructor(config: S3CompatibleStorageConfig) {
@@ -113,6 +120,7 @@ export class S3CompatiblePrivateReportStorage implements PrivateReportStorage {
     this.#region = config.region ?? "us-east-1";
     this.#accessKeyId = config.accessKeyId;
     this.#secretAccessKey = config.secretAccessKey;
+    this.#createBucket = config.createBucket === true;
     this.#fetch = config.fetch ?? fetch;
   }
 
@@ -120,6 +128,18 @@ export class S3CompatiblePrivateReportStorage implements PrivateReportStorage {
     const now = new Date();
     const payloadHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
     const response = await this.#fetch(this.objectUrl(""), {
+      method: "HEAD",
+      headers: this.signedHeaders(
+        "HEAD",
+        "",
+        now,
+        { "x-amz-content-sha256": payloadHash, "x-amz-date": this.amzDate(now) },
+        payloadHash,
+      ),
+    });
+    if (response.ok) return;
+    if (!this.#createBucket) throw new Error("private storage bucket unavailable");
+    const createResponse = await this.#fetch(this.objectUrl(""), {
       method: "PUT",
       headers: this.signedHeaders(
         "PUT",
@@ -129,7 +149,7 @@ export class S3CompatiblePrivateReportStorage implements PrivateReportStorage {
         payloadHash,
       ),
     });
-    if (!response.ok && response.status !== 409) {
+    if (!createResponse.ok && createResponse.status !== 409) {
       throw new Error("private storage bucket unavailable");
     }
   }
@@ -151,6 +171,23 @@ export class S3CompatiblePrivateReportStorage implements PrivateReportStorage {
       body: Buffer.from(body),
     });
     if (!response.ok) throw new Error("private storage request failed");
+  }
+
+  async delete(key: string): Promise<void> {
+    validateKey(key);
+    const now = new Date();
+    const payloadHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    const response = await this.#fetch(this.objectUrl(key), {
+      method: "DELETE",
+      headers: this.signedHeaders(
+        "DELETE",
+        key,
+        now,
+        { "x-amz-content-sha256": payloadHash, "x-amz-date": this.amzDate(now) },
+        payloadHash,
+      ),
+    });
+    if (!response.ok && response.status !== 404) throw new Error("private storage delete failed");
   }
 
   async get(key: string): Promise<Uint8Array> {

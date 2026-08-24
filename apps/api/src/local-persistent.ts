@@ -29,6 +29,7 @@ export async function createPersistentLocalDevelopmentApp(
       region: "auto",
       accessKeyId: "touchmyapi_dev",
       secretAccessKey: "touchmyapi_dev_change_me",
+      createBucket: true,
     });
     await reportStorage.ensurePrivateBucket();
     return {

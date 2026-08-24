@@ -4,10 +4,10 @@ This document defines what each person sees, can do, and receives. PostgreSQL me
 
 ## Entry journey
 
-1. A visitor lands on the public product page and sees the authorized-assessment workflow, security boundaries, and current login availability.
+1. A visitor lands on `https://touchmyapi.com` and sees the public authorized-assessment workflow, security boundaries, and current login availability. `https://www.touchmyapi.com` redirects to the same canonical page.
 2. `GET /api/v1/auth/providers` controls the call to action. GitHub appears only when the OAuth App is configured. An empty provider list is a setup state, not a fake login button.
-3. GitHub Authorization Code + PKCE creates or reuses the immutable `provider + provider_subject` identity, provisions an owner workspace on first login, stores only a session hash, and returns an HttpOnly cookie.
-4. The server selects one active account. Switching validates membership and rotates the session.
+3. The primary action sends the visitor to the customer API and then GitHub. GitHub Authorization Code + PKCE creates or reuses the immutable `provider + provider_subject` identity, provisions an owner workspace on first login, stores only a session hash, and returns an HttpOnly cookie.
+4. The callback returns to `https://app.touchmyapi.com`, where the server selects one active account. Switching validates membership and rotates the session.
 5. A signed-in user with no active membership sees recovery and invitation acceptance, never invented account data.
 
 ## Account roles
@@ -21,7 +21,7 @@ This document defines what each person sees, can do, and receives. PostgreSQL me
 | `billing` | Overview, billing, workspace | Future purchase intent only | Assessments, findings, team, entitlement mutation |
 | staff | Separate admin origin only | Bounded queue operations after MFA/JIT approval | Customer impersonation, secrets, raw evidence, arbitrary SQL, billing writes |
 
-The credential-free local stack exposes five named workspaces so every customer role can be inspected. Its server still denies disallowed operations.
+The credential-free local stack exposes five named workspaces so every customer role can be inspected. Its server still denies disallowed operations. The apex landing remains public even if a browser already has a customer session; the app host is the only customer console entry.
 
 ## Assessment journey
 

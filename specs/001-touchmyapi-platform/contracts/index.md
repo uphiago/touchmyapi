@@ -2,7 +2,7 @@
 
 **Contract index** | **Updated**: 2026-08-23
 
-Schema-validated definitions live in `packages/contracts/src` (Zod): assessment state/target, health/error, playbook, job, artifact manifest, export, billing event, audit event, and recursive redaction shapes. PostgreSQL membership, session, passive assessment draft/list, queue/outbox primitives and audit persistence are implemented. GitHub customer OAuth and the role-aware workspace API are composed in production. Worker execution, terminal findings/reports, Stripe webhook entitlement, private-agent execution, and persistent staff OIDC/WebAuthn/JIT remain later milestones. Breaking changes bump the contract version and require migration handling.
+Schema-validated definitions live in `packages/contracts/src` (Zod): assessment state/target, health/error, playbook, job, artifact manifest, export, billing event, audit event, and recursive redaction shapes. PostgreSQL membership, session, passive assessment draft/list, queue/outbox primitives, audit persistence, local fixture delivery, terminal findings/notifications and plan-filtered report metadata are implemented. GitHub customer OAuth and the role-aware workspace API are composed in production. Production worker execution/private storage, Stripe webhook entitlement, private-agent execution, and persistent staff OIDC/WebAuthn/JIT remain later milestones. Breaking changes bump the contract version and require migration handling.
 
 Table of contents:
 

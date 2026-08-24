@@ -113,7 +113,11 @@ export function sanitizeReport(source: ReportSource, plan = source.plan): Report
     generatedAt: source.generatedAt,
     plan,
     target: sanitizedObject(source.target),
-    scope: source.scope,
+    scope: {
+      inclusions: source.scope.inclusions.map(safeString),
+      exclusions: source.scope.exclusions.map(safeString),
+      window: source.scope.window,
+    },
     playbook: source.playbook,
     methodology: source.methodology.map(safeString),
     limitations: source.limitations.map(safeString),

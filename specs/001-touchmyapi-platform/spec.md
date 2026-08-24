@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-17
 
-**Status**: Draft
+**Status**: Draft (foundation and T101–T105 accepted; T106–T107 and the later billing/agent milestones remain open)
 
 **Input**: User description: "Plataforma de assessments de segurança autorizados com login GitHub, planos, fila, runner isolado, agente privado, IA e relatórios."
 

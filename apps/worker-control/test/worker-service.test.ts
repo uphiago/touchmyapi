@@ -186,6 +186,40 @@ describe("worker service cycles", () => {
     expect(deps.ackOutbox).toHaveBeenCalledOnce();
   });
 
+  it("cleans prepared report objects when publication is rejected", async () => {
+    const reports = [
+      {
+        kind: "json" as const,
+        objectKey: `reports/${accountId}/${assessmentId}/json`,
+        contractVersion: "report.json@1",
+      },
+    ];
+    const deps = dependencies({
+      claimOutbox: vi.fn(async () => [
+        {
+          id: "91b427d6-d61d-47e0-a0d2-b1dd594a0bf6",
+          accountId,
+          eventKey: `job:${jobId}:delivery:1`,
+          aggregateType: "job_delivery",
+          aggregateId: jobId,
+          schemaVersion: "job.delivery@1",
+          attempts: 0,
+          maxAttempts: 5,
+          leaseOwner: "worker-test",
+          leaseExpiresAt: "2026-08-24T12:01:00.000Z",
+          fencingToken: 1,
+        },
+      ]),
+      prepareReports: vi.fn(async () => reports),
+      publish: vi.fn(async () => false),
+      deleteReports: vi.fn(async () => undefined),
+    });
+    await expect(runDeliveryCycle(deps)).resolves.toBe(0);
+    expect(deps.deleteReports).toHaveBeenCalledWith({ accountId, reports });
+    expect(deps.failOutbox).toHaveBeenCalledOnce();
+    expect(deps.ackOutbox).not.toHaveBeenCalled();
+  });
+
   it("publishes terminal state before acknowledging a terminal event", async () => {
     const deps = dependencies({
       claimOutbox: vi.fn(async () => [

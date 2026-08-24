@@ -164,14 +164,24 @@ export async function createWorkerRuntime(
           },
           reportContext.plan,
         );
-        for (const report of reportObjects) {
-          await reportStorage.put(report.objectKey, report.body, report.contentType);
+        const written: string[] = [];
+        try {
+          for (const report of reportObjects) {
+            await reportStorage.put(report.objectKey, report.body, report.contentType);
+            written.push(report.objectKey);
+          }
+        } catch (error) {
+          await Promise.allSettled(written.map((objectKey) => reportStorage.delete(objectKey)));
+          throw error;
         }
         return reportObjects.map(({ kind, objectKey, contractVersion }) => ({
           kind,
           objectKey,
           contractVersion,
         }));
+      },
+      deleteReports: async ({ reports }) => {
+        await Promise.all(reports.map((report) => reportStorage.delete(report.objectKey)));
       },
       publish: ({ accountId, jobFencingToken, ...input }) =>
         withTenant(worker, accountId, "worker_rls", (context) =>

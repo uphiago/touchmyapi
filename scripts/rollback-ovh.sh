@@ -12,4 +12,4 @@ printf '%s' "$previous" | grep -Eq '^[0-9a-f]{40}$' || {
   printf '%s\n' "invalid previous release metadata" >&2
   exit 1
 }
-TOUCHMYAPI_IMAGE_TAG="$previous" sh "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/deploy-ovh.sh"
+TOUCHMYAPI_ALLOW_MISSING_EDGE=1 TOUCHMYAPI_IMAGE_TAG="$previous" sh "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/deploy-ovh.sh"
