@@ -1,0 +1,28 @@
+apps/web/src/landing.test.tsx
+  s_bc54431df54bf2::t_e67964190e4038 3,42-58
+  s_bc54431df54bf2::t_5f3f8555a4f33a 59
+apps/web/src/landing.tsx
+  s_bc54431df54bf2::t_e67964190e4038 13-14,156-230
+apps/web/src/app.css
+  s_bc54431df54bf2::t_e67964190e4038 1185-1229
+apps/web/src/App.tsx
+  s_bc54431df54bf2::t_e67964190e4038 20,593,602-608
+  s_bc54431df54bf2::t_acf3d776ff2dad 609-611
+  s_bc54431df54bf2::t_63742f316e90c4 612-614
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "5f1e6695d5d776960fedc2b80020eeb013b6307e",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
