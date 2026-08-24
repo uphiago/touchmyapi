@@ -1,10 +1,18 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { createLocalAdminApp } from "./admin-local";
 
 const port = Number(process.env.ADMIN_PORT ?? 3001);
 const localEnabled = process.env.NODE_ENV !== "production" && process.env.LOCAL_ADMIN_MOCKS === "1";
 
 const unavailable = new Hono();
+unavailable.use(
+  "*",
+  cors({
+    origin: process.env.ADMIN_CORS_ORIGIN ?? "http://127.0.0.1:5174",
+    credentials: true,
+  }),
+);
 unavailable.get("/health", (context) =>
   context.json({ status: "ok", boundary: "admin", capabilities: "unavailable" }),
 );

@@ -115,6 +115,9 @@ export function createApp(dependencies: ApiDependencies): App {
     api.all("/api/v1/auth/*", () => {
       throw new ApiError(503, "auth_unavailable", "Service Unavailable");
     });
+    api.get("/api/v1/accounts", () => {
+      throw new ApiError(503, "auth_unavailable", "Service Unavailable");
+    });
   }
 
   api.get("/health", (context) => {

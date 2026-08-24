@@ -35,4 +35,24 @@ No impersonation, arbitrary SQL, raw evidence, signed job payload, credential, b
 - T088–T094: persistent admin schema/RLS, real staff OIDC, WebAuthn/MFA/recovery, durable JIT/break-glass approvals, production support/billing reads, policy-aware PostgreSQL queue controls, and their full e2e review.
 - First real OVH release: create/protect the GitHub `production` environment; provision `OVH_HOST`, `OVH_USER`, `OVH_HOST_KEY`, `OVH_SSH_KEY`, and `GHCR_PAT`; set public origin variables; provision `$HOME/touchmyapi/shared/.env`; and review reverse proxy, TLS, and DNS.
 
+## First production release evidence
+
+The external provisioning gate was completed on 2026-08-23/24 against merge
+commit `1b34052f45fb93c791f2cad6562ffed294dbfbd0`. GitHub Actions run
+`32677174275` built the three private GHCR images, verified the pinned host key,
+uploaded the reviewed release, ran forward PostgreSQL migrations, completed the
+Compose cutover, and passed its remote smoke checks. The first attempt correctly
+failed when the Barbarossa-scoped package credential could not read the new
+TouchMyAPI packages; the rerun passed after granting the deployment credential
+`read:packages` and replacing only the protected `GHCR_PAT` secret.
+
+Cloudflare DNS now routes the distinct customer/admin web and API hosts to the
+OVH edge. Caddy owns only public ports 80/443, all six certificates were issued,
+the application ports remain loopback-only, PostgreSQL has no published port,
+and the four public health checks return `200`. Production customer/auth and
+staff capabilities remain explicitly unavailable until T076/T087 and T088–T094
+are completed; the unavailable boundaries now return stable browser-readable
+CORS responses rather than falling through to `404` or a browser-level CORS
+failure.
+
 Those open items are not implied complete by T095–T100.
