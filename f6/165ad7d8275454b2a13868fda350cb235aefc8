@@ -1,0 +1,21 @@
+.github/workflows/build-deploy.yml
+  s_bc54431df54bf2::t_c76502cffc7b1e 180-194
+tests/contract/deployment.test.ts
+  s_bc54431df54bf2::t_c76502cffc7b1e 32-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "f6165ad7d8275454b2a13868fda350cb235aefc8",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
