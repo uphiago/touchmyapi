@@ -123,6 +123,15 @@ describe("foundation configuration contracts", () => {
     expect(smoke).toContain("customer cookie accepted by admin");
     expect(smoke).toContain("admin cookie accepted by customer");
   });
+
+  it("keeps CI database gates on the test-only loopback contract", () => {
+    const workflow = read(".github/workflows/ci.yml");
+
+    expect(workflow).toContain("@127.0.0.1:5432/touchmyapi_test");
+    expect(workflow).not.toContain("@localhost:5432/touchmyapi_test");
+    expect(workflow).toContain("bun run test:integration --maxWorkers=1");
+    expect(workflow).toContain("bun run test:isolation --maxWorkers=1");
+  });
 });
 
 const dockerAvailable = (() => {

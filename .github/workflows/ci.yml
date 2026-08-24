@@ -8,7 +8,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgres://touchmyapi_migrate:touchmyapi_migrate@localhost:5432/touchmyapi_test
+      DATABASE_URL: postgres://touchmyapi_migrate:touchmyapi_migrate@127.0.0.1:5432/touchmyapi_test
       RUN_DB_TESTS: "1"
       NODE_ENV: test
     services:
@@ -51,10 +51,10 @@ jobs:
         run: bun run test:contract
 
       - name: Run integration tests
-        run: bun run test:integration
+        run: bun run test:integration --maxWorkers=1
 
       - name: Run isolation tests
-        run: bun run test:isolation
+        run: bun run test:isolation --maxWorkers=1
 
       - name: Run e2e gate
         run: bun run test:e2e
