@@ -3,9 +3,34 @@
 TouchMyAPI is a multi-user platform for authorized security assessments. Its current executable slice includes GitHub OAuth with PKCE, server-selected workspaces and five roles, forced-RLS PostgreSQL persistence, policy-gated passive assessment draft → durable queue, a customer console, a separate local staff console, and immutable GitHub Actions → OVH releases.
 
 Public entrypoints are intentionally split: `https://touchmyapi.com` is the public
-landing for a first-time visitor, `https://app.touchmyapi.com` is the customer
-console, `https://api.touchmyapi.com` is the customer API, and the `admin` pair is
-the separate staff boundary. The apex no longer redirects to the application host.
+landing for a first-time visitor, `https://app.touchmyapi.com` is the private
+customer entry/workspace, `https://api.touchmyapi.com` is the customer API, and the
+`admin` pair is the separate staff boundary. The apex never redirects to the
+application host.
+
+## User entry flow
+
+1. A visitor opens [`touchmyapi.com`](https://touchmyapi.com) and sees the product
+   explanation, authorization workflow, policy boundaries, and provider status.
+2. Selecting **Continue with GitHub** starts OAuth only when the server reports a
+   configured provider. No target is authorized by signing in.
+3. The OAuth callback returns to [`app.touchmyapi.com`](https://app.touchmyapi.com),
+   where the server selects the active account and membership before rendering the
+   customer workspace.
+4. An unauthenticated visit to `app.touchmyapi.com` shows **Private workspace / Sign
+   in to continue**, not the public marketing landing. **Read how TouchMyAPI works**
+   takes the user back to the apex landing.
+5. `www.touchmyapi.com` permanently canonicalizes to the apex. This is the only
+   public redirect; the apex itself responds with the landing page.
+
+Production may intentionally show the provider setup message until a GitHub OAuth
+App is configured in the OVH environment. Local development can use the explicit
+mock/session flags described below; those flags are disabled in production.
+
+If a browser previously cached the old apex-to-app redirect, open the canonical URL
+once with a query string (`https://touchmyapi.com/?entry=public`) or clear the site's
+cached redirects. Current entry HTML is served with `Cache-Control: no-store` so the
+old routing shell cannot persist after that refresh.
 
 ## Project status
 
