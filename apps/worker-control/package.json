@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/server.ts",
-    "build": "bun build src/server.ts --outdir dist --target bun",
+    "build": "bun build src/server.ts --outdir dist --target bun --external @react-pdf/renderer",
     "start": "bun src/server.ts"
   },
   "dependencies": {
+    "@react-pdf/renderer": "4.6.1",
     "@touchmyapi/analysis": "workspace:*",
     "@touchmyapi/contracts": "workspace:*",
     "@touchmyapi/db": "workspace:*",

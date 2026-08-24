@@ -17,7 +17,7 @@ import {
 } from "@touchmyapi/db";
 import type { Visibility } from "@touchmyapi/policy";
 import { ReportStorageUnavailableError, type DeliveryStore } from "./delivery";
-import type { PrivateReportStorage } from "@touchmyapi/reporting";
+import type { PrivateReportStorage } from "@touchmyapi/reporting/storage";
 
 function summary(findings: readonly { severity: string; category: string }[]) {
   const bySeverity: Record<string, number> = {};

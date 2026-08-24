@@ -111,6 +111,13 @@ describe("OVH release boundary", () => {
       expect(dockerfile).toContain("USER bun");
       expect(dockerfile).not.toMatch(/COPY\s+\.env/);
     }
+    const apiDockerfile = read("apps/api/Dockerfile");
+    const workerDockerfile = read("apps/worker-control/Dockerfile");
+    expect(apiDockerfile).toContain("! grep -q '#standard-fonts/' apps/api/dist/server.js");
+    expect(workerDockerfile).toContain("--external @react-pdf/renderer");
+    expect(workerDockerfile).toContain(
+      "bun --cwd apps/worker-control -e \"await import('@react-pdf/renderer')\"",
+    );
     expect(read(".dockerignore")).toContain(".env");
   });
 

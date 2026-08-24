@@ -3,7 +3,7 @@ import type { ApiConfig } from "./config";
 import { createLocalDevelopmentApp } from "./local-development";
 import { createPostgresAssessmentStore } from "./postgres-assessment-store";
 import { createPostgresDeliveryStore } from "./postgres-delivery-store";
-import { S3CompatiblePrivateReportStorage } from "@touchmyapi/reporting";
+import { S3CompatiblePrivateReportStorage } from "@touchmyapi/reporting/storage";
 
 export async function createPersistentLocalDevelopmentApp(
   config: ApiConfig,
