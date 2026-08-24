@@ -1,0 +1,31 @@
+packages/db/migrations/0019_provider_auth_workspace.sql
+  s_bc54431df54bf2::t_6a245a8494b2b2 92-95
+  s_bc54431df54bf2::t_d138e4aec70978 1-91,96-185
+docs/superpowers/plans/2026-08-23-github-workspace-v1.md
+  s_bc54431df54bf2::t_5dccec5fd87b3b 68,126
+  s_bc54431df54bf2::t_2492b43dc6a450 115-118,556,561-564
+packages/db/migrations/meta/_journal.json
+  s_bc54431df54bf2::t_d138e4aec70978 137-143,146
+packages/db/test/roles.isolation.test.ts
+  s_bc54431df54bf2::t_ee61c4cee701c4 30-33,235-236,240,616-618,635-637
+packages/db/test/provider-auth.integration.test.ts
+  s_bc54431df54bf2::t_ec0ace211c87ba 2-7,10-76,78-109,117-131,134-147,152-153
+  s_bc54431df54bf2::t_4cb041057a51cc 151
+  s_bc54431df54bf2::t_29136434714731 1,8-9,77,110-116,132-133,148-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "29cfebd00e854ceddf5efd9cb2451e8b66278bec",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
