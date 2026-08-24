@@ -172,7 +172,7 @@ Story labels: US1 = Authenticated Assessment Pipeline, US2 = Plans/Billing/Entit
 - [ ] T067 [P] Metrics: queue depth, job age, failure rate per playbook, duration, cancellations, credit usage, policy blocks, webhook failures, cross-account attempts (spec §10) in `apps/worker-control/src/metrics.ts`
 - [ ] T068 [P] Per-account external-AI disable flag honored in analyzer path (spec FR-016) + test in `tests/integration/ai-disable.test.ts`
 - [ ] T069 [P] Run `specs/001-touchmyapi-platform/quickstart.md` validation end-to-end; fix drift from contracts/data-model
-- [ ] T070 [P] Documentation pass: README (setup, run, architecture summary), `.env.example` finalize, `docs/` for ops
+- [x] T070 [P] Documentation pass: README (setup, run, architecture summary), `.env.example` finalize, `docs/` for ops
 
 ---
 
