@@ -1,0 +1,30 @@
+apps/api/src/auth.ts
+  s_bc54431df54bf2::t_bb28dd9c12cecf 472-512,516-537,539-558
+  s_bc54431df54bf2::t_8b1c8e9cdbed04 5,45-64,89-97,129-130,140,259,312-339,365-375,377-416,418,420-471,513-515,559-560
+  s_bc54431df54bf2::t_5cedba174c4b83 538,652,686-688
+apps/api/test/github-oauth-adapter.test.ts
+  s_bc54431df54bf2::t_bb28dd9c12cecf 2-5,19,23-27
+  s_bc54431df54bf2::t_df7e7d70c3a71a 1,6-18,20-22,28-98
+apps/api/src/github-oauth-adapter.ts
+  s_bc54431df54bf2::t_8b1c8e9cdbed04 1-9,15-18,20-38,40-46,48-90,95-134
+  s_bc54431df54bf2::t_bb28dd9c12cecf 10-14,19,39,47,91-94
+apps/api/test/auth.test.ts
+  s_bc54431df54bf2::t_df7e7d70c3a71a 411-487
+  s_bc54431df54bf2::t_a1672eb69715ae 310-319,322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "eca04b42b9f5f57d0946d642ab3302b8765365f8",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
