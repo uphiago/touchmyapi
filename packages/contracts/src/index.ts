@@ -18,6 +18,15 @@ export {
   type ErrorResponse,
 } from "./http";
 
+export {
+  authProviderSchema,
+  authProvidersResponseSchema,
+  authSessionResponseSchema,
+  type AuthProvider,
+  type AuthProvidersResponse,
+  type AuthSessionResponse,
+} from "./auth";
+
 export { playbookSchema, type Playbook } from "./playbook";
 
 export { jobSpecSchema, artifactManifestSchema, type JobSpec, type ArtifactManifest } from "./job";

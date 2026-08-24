@@ -2,11 +2,34 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import * as apiConfig from "../../apps/api/src/config";
 
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 const read = (relativePath: string) => readFileSync(resolve(repositoryRoot, relativePath), "utf8");
 
 describe("foundation configuration contracts", () => {
+  it("requires complete GitHub and least-privilege database configuration in production", () => {
+    const loader = Reflect.get(apiConfig, "loadRuntimeConfig") as
+      ((env: Readonly<Record<string, string | undefined>>) => unknown) | undefined;
+
+    expect(loader).toBeDefined();
+    expect(() => loader?.({ NODE_ENV: "production" })).toThrow("GitHub OAuth");
+    expect(() =>
+      loader?.({
+        NODE_ENV: "production",
+        AUTH_PROVIDER: "mock",
+        GITHUB_OAUTH_CLIENT_ID: "client",
+        GITHUB_OAUTH_CLIENT_SECRET: "secret",
+        GITHUB_OAUTH_CALLBACK_URL: "https://api.touchmyapi.com/api/v1/auth/github/callback",
+        WEB_APP_ORIGIN: "https://app.touchmyapi.com",
+        AUTH_TRANSIENT_KEY: "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
+        AUTH_DATABASE_URL: "postgres://auth@db/touchmyapi",
+        API_DATABASE_URL: "postgres://api@db/touchmyapi",
+        AUDIT_DATABASE_URL: "postgres://audit@db/touchmyapi",
+      }),
+    ).toThrow("mock authentication");
+  });
+
   it("does not present DNS TXT as an authorization or verification method", () => {
     const atlas = read("specs/001-touchmyapi-platform/atlas.html");
 
@@ -47,6 +70,12 @@ describe("foundation configuration contracts", () => {
     expect(env).not.toMatch(/^DATABASE_URL=.+$/m);
     expect(env).toMatch(/^GOOGLE_CLIENT_ID=\s*$/m);
     expect(env).toMatch(/^GOOGLE_CLIENT_SECRET=\s*$/m);
+    expect(env).toMatch(/^GITHUB_OAUTH_CLIENT_ID=\s*$/m);
+    expect(env).toMatch(/^GITHUB_OAUTH_CLIENT_SECRET=\s*$/m);
+    expect(env).toMatch(/^AUTH_TRANSIENT_KEY=\s*$/m);
+    expect(env).toMatch(/^AUTH_DATABASE_URL=\s*$/m);
+    expect(env).toMatch(/^API_DATABASE_URL=\s*$/m);
+    expect(env).toMatch(/^AUDIT_DATABASE_URL=\s*$/m);
     expect(env).toMatch(/^STRIPE_SECRET_KEY=\s*$/m);
     expect(env).toMatch(/^STRIPE_WEBHOOK_SECRET=\s*$/m);
     expect(env).toMatch(/^OBJECT_STORAGE_ACCESS_KEY_ID=\s*$/m);
