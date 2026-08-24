@@ -1,0 +1,26 @@
+packages/secrets/test/aead.test.ts
+  s_bc54431df54bf2::t_4ba17676b442cc 24-37
+packages/policy/test/entitlement.test.ts
+  s_bc54431df54bf2::t_e62a51a6a043fb 47
+packages/policy/test/limits.test.ts
+  s_bc54431df54bf2::t_e62a51a6a043fb 263-267,291
+  s_bc54431df54bf2::t_e0be8950777fd1 292-300
+packages/policy/test/scope.test.ts
+  s_bc54431df54bf2::t_e62a51a6a043fb 81,126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "b175dd8cb8bd6715b6d3926320aa8b931a5f9cd8",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
