@@ -1,0 +1,17 @@
+{
+  "name": "@touchmyapi/worker-control",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "build": "bun build src/server.ts --outdir dist --target bun",
+    "start": "bun src/server.ts"
+  },
+  "dependencies": {
+    "@touchmyapi/analysis": "workspace:*",
+    "@touchmyapi/contracts": "workspace:*",
+    "@touchmyapi/db": "workspace:*",
+    "@touchmyapi/reporting": "workspace:*"
+  }
+}

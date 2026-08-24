@@ -109,6 +109,12 @@ describe.skipIf(!RUN_DB_TESTS)("PostgreSQL queue schema and bootstrap", () => {
     );
     expect(enqueue).toEqual({ allowed: false });
     expect(claim).toEqual({ allowed: true });
+    const [schemaAccess] = await db.unsafe(
+      `select
+         has_schema_privilege('queue_connector', 'app_private', 'usage') as usage,
+         has_schema_privilege('queue_connector', 'app_private', 'create') as create`,
+    );
+    expect(schemaAccess).toEqual({ usage: true, create: false });
   });
 
   it("upserts global and tenant state without selecting account membership", async () => {

@@ -11,17 +11,28 @@ describe("production connector credential plan", () => {
       API_DATABASE_URL: "postgres://api_connector:api-secret-longer@postgres:5432/touchmyapi",
       AUDIT_DATABASE_URL:
         "postgres://audit_system_connector:audit-secret-long@postgres:5432/touchmyapi",
+      QUEUE_DATABASE_URL: "postgres://queue_connector:queue-secret-long@postgres:5432/touchmyapi",
+      WORKER_DATABASE_URL:
+        "postgres://worker_connector:worker-secret-long@postgres:5432/touchmyapi",
+      REPORTING_DATABASE_URL:
+        "postgres://reporting_connector:reporting-secret-long@postgres:5432/touchmyapi",
     });
 
     expect(plan.map(({ role }) => role)).toEqual([
       "auth_connector",
       "api_connector",
       "audit_system_connector",
+      "queue_connector",
+      "worker_connector",
+      "reporting_connector",
     ]);
     expect(plan.map(({ password }) => password)).toEqual([
       "auth-secret-long",
       "api-secret-longer",
       "audit-secret-long",
+      "queue-secret-long",
+      "worker-secret-long",
+      "reporting-secret-long",
     ]);
   });
 
@@ -32,8 +43,14 @@ describe("production connector credential plan", () => {
       API_DATABASE_URL: "postgres://api_connector:api-secret-longer@postgres:5432/touchmyapi",
       AUDIT_DATABASE_URL:
         "postgres://audit_system_connector:audit-secret-long@postgres:5432/touchmyapi",
+      QUEUE_DATABASE_URL: "postgres://queue_connector:queue-secret-long@postgres:5432/touchmyapi",
+      WORKER_DATABASE_URL:
+        "postgres://worker_connector:worker-secret-long@postgres:5432/touchmyapi",
+      REPORTING_DATABASE_URL:
+        "postgres://reporting_connector:reporting-secret-long@postgres:5432/touchmyapi",
     };
     expect(() => connectorCredentialPlan({ ...valid, AUTH_DATABASE_URL: "" })).toThrow();
+    expect(() => connectorCredentialPlan({ ...valid, WORKER_DATABASE_URL: "" })).toThrow();
     expect(() =>
       connectorCredentialPlan({
         ...valid,

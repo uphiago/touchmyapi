@@ -30,8 +30,10 @@ This guide validates the code that exists today. It does not claim that the full
 - PostgreSQL-backed passive assessment draft/list/policy/queue and redacted transactional outbox intent
 - Public landing plus role-aware owner/admin/operator/viewer/billing customer flows and plan-delivery guidance
 - Connector credential configuration and four-origin public smoke in the OVH workflow
+- Development worker-control with a deterministic fixture runner, bounded passive analysis, fenced terminal publication, completion notification, and no target network access
+- Local private MinIO report storage with plan-filtered delivery: aggregate results for `free_unverified`, masked findings for `free_verified`, and sanitized technical PDF, executive PDF, and `report.json@1` objects for `pro`/`lifetime`
 
-No real assessment execution, external target access, billing mutation, AI execution, report generation, or runner exists in this checkpoint. Queue/outbox and production passive draft/list/queue persistence are implemented; worker claim/dispatch and terminal delivery remain open under T087/T106. Local mode is credential-free and never contacts targets. Production accepts `AUTH_PROVIDER=disabled` until a GitHub OAuth App exists, or `github` with explicit credentials; mocks remain forbidden.
+The local mode executes one deterministic passive fixture assessment end to end, including worker claim, analysis, terminal delivery, notification, and three private report objects. It never contacts an external target. Production persists passive draft/list/queue state, but the worker is under the `execution` profile, `RUNNER_MODE=fixture` is rejected in production, and the isolated runner adapter is unavailable; production worker execution and target contact therefore remain disabled under T106. Billing mutation, Stripe webhook entitlement, active HTTP verification, AI execution, and the private agent remain open. Production accepts `AUTH_PROVIDER=disabled` until a GitHub OAuth App exists, or `github` with explicit credentials; mocks remain forbidden.
 
 The historical Foundation Phase 2 remains intentionally limited to T010–T021. The approved Phase 2A extension follows T021: T071–T080 provide the additive membership foundation, lifecycle boundary, RLS cut, server-driven workspace UI, and acceptance gate before the fenced PostgreSQL queue/outbox and separate admin control plane. SSO and SCIM remain out of scope; Google/X customer login is modeled-disabled and provider adapters remain injectable until production credentials are supplied.
 
@@ -44,7 +46,7 @@ If Docker is unavailable, complete all Bun checks locally and run the Compose co
 
 ## Environment
 
-The checks require no OAuth, Stripe, object-storage, or target credentials. Optional local overrides can be copied from the safe template:
+The checks require no OAuth, Stripe, or target credentials. Local delivery uses the Compose MinIO service with development-only credentials supplied by `dev:local`; production object-storage credentials are required only when the execution profile is explicitly enabled. Optional local overrides can be copied from the safe template:
 
 ```bash
 cp .env.example .env
@@ -59,7 +61,7 @@ Run from the repository root, in order:
 ```bash
 bun install
 bun run verify:workspace
-bun test
+bun run test
 bun run typecheck
 bun run --cwd apps/web build
 bun run --cwd apps/admin build
@@ -113,11 +115,12 @@ bun run local:smoke
 Expected output contains:
 
 ```text
+[smoke] PASS worker readiness http://127.0.0.1:3002/ready
 [smoke] PASS API health http://127.0.0.1:3000/health
 [smoke] PASS admin API health http://127.0.0.1:3001/health
 [smoke] PASS web shell http://127.0.0.1:5173
 [smoke] PASS admin web shell http://127.0.0.1:5174
-[smoke] PASS assessment draft → queued <account-id>
+[smoke] PASS draft → queued → completed → detailed delivery → 3 private reports <account-id>
 [smoke] PASS admin grant → distinct approval → bounded simulation
 [smoke] local stack is responding
 ```
@@ -131,7 +134,7 @@ PostgreSQL container independently, use `bun run local:logs`. Stop only the
 application processes with `Ctrl-C`; stop the local container without deleting
 its volume with `bun run local:down`.
 
-The smoke check only contacts loopback services. It bootstraps both development sessions, proves cross-cookie denial, creates and queues one mock assessment, performs one grant-gated simulated admin action, and never executes a real assessment or contacts an external target.
+The smoke check only contacts loopback services. It bootstraps both development sessions, proves cross-cookie denial, creates and queues one assessment, waits for the fixture worker to publish deterministic findings/notification/reports, performs one grant-gated simulated admin action, and never contacts an external target.
 
 ## Run the API and web shell manually
 
@@ -159,17 +162,23 @@ Open `http://localhost:5173`. The workspace reports `API online` only after vali
 
 ```bash
 docker compose --profile local -f infra/docker/compose.yml up -d postgres
-DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test \
+docker compose --profile local -f infra/docker/compose.yml exec -T postgres \
+  createdb -U touchmyapi_dev touchmyapi_integration_test
+docker compose --profile local -f infra/docker/compose.yml exec -T postgres \
+  createdb -U touchmyapi_dev touchmyapi_isolation_test
+DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_integration_test \
+  bun run db:migrate
+DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_isolation_test \
   bun run db:migrate
 RUN_DB_TESTS=1 \
-  DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test \
+  DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_integration_test \
   bun run test:integration --maxWorkers=1
 RUN_DB_TESTS=1 \
-  DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test \
+  DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_isolation_test \
   bun run test:isolation --maxWorkers=1
 ```
 
-Run those DB suites sequentially against a given database. Parallel processes need separately migrated `_test` databases because catalog/auth tests intentionally assert database-wide state. Tests refuse non-loopback hosts and database names without the `_test` suffix.
+Run those DB suites sequentially in the same PostgreSQL cluster and keep their databases separate. Catalog/auth tests intentionally inspect database-wide state and alter cluster-global connector credentials before restoring them. Tests refuse non-loopback hosts and database names without the `_test` suffix.
 
 On a fresh PostgreSQL volume, the init scripts create the separate `touchmyapi_test` database. Init scripts run only during first volume initialization. For an existing volume, apply the idempotent init SQL safely without deleting data:
 
@@ -178,14 +187,15 @@ docker compose --profile local -f infra/docker/compose.yml exec -T postgres psql
   < infra/docker/postgres/init/002_test_database.sql
 ```
 
-The current DB package proves schema shape, runtime-role privileges, exact connector membership, auth-bootstrap isolation, cross-account RLS behavior, the closed tenant-capability boundary, and atomic audit writing with API/worker/system chain isolation. The provider/runtime, membership, queue, role-aware UI and local smoke gates are green. Account deletion, real worker/report delivery and production staff MFA/JIT remain tracked explicitly in tasks.
+The current DB package proves schema shape, runtime-role privileges, exact connector membership, auth-bootstrap isolation, cross-account RLS behavior, the closed tenant-capability boundary, and atomic audit writing with API/worker/system chain isolation. The provider/runtime, membership, queue, role-aware UI, local fixture delivery and private-report smoke gates are green. Account deletion, production worker execution/isolated runner, Stripe entitlement, and production staff MFA/JIT remain tracked explicitly in tasks.
 
 ## Next validation milestones
 
-The end-to-end scenarios formerly listed here are not runnable yet. Implement them in the order defined by [tasks.md](./tasks.md):
+The local passive delivery scenario is runnable; the production delivery gate is not. Continue in the order defined by [tasks.md](./tasks.md):
 
-1. Implement membership and the PostgreSQL queue/outbox before assessment state/UI work.
-5. Add webhook-only Stripe entitlement, HTTP-file verification, SSRF-safe fetching, sandboxed execution, evidence/reports, and the private agent in task order.
+1. Complete T106 production worker execution with an isolated runner, production private storage readiness, fenced publication, and the remaining acceptance evidence.
+2. Complete T107 staff OIDC, WebAuthn MFA, persistent JIT approvals, and production admin queue functions.
+3. Add webhook-only Stripe entitlement, active HTTP-file verification, SSRF-safe fetching, and the private agent in task order.
 
 The multi-user extension is validated after T021 with these additional milestones:
 

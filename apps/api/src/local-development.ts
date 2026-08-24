@@ -7,7 +7,8 @@ import type {
   MembershipOperationResult,
   MembershipStore,
 } from "./memberships";
-import { createLocalAssessmentStore } from "./assessments";
+import { createLocalAssessmentStore, type AssessmentStore } from "./assessments";
+import type { DeliveryStore } from "./delivery";
 
 export const LOCAL_SESSION_TOKEN = "L".repeat(43);
 const localAccountId = "00000000-0000-4000-8000-000000000101";
@@ -66,6 +67,13 @@ function roleFor(accountId: string): (typeof localAccounts)[number]["role"] {
   return localAccounts.find((account) => account.accountId === accountId)?.role ?? "viewer";
 }
 
+function planFor(accountId: string): AuthSession["plan"] {
+  if (accountId === localAccountId) return "lifetime";
+  if (accountId === adminAccountId || accountId === billingAccountId) return "pro";
+  if (accountId === secondAccountId) return "free_verified";
+  return "free_unverified";
+}
+
 function sessionFor(accountId: string, role = roleFor(accountId)): AuthSession {
   return {
     userId: localUserId,
@@ -73,7 +81,7 @@ function sessionFor(accountId: string, role = roleFor(accountId)): AuthSession {
     email: "local.owner@example.test",
     role,
     membershipStatus: "active",
-    plan: role === "billing" ? "pro" : "free_unverified",
+    plan: planFor(accountId),
     iaEnabled: true,
   };
 }
@@ -198,6 +206,7 @@ export function createLocalDevelopmentApp(
     environment: "development",
     port: 3000,
   }),
+  options: Readonly<{ assessmentStore?: AssessmentStore; deliveryStore?: DeliveryStore }> = {},
 ): ReturnType<typeof createApp> {
   const auth: AuthDependencies = {
     adapter: {
@@ -231,10 +240,19 @@ export function createLocalDevelopmentApp(
       allowInsecureCookies: true,
     } satisfies MembershipDependencies,
     assessment: {
-      store: createLocalAssessmentStore(),
+      store: options.assessmentStore ?? createLocalAssessmentStore(),
       resolveSession: auth.store.resolveSession,
       allowInsecureCookies: true,
     },
+    ...(options.deliveryStore
+      ? {
+          delivery: {
+            store: options.deliveryStore,
+            resolveSession: auth.store.resolveSession,
+            allowInsecureCookies: true,
+          },
+        }
+      : {}),
   };
   const api = createApp(dependencies);
   api.get("/api/v1/auth/local-session", (context) => {

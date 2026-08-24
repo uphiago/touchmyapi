@@ -20,6 +20,31 @@ const limitsSchema = z
   })
   .strict();
 
+const passiveObservationDataSchema = redactedObjectSchema.superRefine((value, context) => {
+  if (JSON.stringify(value).length > 32_768) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Observation data exceeds the public contract limit",
+    });
+  }
+});
+
+export const passiveObservationSchema = z
+  .object({
+    actionId: z.enum([
+      "dns.records",
+      "tls.cert",
+      "http.headers",
+      "robots.txt",
+      "sitemap.xml",
+      "endpoint.minimal",
+    ]),
+    kind: z.enum(["dns_records", "tls_certificate", "http_headers", "resource_presence"]),
+    observedAt: dateTimeSchema,
+    data: passiveObservationDataSchema,
+  })
+  .strict();
+
 /** Signed, capability-limited dispatch unit between the control worker and runner. */
 export const jobSpecSchema = z
   .object({
@@ -52,6 +77,7 @@ export const artifactManifestSchema = z
         .object({ path: z.string(), sha256: z.string(), size: z.number(), kind: z.string() })
         .strict(),
     ),
+    observations: z.array(passiveObservationSchema).max(32).optional(),
     output: z
       .object({ summary: z.string().max(8192).optional(), truncated: z.boolean().optional() })
       .strict()
@@ -63,3 +89,4 @@ export const artifactManifestSchema = z
 
 export type JobSpec = z.infer<typeof jobSpecSchema>;
 export type ArtifactManifest = z.infer<typeof artifactManifestSchema>;
+export type PassiveObservation = z.infer<typeof passiveObservationSchema>;

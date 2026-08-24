@@ -12,6 +12,12 @@ const env = {
   API_DATABASE_URL: "postgres://api_connector:validation-api-password@postgres:5432/touchmyapi",
   AUDIT_DATABASE_URL:
     "postgres://audit_system_connector:validation-audit-password@postgres:5432/touchmyapi",
+  QUEUE_DATABASE_URL:
+    "postgres://queue_connector:validation-queue-password@postgres:5432/touchmyapi",
+  WORKER_DATABASE_URL:
+    "postgres://worker_connector:validation-worker-password@postgres:5432/touchmyapi",
+  REPORTING_DATABASE_URL:
+    "postgres://reporting_connector:validation-reporting-password@postgres:5432/touchmyapi",
   AUTH_PROVIDER: "disabled",
   AUTH_TRANSIENT_KEY: "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
   CUSTOMER_WEB_ORIGIN: "https://app.example.invalid",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   healthResponseSchema,
   type AccountSummary,
@@ -6,9 +6,12 @@ import {
   type AssessmentCreate,
   type AuthProvider,
   type AuthSessionResponse,
+  type AssessmentDeliveryResponse,
   type InvitationCreate,
   type Membership,
   type MembershipUpdate,
+  type Notification,
+  type ReportMetadata,
 } from "../../../packages/contracts/src";
 import { ApiClientError, createApiClient } from "../../../packages/ui/api-client";
 import { AccountSwitcher } from "./account-switcher";
@@ -17,6 +20,7 @@ import { Assessments } from "./assessments";
 import { LandingPage } from "./landing";
 import { InvitationAcceptance, Memberships } from "./memberships";
 import { Overview } from "./overview";
+import { ResultsWorkspace } from "./results";
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:3000";
@@ -30,6 +34,11 @@ export type CustomerConsoleProps = Readonly<{
   accounts: readonly AccountSummary[];
   memberships: readonly Membership[];
   assessments: readonly Assessment[];
+  selectedAssessmentId?: string;
+  delivery?: AssessmentDeliveryResponse;
+  notifications?: readonly Notification[];
+  reports?: readonly ReportMetadata[];
+  resultsBusy?: boolean;
   busy: boolean;
   error: string | null;
   notice: string | null;
@@ -42,6 +51,10 @@ export type CustomerConsoleProps = Readonly<{
   onRemoveMember?: (userId: string) => void | Promise<void>;
   onCreate: (input: AssessmentCreate) => void | Promise<void>;
   onQueue: (assessmentId: string) => void | Promise<void>;
+  onSelectAssessment?: (assessmentId: string) => void;
+  onRefreshResults?: () => void | Promise<void>;
+  onMarkNotificationRead?: (notificationId: string) => void | Promise<void>;
+  onDownloadReport?: (reportId: string) => void | Promise<void>;
   onLogout: () => void | Promise<void>;
 }>;
 
@@ -53,6 +66,11 @@ export function CustomerConsole({
   accounts,
   memberships,
   assessments,
+  selectedAssessmentId,
+  delivery,
+  notifications = [],
+  reports = [],
+  resultsBusy = false,
   busy,
   error,
   notice,
@@ -65,6 +83,10 @@ export function CustomerConsole({
   onRemoveMember,
   onCreate,
   onQueue,
+  onSelectAssessment = () => undefined,
+  onRefreshResults = onRetry,
+  onMarkNotificationRead = () => undefined,
+  onDownloadReport = () => undefined,
   onLogout,
 }: CustomerConsoleProps) {
   const activeAccount = accounts.find((account) => account.active) ?? accounts[0];
@@ -103,15 +125,30 @@ export function CustomerConsole({
     );
   } else if (activeView === "assessments" && canReadAssessments) {
     content = (
-      <Assessments
-        assessments={assessments}
-        busy={busy}
-        plan={session.account.plan}
-        canCreate={canCreateAssessment}
-        canQueue={canCreateAssessment}
-        onCreate={onCreate}
-        onQueue={onQueue}
-      />
+      <>
+        <Assessments
+          assessments={assessments}
+          busy={busy}
+          plan={session.account.plan}
+          canCreate={canCreateAssessment}
+          canQueue={canCreateAssessment}
+          onCreate={onCreate}
+          onQueue={onQueue}
+        />
+        <ResultsWorkspace
+          assessments={assessments}
+          selectedAssessmentId={selectedAssessmentId}
+          delivery={delivery}
+          notifications={notifications}
+          reports={reports}
+          plan={session.account.plan}
+          busy={resultsBusy}
+          onSelect={onSelectAssessment}
+          onRefresh={onRefreshResults}
+          onMarkRead={onMarkNotificationRead}
+          onDownload={onDownloadReport}
+        />
+      </>
     );
   } else if (activeView === "team" && canManageTeam) {
     content = (
@@ -220,13 +257,60 @@ export default function App() {
   const [accounts, setAccounts] = useState<readonly AccountSummary[]>([]);
   const [memberships, setMemberships] = useState<readonly Membership[]>([]);
   const [assessments, setAssessments] = useState<readonly Assessment[]>([]);
+  const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>();
+  const [delivery, setDelivery] = useState<AssessmentDeliveryResponse>();
+  const [notifications, setNotifications] = useState<readonly Notification[]>([]);
+  const [reports, setReports] = useState<readonly ReportMetadata[]>([]);
+  const [resultsBusy, setResultsBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const resultsGeneration = useRef(0);
   const client = useMemo(() => createApiClient(API_BASE_URL), []);
   const activeAccount = accounts.find((account) => account.active) ?? accounts[0];
 
+  async function refreshResults(
+    accountId: string,
+    assessmentId: string | undefined,
+    cancelled?: () => boolean,
+    generation = resultsGeneration.current,
+  ): Promise<void> {
+    const isStale = () => cancelled?.() === true || generation !== resultsGeneration.current;
+    setResultsBusy(true);
+    try {
+      const notificationSnapshot = await client.listNotifications(accountId);
+      if (isStale()) return;
+      setNotifications(notificationSnapshot.notifications);
+      if (!assessmentId) {
+        setDelivery(undefined);
+        setReports([]);
+        return;
+      }
+      const [deliverySnapshot, reportSnapshot] = await Promise.all([
+        client.getAssessmentDelivery(accountId, assessmentId),
+        client.listReports(accountId, assessmentId),
+      ]);
+      if (isStale()) return;
+      setDelivery(deliverySnapshot);
+      setReports(reportSnapshot.reports);
+    } catch (cause) {
+      if (!isStale()) {
+        // Drafts do not have a delivery yet. Keep the assessment register usable while
+        // preserving API errors for completed/failed result requests.
+        if (cause instanceof ApiClientError && cause.status === 404) {
+          setDelivery(undefined);
+          setReports([]);
+        } else {
+          setError(cause instanceof ApiClientError ? cause.message : "Results unavailable");
+        }
+      }
+    } finally {
+      if (!isStale()) setResultsBusy(false);
+    }
+  }
+
   async function refreshWorkspace(cancelled?: () => boolean): Promise<void> {
+    const generation = ++resultsGeneration.current;
     setBusy(true);
     setError(null);
     try {
@@ -248,11 +332,74 @@ export default function App() {
       if (cancelled?.()) return;
       setMemberships(membershipSnapshot.memberships);
       setAssessments(assessmentSnapshot.assessments);
+      const selected =
+        assessmentSnapshot.assessments.find(
+          (assessment) =>
+            assessment.accountId === active.accountId && assessment.id === selectedAssessmentId,
+        ) ?? assessmentSnapshot.assessments[0];
+      const accountAssessment = selected?.accountId === active.accountId ? selected : undefined;
+      setSelectedAssessmentId(accountAssessment?.id);
+      await refreshResults(active.accountId, accountAssessment?.id, cancelled, generation);
     } catch (cause) {
       if (!cancelled?.())
         setError(cause instanceof ApiClientError ? cause.message : "Workspace unavailable");
     } finally {
       if (!cancelled?.()) setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    const active = accounts.find((account) => account.active) ?? accounts[0];
+    if (
+      !active ||
+      authState !== "signed_in" ||
+      !assessments.some((item) =>
+        ["awaiting_verification", "queued", "running", "analyzing"].includes(item.status),
+      )
+    )
+      return;
+    const timer = window.setInterval(() => void refreshWorkspace(), 15_000);
+    return () => window.clearInterval(timer);
+  }, [authState, activeAccount?.accountId, assessments]);
+
+  async function selectAssessment(assessmentId: string) {
+    if (!activeAccount) return;
+    const generation = ++resultsGeneration.current;
+    setSelectedAssessmentId(assessmentId);
+    setDelivery(undefined);
+    setReports([]);
+    await refreshResults(activeAccount.accountId, assessmentId, undefined, generation);
+  }
+
+  async function refreshCurrentResults() {
+    if (!activeAccount) return;
+    const generation = ++resultsGeneration.current;
+    await refreshResults(activeAccount.accountId, selectedAssessmentId, undefined, generation);
+  }
+
+  async function markNotificationRead(notificationId: string) {
+    if (!activeAccount) return;
+    try {
+      const updated = await client.markNotificationRead(activeAccount.accountId, notificationId);
+      setNotifications((current) =>
+        current.map((notification) => (notification.id === updated.id ? updated : notification)),
+      );
+    } catch (cause) {
+      setError(cause instanceof ApiClientError ? cause.message : "Notification unavailable");
+    }
+  }
+
+  async function downloadReport(reportId: string) {
+    if (!activeAccount || !selectedAssessmentId) return;
+    try {
+      const download = await client.createReportDownload(
+        activeAccount.accountId,
+        selectedAssessmentId,
+        reportId,
+      );
+      window.location.assign(download.url);
+    } catch (cause) {
+      setError(cause instanceof ApiClientError ? cause.message : "Report download unavailable");
     }
   }
 
@@ -384,7 +531,11 @@ export default function App() {
     setNotice(null);
     try {
       await client.queueAssessment(activeAccount.accountId, assessmentId);
-      setNotice("Accepted by the queue boundary. No runner execution is implied locally.");
+      setNotice(
+        LOCAL_MOCKS
+          ? "Queued. The credential-free local fixture will complete it without contacting the target."
+          : "Accepted by the queue boundary. Follow the live status while the isolated worker processes it.",
+      );
       await refreshWorkspace();
     } catch (cause) {
       setError(cause instanceof ApiClientError ? cause.message : "Queue unavailable");
@@ -400,6 +551,10 @@ export default function App() {
       setAccounts([]);
       setMemberships([]);
       setAssessments([]);
+      setSelectedAssessmentId(undefined);
+      setDelivery(undefined);
+      setNotifications([]);
+      setReports([]);
       setActiveView("overview");
       setAuthState("signed_out");
       setBusy(false);
@@ -443,6 +598,11 @@ export default function App() {
       accounts={accounts}
       memberships={memberships}
       assessments={assessments}
+      selectedAssessmentId={selectedAssessmentId}
+      delivery={delivery}
+      notifications={notifications}
+      reports={reports}
+      resultsBusy={resultsBusy}
       busy={busy}
       error={error}
       notice={notice}
@@ -455,6 +615,10 @@ export default function App() {
       onRemoveMember={removeMember}
       onCreate={createAssessment}
       onQueue={queueAssessment}
+      onSelectAssessment={selectAssessment}
+      onRefreshResults={refreshCurrentResults}
+      onMarkNotificationRead={markNotificationRead}
+      onDownloadReport={downloadReport}
       onLogout={logout}
     />
   );

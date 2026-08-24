@@ -80,12 +80,14 @@ export const notification = pgTable(
     id: id(),
     accountId: uuid("account_id").notNull(),
     assessmentId: uuid("assessment_id"),
+    eventKey: text("event_key").notNull(),
     kind: text("kind").notNull(),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (table) => [
     unique("notification_account_id_id_unique").on(table.accountId, table.id),
+    unique("notification_account_event_unique").on(table.accountId, table.eventKey),
     foreignKey({
       name: "notification_account_fk",
       columns: [table.accountId],

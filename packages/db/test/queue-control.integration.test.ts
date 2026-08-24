@@ -38,7 +38,7 @@ describe.skipIf(!RUN_DB_TESTS)("queue control claim boundary", () => {
         [playbookKey],
       );
       await db.unsafe(
-        "insert into public.assessment (id, account_id, target_category, target_json, scope_json, playbook_id, playbook_version, limits_json) values ($1::uuid, $2::uuid, 'surface', '{}'::jsonb, '{}'::jsonb, $3, '1.0.0', '{}'::jsonb)",
+        "insert into public.assessment (id, account_id, target_category, target_json, scope_json, playbook_id, playbook_version, limits_json, status) values ($1::uuid, $2::uuid, 'surface', '{}'::jsonb, '{}'::jsonb, $3, '1.0.0', '{}'::jsonb, 'queued')",
         [assessmentId, accountId, playbookKey],
       );
       await db.unsafe(
@@ -64,6 +64,11 @@ describe.skipIf(!RUN_DB_TESTS)("queue control claim boundary", () => {
         [accountId],
       );
       expect(job).toEqual({ status: "running", lease_owner: "worker-a", fencing_token: 1 });
+      const [runningAssessment] = await db.unsafe(
+        "select status from public.assessment where id = $1::uuid",
+        [assessmentId],
+      );
+      expect(runningAssessment).toEqual({ status: "running" });
       expect(global).toEqual({ running_count: 1 });
       expect(tenant).toEqual({ running_count: 1 });
 
@@ -83,7 +88,23 @@ describe.skipIf(!RUN_DB_TESTS)("queue control claim boundary", () => {
         "select running_count from public.queue_global_state",
       );
       expect(completedGlobal).toEqual({ running_count: 0 });
+      const [analyzingAssessment] = await db.unsafe(
+        "select status from public.assessment where id = $1::uuid",
+        [assessmentId],
+      );
+      expect(analyzingAssessment).toEqual({ status: "analyzing" });
+      const [delivery] = await db.unsafe(
+        "select event_key, aggregate_id, schema_version, payload_json from public.outbox_event where event_key = $1",
+        [`job:${jobId}:delivery:1`],
+      );
+      expect(delivery).toEqual({
+        event_key: `job:${jobId}:delivery:1`,
+        aggregate_id: jobId,
+        schema_version: "job.delivery@1",
+        payload_json: { event: "job_succeeded", jobId, fencingToken: 1 },
+      });
     } finally {
+      await db.unsafe("delete from public.outbox_event where aggregate_id = $1::uuid", [jobId]);
       await db.unsafe("delete from public.job where id = $1::uuid", [jobId]);
       await db.unsafe("delete from public.assessment where id = $1::uuid", [assessmentId]);
       await db.unsafe("delete from public.playbook where key = $1", [playbookKey]);

@@ -25,7 +25,25 @@ import {
   type MembershipListResponse,
   type MembershipMutationResponse,
   type MembershipUpdate,
+  assessmentDeliveryResponseSchema,
+  notificationListResponseSchema,
+  notificationSchema,
+  reportListResponseSchema,
+  reportDownloadResponseSchema,
+  type AssessmentDeliveryResponse,
+  type NotificationListResponse,
+  type ReportListResponse,
+  type ReportDownloadResponse,
 } from "../contracts/src";
+
+const notificationMutationResponseSchema = {
+  parse(value: unknown) {
+    if (!value || typeof value !== "object" || !("notification" in value)) {
+      throw new TypeError("Invalid notification response");
+    }
+    return { notification: notificationSchema.parse(value.notification) };
+  },
+};
 
 export class ApiClientError extends Error {
   readonly status: number;
@@ -63,6 +81,21 @@ export type ApiClient = Readonly<{
     input: AssessmentCreate,
   ) => Promise<{ assessment: Assessment }>;
   queueAssessment: (accountId: string, assessmentId: string) => Promise<{ assessment: Assessment }>;
+  getAssessmentDelivery: (
+    accountId: string,
+    assessmentId: string,
+  ) => Promise<AssessmentDeliveryResponse>;
+  listNotifications: (accountId: string) => Promise<NotificationListResponse>;
+  markNotificationRead: (
+    accountId: string,
+    notificationId: string,
+  ) => Promise<NotificationListResponse["notifications"][number]>;
+  listReports: (accountId: string, assessmentId: string) => Promise<ReportListResponse>;
+  createReportDownload: (
+    accountId: string,
+    assessmentId: string,
+    reportId: string,
+  ) => Promise<ReportDownloadResponse>;
 }>;
 
 export type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -200,6 +233,48 @@ export function createApiClient(baseUrl: string, fetcher: Fetcher = fetch): ApiC
         ),
         assessmentMutationResponseSchema,
         { method: "POST" },
+      ),
+    getAssessmentDelivery: (accountId, assessmentId) =>
+      requestJson(
+        fetcher,
+        joinUrl(
+          baseUrl,
+          `/api/v1/accounts/${encodeURIComponent(accountId)}/assessments/${encodeURIComponent(assessmentId)}/delivery`,
+        ),
+        assessmentDeliveryResponseSchema,
+      ),
+    listNotifications: (accountId) =>
+      requestJson(
+        fetcher,
+        joinUrl(baseUrl, `/api/v1/accounts/${encodeURIComponent(accountId)}/notifications`),
+        notificationListResponseSchema,
+      ),
+    markNotificationRead: (accountId, notificationId) =>
+      requestJson(
+        fetcher,
+        joinUrl(
+          baseUrl,
+          `/api/v1/accounts/${encodeURIComponent(accountId)}/notifications/${encodeURIComponent(notificationId)}/read`,
+        ),
+        notificationMutationResponseSchema,
+      ).then((response) => response.notification),
+    listReports: (accountId, assessmentId) =>
+      requestJson(
+        fetcher,
+        joinUrl(
+          baseUrl,
+          `/api/v1/accounts/${encodeURIComponent(accountId)}/assessments/${encodeURIComponent(assessmentId)}/reports`,
+        ),
+        reportListResponseSchema,
+      ),
+    createReportDownload: (accountId, assessmentId, reportId) =>
+      requestJson(
+        fetcher,
+        joinUrl(
+          baseUrl,
+          `/api/v1/accounts/${encodeURIComponent(accountId)}/assessments/${encodeURIComponent(assessmentId)}/reports/${encodeURIComponent(reportId)}/download`,
+        ),
+        reportDownloadResponseSchema,
       ),
   };
 }

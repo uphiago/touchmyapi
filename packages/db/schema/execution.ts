@@ -68,6 +68,7 @@ export const runnerExecution = pgTable(
     id: id(),
     accountId: uuid("account_id").notNull(),
     jobId: uuid("job_id").notNull(),
+    fencingToken: integer("fencing_token").default(0).notNull(),
     sandboxImpl: text("sandbox_impl").notNull(),
     containerId: text("container_id"),
     imageDigest: text("image_digest"),
@@ -80,6 +81,11 @@ export const runnerExecution = pgTable(
   },
   (table) => [
     unique("runner_execution_account_id_id_unique").on(table.accountId, table.id),
+    unique("runner_execution_job_fence_unique").on(
+      table.accountId,
+      table.jobId,
+      table.fencingToken,
+    ),
     foreignKey({
       name: "runner_execution_job_fk",
       columns: [table.accountId, table.jobId],
