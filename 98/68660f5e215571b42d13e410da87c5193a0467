@@ -1,0 +1,45 @@
+packages/db/scripts/configure-connectors.ts
+  s_bc54431df54bf2::t_2dcc2fea4ef5c2 1-114
+  s_bc54431df54bf2::t_3fe42dfa558476 115-119
+tests/contract/deployment.test.ts
+  s_bc54431df54bf2::t_b623fe04aecc61 19-28
+  s_bc54431df54bf2::t_d7662bc3be9baa 45-55,58-61,66-74
+  s_bc54431df54bf2::t_1246470d085c36 65,75-77
+scripts/validate-production-compose.ts
+  s_bc54431df54bf2::t_2dcc2fea4ef5c2 11-16
+infra/docker/compose.production.yml
+  s_bc54431df54bf2::t_2dcc2fea4ef5c2 39-41,51-59
+apps/api/src/runtime.ts
+  s_bc54431df54bf2::t_1246470d085c36 10,48-58
+  s_bc54431df54bf2::t_d13b7693e82de0 46-47
+apps/api/src/config.ts
+  s_bc54431df54bf2::t_2dcc2fea4ef5c2 9,126
+packages/db/test/configure-connectors.test.ts
+  s_bc54431df54bf2::t_d7662bc3be9baa 1-9,12,14-21,25-30,33,35-39,41-46,48-51
+  s_bc54431df54bf2::t_bf387d152204e3 13,22,24,34,47
+  s_bc54431df54bf2::t_f69803c762f142 10-11,23,31-32,40
+scripts/deploy-ovh.sh
+  s_bc54431df54bf2::t_2dcc2fea4ef5c2 28
+scripts/smoke-remote.sh
+  s_bc54431df54bf2::t_1246470d085c36 13
+.github/workflows/build-deploy.yml
+  s_bc54431df54bf2::t_b623fe04aecc61 74-75,80-81,144-159
+tests/contract/foundation-config.test.ts
+  s_bc54431df54bf2::t_d7662bc3be9baa 31-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "9868660f5e215571b42d13e410da87c5193a0467",
+  "prompts": {},
+  "sessions": {
+    "s_bc54431df54bf2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02a11-29c9-79c3-8bbb-189afd0db362",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "uphiago <hollyvolks@hotmail.com>"
+    }
+  }
+}
