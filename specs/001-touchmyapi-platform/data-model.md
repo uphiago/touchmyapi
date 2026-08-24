@@ -2,7 +2,7 @@
 
 **Phase 1 output** | **Date**: 2026-08-17
 
-All business tables carry `account_id` (or an explicitly documented global/system ownership boundary) and are covered by Row-Level Security policies (default deny) per constitution III. `account` is the workspace/tenant; the existing `user` table is the single global Google identity authority and can only be reached for bootstrap/session operations through narrow functions. Runtime roles are RLS-limited; app sets tenant via `set_config('app.tenant', ...)` in a transaction with `set local role`. Timestamps are UTC `timestamptz`. IDs are either UUIDv7 (ordered, DB-friendly) or crypto-random; choose UUIDv7 for insert-heavy tables.
+All business tables carry `account_id` (or an explicitly documented global/system ownership boundary) and are covered by Row-Level Security policies (default deny) per constitution III. `account` is the workspace/tenant; the existing `user` table is the single global provider identity authority and can only be reached for bootstrap/session operations through narrow functions. Runtime roles are RLS-limited; app sets tenant via `set_config('app.tenant', ...)` in a transaction with `set local role`. Timestamps are UTC `timestamptz`. IDs are either UUIDv7 (ordered, DB-friendly) or crypto-random; choose UUIDv7 for insert-heavy tables.
 
 ---
 
@@ -19,14 +19,14 @@ Workspace/tenant that owns all customer business data. The historical foundation
 | settings_ia_enabled | boolean | per-account external AI disable flag (V1 default true, no UI yet) |
 | created_at / deleted_at | timestamptz | |
 
-### user (global Google login identity)
+### user (global provider login identity)
 
 The existing `user` table is the single immutable global identity authority. It is not tenant authorization and is never linked to an account by email.
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | id | uuid pk | |
-| provider | enum | `google` active; `github`, `x` modeled-disabled |
+| provider | enum | `github` active for customer login; `google`, `x` modeled-disabled in the customer production composition |
 | provider_subject | text | stable provider subject |
 | email | citext | display/contact only; never an account key |
 | created_at | timestamptz | |

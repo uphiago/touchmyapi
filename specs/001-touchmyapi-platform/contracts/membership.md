@@ -1,6 +1,6 @@
 # Membership and Invitation Contract v1
 
-Customer authentication resolves the existing global immutable Google `user` row. Every business request then requires an active `account_membership(account_id,user_id)`; the account/workspace is the RLS tenant. Email is delivery/contact data only and never links a user automatically.
+Customer authentication resolves the immutable global provider `user` row by `provider + provider_subject`. Every business request then requires an active `account_membership(account_id,user_id)`; the account/workspace is the RLS tenant. Email is delivery/contact data only and never links a user automatically.
 
 ## Roles and capabilities
 

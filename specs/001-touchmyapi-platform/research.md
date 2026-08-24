@@ -30,11 +30,11 @@ Consolidates findings that resolve the technical unknowns in the implementation 
 - **Rationale**: Signature verification must happen against the raw body (SDK handles this); the unique-constraint-then-queue pattern makes re-delivery harmless and is idempotent by construction (constitution VI). Processing result and event version are stored for audit.
 - **Alternatives considered**: Process-fully-before-ack (slow, prone to timeout), trusting a flag (idempotency-by-intent fails under exactly-once pressure).
 
-## R5. Google OAuth Authorization Code + PKCE
+## R5. Customer GitHub OAuth Authorization Code + PKCE
 
-- **Decision**: `openid-client` (certified, Bun-supported, actively maintained) for the Google PKCE flow; rotate and revoke HttpOnly secure SameSite cookies server-side.
-- **Rationale**: `arctic` was deprecated by its author in 2026; `openid-client` is certified and maintained, and handles `state`, `nonce`, and exact redirect URI validation with minimal code.
-- **Alternatives considered**: `arctic` (deprecated in 2026 - avoid), hand-rolled calls against Google's documented endpoints (zero-dep but reimplements state/nonce/validation that a certified lib already covers).
+- **Decision**: Use GitHub's documented OAuth web application flow with Authorization Code, PKCE S256, `state`, exact redirect URI, `user:email`, bounded provider responses, and server-side rotating HttpOnly sessions. Keep the provider exchange behind an injectable adapter.
+- **Rationale**: GitHub is the selected customer identity provider. The narrow adapter keeps provider HTTP outside domain/session logic, obtains the immutable numeric GitHub subject plus a verified primary email, and allows deterministic tests without production credentials.
+- **Alternatives considered**: GitHub App user authentication (more installation semantics than V1 needs), Google customer OIDC (no longer the selected customer entry), and a generic auth platform (additional trust/dependency surface for one provider).
 
 ## R6. Runner isolation - no host Docker socket exposure
 
@@ -81,7 +81,7 @@ Consolidates findings that resolve the technical unknowns in the implementation 
 
 ## R12. Multi-user account and identity boundary
 
-- **Decision**: Keep the existing `user` table as the sole immutable global Google identity (`provider + provider_subject`), use `account` as the tenant/workspace, and authorize business data through `account_membership(account_id,user_id)` with `owner`, `admin`, `operator`, `viewer`, and `billing` roles. Multiple owners are allowed; a locked transaction rejects removing/demoting the last active owner. Invitations store a SHA-256 hash of a 256-bit bearer token; email is delivery only and never auto-links a user. Acceptance is an explicit redacted POST body and same-user replay is idempotent.
+- **Decision**: Keep the existing `user` table as the sole immutable global provider identity (`provider + provider_subject`), use `account` as the tenant/workspace, and authorize business data through `account_membership(account_id,user_id)` with `owner`, `admin`, `operator`, `viewer`, and `billing` roles. Multiple owners are allowed; a locked transaction rejects removing/demoting the last active owner. Invitations store a SHA-256 hash of a 256-bit bearer token; email is delivery only and never auto-links a user. Acceptance is an explicit redacted POST body and same-user replay is idempotent.
 - **Rationale**: Membership is a first-class RLS and audit boundary, supports one user in multiple accounts, prevents email collisions, and avoids a second identity authority. The active account is `session.account_id`; narrow `auth_list_accounts` and `auth_switch_account` functions enumerate/switch safely and rotate sessions.
 - **Alternatives considered**: a new `identity` table (dual authority and migration ambiguity), implicit `user.account_id` ownership (cannot safely model multiple memberships), email-based linking (account takeover risk), and a separate organization service (duplicate source of truth and policy boundary).
 
@@ -112,7 +112,7 @@ All technical context unknowns from the plan are resolved above. Key high-level 
 - UF/JS stack: Bun + Hono + React/Vite; Drizzle with RLS native support.
 - Queue: Postgres `SKIP LOCKED` leases owned by worker-control.
 - Stripe: raw-body constructEvent + dedupe-insert-before-side-effect.
-- Google: openid-client PKCE.
+- Customer identity: GitHub Authorization Code + PKCE behind an injectable adapter.
 - Runner: rootless Podman + gVisor runsc behind `SandboxProvider`, credentials via per-job tmpfs channel.
 - Verification: HTTP-file required for every active external assessment; non-HTTP alternatives remain disabled pending a constitution amendment; SSRF-safe pinned fetch.
 - AI: DeepSeek planner/triage + Codex reports, both non-executor, policy-reduced.

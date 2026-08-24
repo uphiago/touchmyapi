@@ -1,6 +1,6 @@
 # Admin Control Plane Contract v1
 
-The admin app/API has a separate origin, API base path, cookies, CSRF policy, and audit stream backed by `staff_identity`, `staff_mfa_factor`, `staff_session`, `staff_role_assignment`, `support_access_grant`, `support_access_approval`, and `admin_audit_event`. Customer Google sessions cannot authenticate to it. Staff bootstrap is an out-of-band CLI/migration-owner operation keyed by immutable Google Workspace subject; a domain alone is insufficient. Staff login uses separate Google OIDC and local WebAuthn MFA. One-time recovery material is hashed; MFA reset requires dual approval.
+The admin app/API has a separate origin, API base path, cookies, CSRF policy, and audit stream backed by `staff_identity`, `staff_mfa_factor`, `staff_session`, `staff_role_assignment`, `support_access_grant`, `support_access_approval`, and `admin_audit_event`. Customer GitHub sessions cannot authenticate to it. Staff bootstrap is an out-of-band CLI/migration-owner operation keyed by immutable Google Workspace subject; a domain alone is insufficient. Staff login uses separate Google OIDC and local WebAuthn MFA. One-time recovery material is hashed; MFA reset requires dual approval.
 
 ## Staff and capability grant
 

@@ -12,7 +12,7 @@ Create an environment named `production`, preferably with required reviewers, an
 - `OVH_SSH_KEY`: dedicated deployment private key;
 - `GHCR_PAT`: read-only package token used by Docker on the host.
 
-Add repository/environment variables `CUSTOMER_API_ORIGIN` and `ADMIN_API_ORIGIN`. These are public browser build values, not secrets. A release build fails if either is absent.
+Add repository variables `CUSTOMER_API_ORIGIN`, `ADMIN_API_ORIGIN`, `CUSTOMER_WEB_ORIGIN`, and `ADMIN_WEB_ORIGIN`. These are public origins, not secrets. A release fails before image publication if any is absent, and validates all four public `/health` endpoints after cutover.
 
 The production repository currently uses:
 
@@ -20,6 +20,8 @@ The production repository currently uses:
 | --- | --- |
 | `CUSTOMER_API_ORIGIN` | `https://api.touchmyapi.com` |
 | `ADMIN_API_ORIGIN` | `https://admin-api.touchmyapi.com` |
+| `CUSTOMER_WEB_ORIGIN` | `https://app.touchmyapi.com` |
+| `ADMIN_WEB_ORIGIN` | `https://admin.touchmyapi.com` |
 
 ## OVH host preparation
 
@@ -30,9 +32,21 @@ POSTGRES_DB=touchmyapi
 POSTGRES_USER=touchmyapi
 POSTGRES_PASSWORD=replace-me
 DATABASE_URL=postgres://touchmyapi:replace-me@postgres:5432/touchmyapi
+AUTH_DATABASE_URL=postgres://auth_connector:replace-with-distinct-password@postgres:5432/touchmyapi
+API_DATABASE_URL=postgres://api_connector:replace-with-distinct-password@postgres:5432/touchmyapi
+AUDIT_DATABASE_URL=postgres://audit_system_connector:replace-with-distinct-password@postgres:5432/touchmyapi
 CUSTOMER_WEB_ORIGIN=https://app.example.com
 ADMIN_WEB_ORIGIN=https://admin.example.com
+AUTH_PROVIDER=disabled
+AUTH_TRANSIENT_KEY=base64url-encoded-32-byte-key
+GITHUB_OAUTH_CLIENT_ID=
+GITHUB_OAUTH_CLIENT_SECRET=
+GITHUB_OAUTH_CALLBACK_URL=https://api.example.com/api/v1/auth/github/callback
 ```
+
+Use different high-entropy passwords for the migration owner and every connector. The deploy runs migrations first, then configures only `auth_connector`, `api_connector`, and `audit_system_connector` from these URLs and verifies each login before cutover. The connector script never prints credentials.
+
+`AUTH_PROVIDER=disabled` is the safe initial production state: the API, audit, landing and database runtime are available, while `/api/v1/auth/providers` returns no login provider. To enable sign-in, create a GitHub OAuth App with homepage `https://app.touchmyapi.com` and exact callback `https://api.touchmyapi.com/api/v1/auth/github/callback`, place its Client ID/Secret in the host file, and change `AUTH_PROVIDER=github`. Never enable `mock` in production.
 
 The current OVH environment uses `https://app.touchmyapi.com` and
 `https://admin.touchmyapi.com` for the two browser origins. Object-storage
@@ -73,11 +87,11 @@ curl --fail --silent --show-error https://app.touchmyapi.com/health
 curl --fail --silent --show-error https://admin.touchmyapi.com/health
 ```
 
-The admin origin is deployable but its production staff capabilities deliberately return unavailable until real staff OIDC/WebAuthn/JIT persistence is implemented. `LOCAL_MOCKS` and `LOCAL_ADMIN_MOCKS` are hard-disabled in production Compose.
+The admin origin is deployable but its production staff capabilities deliberately return unavailable until real staff OIDC/WebAuthn/JIT persistence is implemented. `LOCAL_MOCKS` and `LOCAL_ADMIN_MOCKS` are hard-disabled in production Compose. Customer login availability is independently visible through `/api/v1/auth/providers`.
 
 ## Release and rollback
 
-Run “Build and deploy TouchMyAPI” manually or push a reviewed `v*` tag. The job verifies the SSH host key, uploads the reviewed Git archive, logs Docker into GHCR through stdin, runs forward migrations, waits for health, and then records `current-sha` and `previous-sha` under `shared/releases`.
+Run “Build and deploy TouchMyAPI” manually or push a reviewed `v*` tag. The job verifies the SSH host key, uploads the reviewed Git archive, logs Docker into GHCR through stdin, runs forward migrations, configures/verifies least-privilege connector logins, waits for internal health, validates the four public edge endpoints, and then records `current-sha` and `previous-sha` under `shared/releases`.
 
 Application rollback uses a previously published 40-character SHA and the same script from that release directory. Database rollback is never automatic; use a reviewed forward migration. Do not replace `shared/.env`, discover host keys with `ssh-keyscan`, or bypass strict host verification.
 

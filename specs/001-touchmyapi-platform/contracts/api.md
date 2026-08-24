@@ -1,13 +1,14 @@
 # API Contract v1
 
-Base path: `/api/v1`. Auth: HttpOnly customer session cookie (Google OAuth PKCE) bound to one active `session.account_id`. JSON everywhere. Errors: `{ "error": { "code", "message", "field?" } }`. All mutations validate schema, active `account_membership(account_id,user_id)`, state, entitlement, and policy engine before applying (spec FR-014/FR-022). IDs never grant access.
+Base path: `/api/v1`. Auth: HttpOnly customer session cookie (GitHub OAuth PKCE) bound to one active `session.account_id`. JSON everywhere. Errors: `{ "error": { "code", "message", "field?" } }`. All mutations validate schema, active `account_membership(account_id,user_id)`, state, entitlement, and policy engine before applying (spec FR-014/FR-022). IDs never grant access.
 
 ## Session
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/auth/login` | start Google OAuth PKCE (redirect) |
-| GET | `/auth/callback` | exchange code; set session cookie |
+| GET | `/auth/providers` | list configured customer providers; empty when production login is intentionally disabled |
+| GET | `/auth/github/start` | start GitHub OAuth PKCE (redirect) |
+| GET | `/auth/github/callback` | exchange code; set session cookie |
 | POST | `/auth/logout` | revoke session |
 | GET | `/auth/me` | current global `user` + active account/membership (id, email, role, plan, iaEnabled) |
 
