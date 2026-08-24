@@ -65,7 +65,7 @@ git commit -m "feat: define GitHub authentication contracts"
 
 **Files:**
 
-- Create: `packages/db/migrations/0010_provider_auth_workspace.sql`
+- Create: `packages/db/migrations/0019_provider_auth_workspace.sql`
 - Create: `packages/db/test/provider-auth.integration.test.ts`
 - Modify: `packages/db/test/schema.integration.test.ts`
 - Modify: `packages/db/test/roles.isolation.test.ts`
@@ -112,9 +112,10 @@ The body must validate the provider/subject/hash/expiry, lock on `provider || ':
 Run:
 
 ```bash
-DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run db:migrate
-RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1
-RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:isolation --maxWorkers=1
+DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_integration_test bun run db:migrate
+DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_isolation_test bun run db:migrate
+RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_integration_test bun run test:integration --maxWorkers=1
+RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_isolation_test bun run test:isolation --maxWorkers=1
 ```
 
 Expected: PASS; `auth_bootstrap` can execute only fixed auth functions and cannot select tenant business tables.
@@ -122,7 +123,7 @@ Expected: PASS; `auth_bootstrap` can execute only fixed auth functions and canno
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/db/migrations/0010_provider_auth_workspace.sql packages/db/test/provider-auth.integration.test.ts packages/db/test/schema.integration.test.ts packages/db/test/roles.isolation.test.ts
+git add packages/db/migrations/0019_provider_auth_workspace.sql packages/db/test/provider-auth.integration.test.ts packages/db/test/schema.integration.test.ts packages/db/test/roles.isolation.test.ts
 git commit -m "feat: provision provider workspaces atomically"
 ```
 
@@ -552,14 +553,15 @@ bun scripts/validate-production-compose.ts
 
 Expected: every command exits 0; skipped DB tests are reported separately and are not counted as coverage.
 
-- [ ] **Step 2: Run full PostgreSQL gates sequentially on a freshly migrated test database**
+- [ ] **Step 2: Run full PostgreSQL gates on separate freshly migrated test databases**
 
 Run:
 
 ```bash
-DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run db:migrate
-RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:integration --maxWorkers=1
-RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_test bun run test:isolation --maxWorkers=1
+DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_integration_test bun run db:migrate
+DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_isolation_test bun run db:migrate
+RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_integration_test bun run test:integration --maxWorkers=1
+RUN_DB_TESTS=1 DATABASE_URL=postgres://touchmyapi_dev:touchmyapi_dev@127.0.0.1:5433/touchmyapi_isolation_test bun run test:isolation --maxWorkers=1
 ```
 
 Expected: PASS with zero skipped integration/isolation tests caused by missing database configuration.
